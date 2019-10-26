@@ -42,25 +42,39 @@ namespace pp_tokenaizer_test
 
       CHECK_UNARY(bool(fr));
 
+#ifdef _MSC_VER
+      constexpr std::size_t expected_len1 = 4;
+      constexpr std::size_t expected_len2 = 42;
+#else
+      constexpr std::size_t expected_len1 = 5;
+      constexpr std::size_t expected_len2 = 43;
+#endif
+
       //1行目
       auto line = fr.readline();
 
-      CHECK_UNARY(line.length() == 5);
-      //文字列末尾にCRコードが残っているはず
-      auto p = line.data() + 4;
-      CHECK_EQ(*p, u8'\x0d');
+      CHECK_UNARY(line.length() == expected_len1);
+      [[maybe_unused]] auto p1 = line.data() + 4;
 
       //2行目
       line = fr.readline();
 
-      CHECK_UNARY(line.length() == 43);
-      //文字列末尾にCRコードが残っているはず
-      p = line.data() + 42;
-      CHECK_EQ(*p, u8'\x0d');
+      CHECK_UNARY(line.length() == expected_len2);      
+      [[maybe_unused]] auto p2 = line.data() + 42;
+
+#ifndef _MSC_VER
+      //文字列末尾にCRコードが残っているはず（非Windowsのみ）
+      CHECK_UNARY(*p1 == u8'\x0d');
+      CHECK_UNARY(*p2 == u8'\x0d');
+#endif
 
       //3行目、最終行、改行なし
       line = fr.readline();
       CHECK_UNARY(line.length() == 4);
+
+      //4行目はない
+      line = fr.readline();
+      CHECK_UNARY(line.empty());
     }
 
     //LF改行ファイルのテスト
@@ -81,6 +95,10 @@ namespace pp_tokenaizer_test
       //3行目、最終行、改行なし
       line = fr.readline();
       CHECK_UNARY(line.length() == 2);
+
+      //4行目はない
+      line = fr.readline();
+      CHECK_UNARY(line.empty());
     }
   }
 

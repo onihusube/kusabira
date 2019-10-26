@@ -26,7 +26,7 @@ namespace kusabira::PP {
 
     fn readline() -> std::pmr::u8string {
 
-      if (std::getline(m_srcstream, m_buffer, '\x0a')) {
+      if (std::getline(m_srcstream, m_buffer)) {
         auto first = reinterpret_cast<char8_t *>(m_buffer.data());
         auto last = first + m_buffer.size();
 
