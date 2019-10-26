@@ -43,19 +43,19 @@ namespace pp_tokenaizer_test
       CHECK_UNARY(bool(fr));
 
 #ifdef _MSC_VER
-      constexpr std::size_t expected_len1 = 4;
+      constexpr std::size_t expected_len1 = 4 + 3;
       constexpr std::size_t expected_len2 = 42;
 #else
-      constexpr std::size_t expected_len1 = 5;
+      constexpr std::size_t expected_len1 = 5 + 3;
       constexpr std::size_t expected_len2 = 43;
 #endif
 
-      //1行目
+      //1行目（BOMを含んでいる）
       auto line = fr.readline();
 	  CHECK_UNARY(line.has_value());
 
       CHECK_UNARY(line->length() == expected_len1);
-      [[maybe_unused]] auto p1 = line->data() + 4;
+      [[maybe_unused]] auto p1 = line->data() + 4 + 3;
 
       //2行目
       line = fr.readline();

@@ -7,14 +7,6 @@
 
 #include "common.hpp"
 
-// namespace kusabira {
-//   namespace fs = std::filesystem;
-
-//   using u8_pmralloc = std::pmr::polymorphic_allocator<char8_t>;
-
-//   inline std::pmr::monotonic_buffer_resource def_mr{1024ul};
-// }
-
 namespace kusabira::PP {
 
   struct filereader {
@@ -28,10 +20,10 @@ namespace kusabira::PP {
     fn readline() -> maybe_u8str {
 
       if (std::getline(m_srcstream, m_buffer)) {
-        auto first = reinterpret_cast<char8_t *>(m_buffer.data());
+        auto first = reinterpret_cast<char8_t*>(m_buffer.data());
         auto last = first + m_buffer.size();
 
-		return std::pmr::u8string{first, last, m_alloc};
+        return std::pmr::u8string{first, last, m_alloc};
       } else {
         return std::nullopt;
       }
