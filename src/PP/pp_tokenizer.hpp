@@ -1,14 +1,18 @@
+#pragma once
+
 #include <fstream>
 #include <filesystem>
 #include <memory_resource>
 
-namespace kusabira {
-  namespace fs = std::filesystem;
+#include "common.hpp"
 
-  using u8_pmralloc = std::pmr::polymorphic_allocator<char8_t>;
+// namespace kusabira {
+//   namespace fs = std::filesystem;
 
-  inline std::pmr::monotonic_buffer_resource def_mr{1024ul};
-}
+//   using u8_pmralloc = std::pmr::polymorphic_allocator<char8_t>;
+
+//   inline std::pmr::monotonic_buffer_resource def_mr{1024ul};
+// }
 
 namespace kusabira::PP {
 
@@ -20,8 +24,7 @@ namespace kusabira::PP {
       , m_buffer{m_alloc}
     {}
 
-    [[nodiscard]]
-    auto readline() -> std::pmr::u8string {
+    fn readline() -> std::pmr::u8string {
 
       if (std::getline(m_srcstream, m_buffer, '\x0a')) {
         auto first = reinterpret_cast<char8_t *>(m_buffer.data());

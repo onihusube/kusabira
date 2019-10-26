@@ -1,3 +1,5 @@
+#pragma once
+
 #include "doctest/doctest.h"
 
 #include "PP/pp_tokenizer.hpp"
@@ -10,8 +12,7 @@ namespace kusabira::test {
   * @detail その他変なところでやられると全くうまく動かない
   * @return kusabiraのテストファイル群があるトップのディレクトリ
   */
-  [[nodiscard]]
-  inline auto get_testfiles_dir() -> std::filesystem::path {
+  fni get_testfiles_dir() -> std::filesystem::path {
     auto current_dir = std::filesystem::current_path();
     const auto parentdir_name = current_dir.parent_path().filename().string();
 
