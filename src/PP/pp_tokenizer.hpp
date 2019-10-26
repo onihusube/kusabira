@@ -23,7 +23,7 @@ namespace kusabira::PP {
         auto first = reinterpret_cast<char8_t*>(m_buffer.data());
         auto last = first + m_buffer.size();
 
-        return std::pmr::u8string{first, last, m_alloc};
+        return maybe_u8str{std::in_place, first, last, m_alloc };
       } else {
         return std::nullopt;
       }
