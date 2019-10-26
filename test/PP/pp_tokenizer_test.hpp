@@ -52,15 +52,17 @@ namespace pp_tokenaizer_test
 
       //1行目
       auto line = fr.readline();
+	  CHECK_UNARY(line.has_value());
 
-      CHECK_UNARY(line.length() == expected_len1);
-      [[maybe_unused]] auto p1 = line.data() + 4;
+      CHECK_UNARY(line->length() == expected_len1);
+      [[maybe_unused]] auto p1 = line->data() + 4;
 
       //2行目
       line = fr.readline();
+	  CHECK_UNARY(line.has_value());
 
-      CHECK_UNARY(line.length() == expected_len2);      
-      [[maybe_unused]] auto p2 = line.data() + 42;
+      CHECK_UNARY(line->length() == expected_len2);      
+      [[maybe_unused]] auto p2 = line->data() + 42;
 
 #ifndef _MSC_VER
       //文字列末尾にCRコードが残っているはず（非Windowsのみ）
@@ -70,11 +72,12 @@ namespace pp_tokenaizer_test
 
       //3行目、最終行、改行なし
       line = fr.readline();
-      CHECK_UNARY(line.length() == 4);
+	  CHECK_UNARY(line.has_value());
+      CHECK_UNARY(line->length() == 4);
 
       //4行目はない
       line = fr.readline();
-      CHECK_UNARY(line.empty());
+      CHECK_UNARY_FALSE(line.has_value());
     }
 
     //LF改行ファイルのテスト
@@ -85,20 +88,22 @@ namespace pp_tokenaizer_test
 
       //1行目
       auto line = fr.readline();
-
-      CHECK_UNARY(line.length() == 4);
+	  CHECK_UNARY(line.has_value());
+      CHECK_UNARY(line->length() == 4);
 
       //2行目
       line = fr.readline();
-      CHECK_UNARY(line.length() == 15);
+	  CHECK_UNARY(line.has_value());
+      CHECK_UNARY(line->length() == 15);
 
       //3行目、最終行、改行なし
       line = fr.readline();
-      CHECK_UNARY(line.length() == 2);
+	  CHECK_UNARY(line.has_value());
+      CHECK_UNARY(line->length() == 2);
 
       //4行目はない
       line = fr.readline();
-      CHECK_UNARY(line.empty());
+	  CHECK_UNARY_FALSE(line.has_value());
     }
   }
 

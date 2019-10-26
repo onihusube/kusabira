@@ -3,6 +3,7 @@
 #include <fstream>
 #include <filesystem>
 #include <memory_resource>
+#include <optional>
 
 #include "common.hpp"
 
@@ -24,15 +25,15 @@ namespace kusabira::PP {
       , m_buffer{m_alloc}
     {}
 
-    fn readline() -> std::pmr::u8string {
+    fn readline() -> maybe_u8str {
 
       if (std::getline(m_srcstream, m_buffer)) {
         auto first = reinterpret_cast<char8_t *>(m_buffer.data());
         auto last = first + m_buffer.size();
 
-        return std::pmr::u8string{first, last, m_alloc};
+		return std::pmr::u8string{first, last, m_alloc};
       } else {
-        return std::pmr::u8string{m_alloc};
+        return std::nullopt;
       }
     }
 
