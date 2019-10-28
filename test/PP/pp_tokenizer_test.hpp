@@ -42,37 +42,27 @@ namespace pp_tokenaizer_test
 
       CHECK_UNARY(bool(fr));
 
-#ifdef _MSC_VER
-      constexpr std::size_t expected_len1 = 4 + 3;
-      constexpr std::size_t expected_len2 = 42;
-#else
-      constexpr std::size_t expected_len1 = 5 + 3;
-      constexpr std::size_t expected_len2 = 43;
-#endif
-
       //1行目（BOMを含んでいる）
       auto line = fr.readline();
-	  CHECK_UNARY(line.has_value());
+      CHECK_UNARY(line.has_value());
 
-      CHECK_UNARY(line->length() == expected_len1);
-      [[maybe_unused]] auto p1 = line->data() + 4 + 3;
+      CHECK_EQ(line->length(), 4);
+      //文字列末尾にCRコードが残っていないはず
+      auto p = line->back();
+      CHECK_UNARY(p != u8'\x0d');
 
       //2行目
       line = fr.readline();
-	  CHECK_UNARY(line.has_value());
+      CHECK_UNARY(line.has_value());
 
-      CHECK_UNARY(line->length() == expected_len2);      
-      [[maybe_unused]] auto p2 = line->data() + 42;
-
-#ifndef _MSC_VER
-      //文字列末尾にCRコードが残っているはず（非Windowsのみ）
-      CHECK_UNARY(*p1 == u8'\x0d');
-      CHECK_UNARY(*p2 == u8'\x0d');
-#endif
+      CHECK_EQ(line->length(), 42);
+      //文字列末尾にCRコードが残っていないはず
+      p = line->back();
+      CHECK_UNARY(p != u8'\x0d');
 
       //3行目、最終行、改行なし
       line = fr.readline();
-	  CHECK_UNARY(line.has_value());
+      CHECK_UNARY(line.has_value());
       CHECK_UNARY(line->length() == 4);
 
       //4行目はない
@@ -88,22 +78,22 @@ namespace pp_tokenaizer_test
 
       //1行目
       auto line = fr.readline();
-	  CHECK_UNARY(line.has_value());
+      CHECK_UNARY(line.has_value());
       CHECK_UNARY(line->length() == 4);
 
       //2行目
       line = fr.readline();
-	  CHECK_UNARY(line.has_value());
+      CHECK_UNARY(line.has_value());
       CHECK_UNARY(line->length() == 15);
 
       //3行目、最終行、改行なし
       line = fr.readline();
-	  CHECK_UNARY(line.has_value());
+      CHECK_UNARY(line.has_value());
       CHECK_UNARY(line->length() == 2);
 
       //4行目はない
       line = fr.readline();
-	  CHECK_UNARY_FALSE(line.has_value());
+      CHECK_UNARY_FALSE(line.has_value());
     }
   }
 
