@@ -42,13 +42,15 @@ namespace pp_tokenaizer_test
 
       CHECK_UNARY(bool(fr));
 
+      std::size_t now_line = 1;
+
       //1行目
       {
         auto line = fr.readline();
         CHECK_UNARY(line.has_value());
 
         CHECK_EQ(line->line.length(), 6);
-        CHECK_EQ(line->phisic_line, 1);
+        CHECK_EQ(line->phisic_line, now_line++);
         //文字列末尾にCRコードが残っていないはず
         auto p = line->line.back();
         CHECK_UNARY(p != u8'\x0d');
@@ -60,7 +62,7 @@ namespace pp_tokenaizer_test
         CHECK_UNARY(line.has_value());
 
         CHECK_EQ(line->line.length(), 42);
-        CHECK_EQ(line->phisic_line, 2);
+        CHECK_EQ(line->phisic_line, now_line++);
         //文字列末尾にCRコードが残っていないはず
         auto p = line->line.back();
         CHECK_UNARY(p != u8'\x0d');
@@ -72,10 +74,11 @@ namespace pp_tokenaizer_test
         CHECK_UNARY(line.has_value());
         CHECK_UNARY(line->line.length() == 15);
         CHECK_UNARY(line->line == u8"line continuous");
-        CHECK_EQ(line->phisic_line, 3);
+        CHECK_EQ(line->phisic_line, now_line++);
         CHECK_EQ(line->line_offset.size(), 2);
         CHECK_EQ(line->line_offset[0], 5);
         CHECK_EQ(line->line_offset[1], 5 + line->line_offset[0]);
+        now_line += line->line_offset.size();
       }
 
       //6行目、空行
@@ -83,7 +86,7 @@ namespace pp_tokenaizer_test
         auto line = fr.readline();
         CHECK_UNARY(line.has_value());
         CHECK_UNARY(line->line.empty());
-        CHECK_EQ(line->phisic_line, 6);
+        CHECK_EQ(line->phisic_line, now_line++);
       }
 
       //7行目、最終行、改行なし
@@ -91,7 +94,7 @@ namespace pp_tokenaizer_test
         auto line = fr.readline();
         CHECK_UNARY(line.has_value());
         CHECK_UNARY(line->line.length() == 4);
-        CHECK_EQ(line->phisic_line, 7);
+        CHECK_EQ(line->phisic_line, now_line++);
       }
 
       //8行目はない
@@ -107,12 +110,14 @@ namespace pp_tokenaizer_test
 
       CHECK_UNARY(bool(fr));
 
+      std::size_t now_line = 1;
+
       //1行目
       {
         auto line = fr.readline();
         CHECK_UNARY(line.has_value());
         CHECK_UNARY(line->line.length() == 4);
-        CHECK_EQ(line->phisic_line, 1);
+        CHECK_EQ(line->phisic_line, now_line++);
       }
 
       //2行目
@@ -120,7 +125,7 @@ namespace pp_tokenaizer_test
         auto line = fr.readline();
         CHECK_UNARY(line.has_value());
         CHECK_UNARY(line->line.length() == 15);
-        CHECK_EQ(line->phisic_line, 2);
+        CHECK_EQ(line->phisic_line, now_line++);
       }
 
       //3~5行目
@@ -129,10 +134,11 @@ namespace pp_tokenaizer_test
         CHECK_UNARY(line.has_value());
         CHECK_UNARY(line->line.length() == 15);
         CHECK_UNARY(line->line == u8"line continuous");
-        CHECK_EQ(line->phisic_line, 3);
+        CHECK_EQ(line->phisic_line, now_line++);
         CHECK_EQ(line->line_offset.size(), 2);
         CHECK_EQ(line->line_offset[0], 5);
         CHECK_EQ(line->line_offset[1], 5 + line->line_offset[0]);
+        now_line += line->line_offset.size();
       }
 
       //6行目、空行
@@ -140,7 +146,7 @@ namespace pp_tokenaizer_test
         auto line = fr.readline();
         CHECK_UNARY(line.has_value());
         CHECK_UNARY(line->line.empty());
-        CHECK_EQ(line->phisic_line, 6);
+        CHECK_EQ(line->phisic_line, now_line++);
       }
 
       //7行目、最終行、改行なし
@@ -148,7 +154,7 @@ namespace pp_tokenaizer_test
         auto line = fr.readline();
         CHECK_UNARY(line.has_value());
         CHECK_UNARY(line->line.length() == 2);
-        CHECK_EQ(line->phisic_line, 7);
+        CHECK_EQ(line->phisic_line, now_line++);
       }
 
       //8行目はない

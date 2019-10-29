@@ -4,6 +4,8 @@
 #include <filesystem>
 #include <memory_resource>
 #include <optional>
+#include <forward_list>
+#include <cctype>
 
 #include "common.hpp"
 
@@ -32,6 +34,10 @@ namespace kusabira::PP {
 
   using maybe_line = std::optional<logical_line>;
 
+  /**
+  * @brief ソースファイルから文字列を読み出す処理を担う
+  * @detail 入力はUTF-8固定、BOM有無、改行コードはどちらでもいい
+  */
   class filereader {
 
     std::ifstream m_srcstream;
@@ -123,23 +129,92 @@ namespace kusabira::PP {
     }
   };
 
+  /**
+  * @brief ソースファイルからプリプロセッシングトークンを抽出する
+  * @detail ファイルの読み込みはこのクラスでは実装しない
+  */
   struct tokenizer {
+    using line_iterator = std::pmr::forward_list<logical_line>::iterator;
+    using char_iterator = std::pmr::u8string::iterator;
+
     filereader m_fr;
-    u8_pmralloc m_alloc;
-    std::pmr::vector<std::pmr::u8string> m_lines;
+    std::pmr::polymorphic_allocator<logical_line> m_alloc;
+
+    std::pmr::forward_list<logical_line> m_lines; //行バッファ
+    line_iterator m_line_pos; //行位置
+    char_iterator m_pos{};  //文字位置
+    char_iterator m_end{};  //文字の終端
 
     tokenizer(const fs::path& srcpath, std::pmr::memory_resource* mr = &kusabira::def_mr) 
       : m_fr{srcpath, mr}
       , m_alloc{mr}
       , m_lines{m_alloc}
-    {
-      m_lines.reserve(50);
+      , m_line_pos{m_lines.before_begin()}
+    {}
+
+    /**
+    * @brief 現在の読み取り行を進める
+    * @return 行読み取りに成功したか否か
+    */
+    fn readline() -> bool {
+      if (auto line_opt = m_fr.readline(); line_opt) {
+        //次の行の読み出しに成功したら、行バッファに入れておく（optionalを剥がす）
+        m_line_pos = m_lines.emplace_after(m_line_pos, *std::move(line_opt));
+
+        //現在の文字参照位置を更新
+        auto& str = (*m_line_pos).line;
+        m_pos = str.begin();
+        m_end = str.end();
+
+        return true;
+      }
+      else {
+        return false;
+      }
     }
 
-    // fn operator()() -> std::u8string_view {
-    //   auto& line = m_lines.emplace_back(m_fr.readline());
+    /**
+    * @brief 文字を1文字読み進める
+    * @param mode 読み取りモード（ホワイトスペース/非空白文字）
+    * @param pos 現在の読み取り位置
+    * @return 読み取り対象以外に達したらfalse
+    */
+    fn skip_read(bool mode, char_iterator& pos) -> bool {
+      ++pos;
+      bool is_space = std::isspace(static_cast<unsigned char>(*pos));
 
-    // }
+      if (mode == true) {
+        //ホワイトスペース読み取りモード（ホワイトスペースである間読み取り）
+        return is_space;
+      } else {
+        //非空白文字読み取りモード（ホワイトスペースではない間読み取り）
+        return !is_space;
+      }
+    }
+
+    /**
+    * @brief ホワイトスペースとそれ以外を分別する
+    * @return ホワイトスペース/それ以外の文字列と付随情報
+    */
+    fn separate_whitspace() -> std::optional<std::u8string_view> {
+      //現在の文字位置が行終端に到達していたら次の行を読む
+      if (m_pos != m_end) {
+        //次の行の読み込みができなかったら終了
+        if (this->readline() == false) return std::nullopt;
+      }
+
+      //1文字目はホワイトスペースかそれ以外かで読み取るものが変わる
+      bool mode = std::isspace(static_cast<unsigned char>(*m_pos)) ? true : false;
+      //先頭位置
+      const auto first = m_pos;
+
+      do {
+        if (skip_read(mode, m_pos) == false) break;
+      } while (m_pos != m_end); //行末に到達しても終了
+
+      //ホワイトスペースかそれ以外の文字、の列（のview）
+      return std::optional<std::u8string_view>(std::in_place, &*first, std::distance(first, m_pos));
+    }
   };
 
 } // namespace kusabira::PP
