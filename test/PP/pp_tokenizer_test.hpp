@@ -42,32 +42,55 @@ namespace pp_tokenaizer_test
 
       CHECK_UNARY(bool(fr));
 
-      //1行目（BOMを含んでいる）
-      auto line = fr.readline();
-      CHECK_UNARY(line.has_value());
+      //1行目
+      {
+        auto line = fr.readline();
+        CHECK_UNARY(line.has_value());
 
-      CHECK_EQ(line->length(), 4);
-      //文字列末尾にCRコードが残っていないはず
-      auto p = line->back();
-      CHECK_UNARY(p != u8'\x0d');
+        CHECK_EQ(line->line.length(), 6);
+        CHECK_EQ(line->phisic_line, 1);
+        //文字列末尾にCRコードが残っていないはず
+        auto p = line->line.back();
+        CHECK_UNARY(p != u8'\x0d');
+      }
 
       //2行目
-      line = fr.readline();
-      CHECK_UNARY(line.has_value());
+      {
+        auto line = fr.readline();
+        CHECK_UNARY(line.has_value());
 
-      CHECK_EQ(line->length(), 42);
-      //文字列末尾にCRコードが残っていないはず
-      p = line->back();
-      CHECK_UNARY(p != u8'\x0d');
+        CHECK_EQ(line->line.length(), 42);
+        CHECK_EQ(line->phisic_line, 2);
+        //文字列末尾にCRコードが残っていないはず
+        auto p = line->line.back();
+        CHECK_UNARY(p != u8'\x0d');
+      }
 
-      //3行目、最終行、改行なし
-      line = fr.readline();
-      CHECK_UNARY(line.has_value());
-      CHECK_UNARY(line->length() == 4);
+      //3~5行目
+      {
+        auto line = fr.readline();
+        CHECK_UNARY(line.has_value());
+        CHECK_UNARY(line->line.length() == 15);
+        CHECK_UNARY(line->line == u8"line continuous");
+        CHECK_EQ(line->phisic_line, 3);
+        CHECK_EQ(line->line_offset.size(), 2);
+        CHECK_EQ(line->line_offset[0], 5);
+        CHECK_EQ(line->line_offset[1], 5 + line->line_offset[0]);
+      }
 
-      //4行目はない
-      line = fr.readline();
-      CHECK_UNARY_FALSE(line.has_value());
+      //6行目、最終行、改行なし
+      {
+        auto line = fr.readline();
+        CHECK_UNARY(line.has_value());
+        CHECK_UNARY(line->line.length() == 4);
+        CHECK_EQ(line->phisic_line, 6);
+      }
+
+      //7行目はない
+      {
+        auto line = fr.readline();
+        CHECK_UNARY_FALSE(line.has_value());
+      }
     }
 
     //LF改行ファイルのテスト
@@ -77,23 +100,46 @@ namespace pp_tokenaizer_test
       CHECK_UNARY(bool(fr));
 
       //1行目
-      auto line = fr.readline();
-      CHECK_UNARY(line.has_value());
-      CHECK_UNARY(line->length() == 4);
+      {
+        auto line = fr.readline();
+        CHECK_UNARY(line.has_value());
+        CHECK_UNARY(line->line.length() == 4);
+        CHECK_EQ(line->phisic_line, 1);
+      }
 
       //2行目
-      line = fr.readline();
-      CHECK_UNARY(line.has_value());
-      CHECK_UNARY(line->length() == 15);
+      {
+        auto line = fr.readline();
+        CHECK_UNARY(line.has_value());
+        CHECK_UNARY(line->line.length() == 15);
+        CHECK_EQ(line->phisic_line, 2);
+      }
 
-      //3行目、最終行、改行なし
-      line = fr.readline();
-      CHECK_UNARY(line.has_value());
-      CHECK_UNARY(line->length() == 2);
+      //3~5行目
+      {
+        auto line = fr.readline();
+        CHECK_UNARY(line.has_value());
+        CHECK_UNARY(line->line.length() == 15);
+        CHECK_UNARY(line->line == u8"line continuous");
+        CHECK_EQ(line->phisic_line, 3);
+        CHECK_EQ(line->line_offset.size(), 2);
+        CHECK_EQ(line->line_offset[0], 5);
+        CHECK_EQ(line->line_offset[1], 5 + line->line_offset[0]);
+      }
 
-      //4行目はない
-      line = fr.readline();
-      CHECK_UNARY_FALSE(line.has_value());
+      //6行目、最終行、改行なし
+      {
+        auto line = fr.readline();
+        CHECK_UNARY(line.has_value());
+        CHECK_UNARY(line->line.length() == 2);
+        CHECK_EQ(line->phisic_line, 6);
+      }
+
+      //7行目はない
+      {
+        auto line = fr.readline();
+        CHECK_UNARY_FALSE(line.has_value());
+      }
     }
   }
 

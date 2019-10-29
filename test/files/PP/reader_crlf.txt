@@ -1,3 +1,6 @@
-﻿test
+﻿test\\
 テスト実行のためのサンプル行
+line \
+conti\
+nuous
 CRLF

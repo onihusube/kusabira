@@ -1,3 +1,6 @@
 test
 サンプル行
+line \
+conti\
+nuous
 LF
