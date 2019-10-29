@@ -78,15 +78,23 @@ namespace pp_tokenaizer_test
         CHECK_EQ(line->line_offset[1], 5 + line->line_offset[0]);
       }
 
-      //6行目、最終行、改行なし
+      //6行目、空行
+      {
+        auto line = fr.readline();
+        CHECK_UNARY(line.has_value());
+        CHECK_UNARY(line->line.empty());
+        CHECK_EQ(line->phisic_line, 6);
+      }
+
+      //7行目、最終行、改行なし
       {
         auto line = fr.readline();
         CHECK_UNARY(line.has_value());
         CHECK_UNARY(line->line.length() == 4);
-        CHECK_EQ(line->phisic_line, 6);
+        CHECK_EQ(line->phisic_line, 7);
       }
 
-      //7行目はない
+      //8行目はない
       {
         auto line = fr.readline();
         CHECK_UNARY_FALSE(line.has_value());
@@ -127,15 +135,23 @@ namespace pp_tokenaizer_test
         CHECK_EQ(line->line_offset[1], 5 + line->line_offset[0]);
       }
 
-      //6行目、最終行、改行なし
+      //6行目、空行
+      {
+        auto line = fr.readline();
+        CHECK_UNARY(line.has_value());
+        CHECK_UNARY(line->line.empty());
+        CHECK_EQ(line->phisic_line, 6);
+      }
+
+      //7行目、最終行、改行なし
       {
         auto line = fr.readline();
         CHECK_UNARY(line.has_value());
         CHECK_UNARY(line->line.length() == 2);
-        CHECK_EQ(line->phisic_line, 6);
+        CHECK_EQ(line->phisic_line, 7);
       }
 
-      //7行目はない
+      //8行目はない
       {
         auto line = fr.readline();
         CHECK_UNARY_FALSE(line.has_value());

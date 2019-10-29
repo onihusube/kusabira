@@ -99,15 +99,16 @@ namespace kusabira::PP {
         //バックスラッシュによる行継続と論理行生成
         while (ll.line.back() == u8'\x5c') {
           auto last = ll.line.end() - 1;
-          //行末がコメントだったら行継続しない
+          //バックスラッシュ2つならびは行継続しない
           if (*(last - 1) == u8'\x5c') break;
+
           //行末尾バックスラッシュを削除
           ll.line.erase(last);
           //現在までの行の文字列長を記録
           ll.line_offset.emplace_back(ll.line.length());
+
           //次の行を読み込み、追記
-          if (this->readline_impl(ll.line) == false)
-            break;
+          if (this->readline_impl(ll.line) == false) break;
           //読み込みに成功したら再び行継続チェック
         }
 
