@@ -8,6 +8,7 @@
 #include <cctype>
 
 #include "common.hpp"
+#include "pp_automaton.hpp"
 
 namespace kusabira::PP {
 
