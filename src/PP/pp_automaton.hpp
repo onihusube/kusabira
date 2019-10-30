@@ -8,12 +8,12 @@
 namespace kusabira::sm {
 
   template<typename... Fs>
-	struct overloaded : public Fs... {
-	  using Fs::operator()...;
-	};
+    struct overloaded : public Fs... {
+      using Fs::operator()...;
+    };
 
-	template<typename... Fs>
-	overloaded(Fs&&...) -> overloaded<std::decay_t<Fs>...>;
+    template<typename... Fs>
+    overloaded(Fs&&...) -> overloaded<std::decay_t<Fs>...>;
 
   /**
   * @brief 型リストに型が含まれているかを調べる
@@ -109,11 +109,11 @@ namespace kusabira::sm {
   };
 
   /**
-	* @brief Stateの共通部分となるクラス
-	* @tparam Table 状態遷移テーブル
-	* @tparam States... 取りうる状態の型のリスト
-	* @detail 継承して使用する
-	*/
+    * @brief Stateの共通部分となるクラス
+    * @tparam Table 状態遷移テーブル
+    * @tparam States... 取りうる状態の型のリスト
+    * @detail 継承して使用する
+    */
   template <typename Table, typename... States>
   class state_base {
 
@@ -306,7 +306,7 @@ namespace kusabira::PP
           }
         },
         //記号列の読み出し
-        [this](states::punct_seq state, char8_t ch){
+        [this](states::punct_seq state, char8_t ch) -> bool {
           if (std::ispunct(static_cast<unsigned char>(ch))) {
             return true;
           } else {
