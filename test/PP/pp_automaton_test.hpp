@@ -95,4 +95,27 @@ namespace pp_automaton_test
     CHECK_UNARY_FALSE(sm.should_line_continue());
   }
 
+  TEST_CASE("string literal test") {
+    {
+      kusabira::PP::pp_tokenizer_sm sm{};
+      std::u8string str = u8R"**("2345678djfb niweruo3rp  <>?_+*}`{=~|\t\n\f\\'[]:/]/,.-")**";
+
+      for (auto c : str) {
+        CHECK_UNARY(sm.read(c));
+      }
+
+      CHECK_UNARY_FALSE(sm.read(' '));
+    }
+
+    {
+      kusabira::PP::pp_tokenizer_sm sm{};
+      std::u8string str = u8"'2345678djfb niweruo3rp  <>?_+*}`{=~|\t\n\f\\[]:/]/,.-\'";
+
+      for (auto c : str) {
+        CHECK_UNARY(sm.read(c));
+      }
+
+      CHECK_UNARY_FALSE(sm.read(' '));
+    }
+  }
 }

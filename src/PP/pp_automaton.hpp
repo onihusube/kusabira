@@ -121,11 +121,12 @@ namespace kusabira::sm {
 
   protected:
 
-    template <typename NextState, typename NowState>
-    void transition(NowState) {
+    template <typename NextState, typename NowState, typename... Args>
+    void transition(NowState, Args&&... args) {
+      //状態遷移が妥当かを状態遷移表をもとにチェック
       static_assert(kusabira::sm::transition_check<NowState, NextState, Table>::value, "Invalid state transition.");
 
-      m_state.template emplace<NextState>();
+      m_state.template emplace<NextState>(std::forward<Args>(args)...);
     }
 
     template <typename F>
@@ -141,6 +142,10 @@ namespace kusabira::sm {
 
 namespace kusabira::PP
 {
+
+  /**
+  * @brief プリプロセッシングトークンを分割する状態機械の状態型定義
+  */
   namespace states {
     struct init {};
 
@@ -153,46 +158,93 @@ namespace kusabira::PP
 
     struct identifier_seq {};
 
+    /**
+    * @brief 文字・文字列リテラルっぽい文字
+    */
+    struct maybe_str_literal {};
+
+    /**
+    * @brief UTF-8文字・文字列リテラルっぽい文字
+    */
+    struct maybe_u8str_literal {};
+
+    /**
+    * @brief uR""の形の文字列リテラルかもしれない・・・
+    */
+    struct maybe_uR_prefix {};
+
+    /**
+    * @brief 生文字列リテラルっぽい文字
+    */
+    struct maybe_rawstr_literal{};
+
+    /**
+    * @brief 生文字列リテラル
+    */
+    struct raw_string_literal {};
+
     struct char_literal {};
 
     struct string_literal {};
 
-    /**
-    * @brief　生文字列リテラルの読み取り
-    */
-    struct raw_string_literal {};
+    struct number_literal {};
+
+    struct number_sign {};
 
     /**
     * @brief 文字列リテラル中のエスケープシーケンスを無視する
     */
-    struct ignore_escape_seq {};
+    struct ignore_escape_seq {
 
-    struct maybe_string_literal {};
+      //文字と文字列、どちらを読み取り中なのか?
+      //trueで文字列リテラル
+      bool is_string_parsing;
 
-    struct maybe_u8string_literal {};
+      ignore_escape_seq(bool is_str_parsing)
+       : is_string_parsing(is_str_parsing)
+      {}
+    };
 
     struct punct_seq {};
+
 
     using kusabira::sm::table;
     using kusabira::sm::row;
 
     using transition_table = table<
-        row<init, white_space_seq, identifier_seq, string_literal, char_literal, raw_string_literal, maybe_string_literal, maybe_u8string_literal, punct_seq>,
+        row<init, white_space_seq, identifier_seq, maybe_str_literal, maybe_u8str_literal, maybe_rawstr_literal, raw_string_literal, string_literal, char_literal, number_literal, number_sign, punct_seq, end_seq>,
         row<end_seq, init>,
         row<white_space_seq, init>,
         row<identifier_seq, init>,
+        row<maybe_str_literal, string_literal, char_literal, maybe_rawstr_literal, identifier_seq>,
+        row<maybe_u8str_literal, string_literal, char_literal, maybe_str_literal, maybe_rawstr_literal, identifier_seq>,
+        row<maybe_rawstr_literal, raw_string_literal, identifier_seq>,
+        row<raw_string_literal, end_seq>,
         row<string_literal, ignore_escape_seq, end_seq>,
         row<char_literal, ignore_escape_seq, end_seq>,
         row<ignore_escape_seq, string_literal, char_literal>,
-        //row<raw_string_literal, init>,
-        //row<maybe_string_literal, string_literal, identifier_seq>,
-        //row<maybe_u8string_literal, string_literal, raw_string_literal, identifier_seq>,
+        row<number_literal, number_sign, init>,
+        row<number_sign, number_literal, init>,
         row<punct_seq, init>>;
   } // namespace states
 
+  /**
+  * @brief プリプロセッシングトークンのカテゴリ
+  * @detail トークナイズ後に識別を容易にするためのもの
+  * @detail 規格書 5.4 Preprocessing tokens [lex.pptoken]のプリプロセッシングトークン分類とは一致していない（同じものを対象としてはいる）
+  */
+  enum class pp_token_category : unsigned int {
+    Whitspaces,     //ホワイトスペースの列、もしくはコメント
+    Identifier,     //識別子、文字列リテラルのプレフィックス、ユーザー定義リテラル、ヘッダ名、importを含む
+    StringLiteral,  //文字・文字列リテラル、LRUu8等のプレフィックスは含まない
+    NumberLiteral,  //数値リテラル
+    OPorPunc,       //記号列、それが演算子として妥当であるかはチェックしていない
+    OtherChar       //その他の非空白文字の一文字
+  };
 
-  fni is_identifier_char(char8_t ch) -> bool {
-    return std::isalpha(static_cast<unsigned char>(ch)) || ch == u8'_';
+
+  fni is_nondigit(char8_t ch) -> bool {
+    return std::isalpha(static_cast<unsigned char>(ch)) or ch == u8'_';
   }
 
   struct pp_tokenizer_sm
@@ -200,8 +252,10 @@ namespace kusabira::PP
             states::transition_table,
             states::init, states::end_seq,
             states::white_space_seq, states::identifier_seq,
-            states::string_literal, states::char_literal, states::raw_string_literal, states::maybe_string_literal, states::ignore_escape_seq,
-            states::punct_seq>
+            states::maybe_str_literal, states::maybe_rawstr_literal, states::maybe_u8str_literal,
+            states::raw_string_literal,
+            states::string_literal, states::char_literal, states::ignore_escape_seq,
+            states::number_literal, states::number_sign, states::punct_seq>
   {
 
     pp_tokenizer_sm() = default;
@@ -232,29 +286,33 @@ namespace kusabira::PP
           if (std::isspace(cv)) {
             //ホワイトスペース列読み込みモード
             this->transition<states::white_space_seq>(state);
-          } else if(ch == u8'U' || ch == u8'L') {
-            //文字列リテラルと思しき列の読み込み
-            this->transition<states::maybe_string_literal>(state);
-          } else if(ch == u8'R') {
-            //生文字列リテラルのような列の読み込み
-            this->transition<states::maybe_string_literal>(state);
-          } else if(ch == u8'u') {
-            //u8文字列リテラルっぽい列の読み込み
-            this->transition<states::maybe_string_literal>(state);
+          } else if (ch == u8'R') {
+            //生文字列リテラルの可能性がある
+            this->transition<states::maybe_rawstr_literal>(state);
+          } else if (ch == u8'L' or ch == u8'R' or ch == u8'U' ) {
+            //文字列リテラルの可能性がある
+            this->transition<states::maybe_str_literal>(state);
+          } else if (ch == u8'u') {
+            //u・u8リテラルの可能性がある
+            this->transition<states::maybe_u8str_literal>(state);
           } else if (ch == u8'"') {
             //文字列リテラル読み込み
             this->transition<states::string_literal>(state);
           } else if (ch == u8'\'') {
             //文字リテラル読み込み
             this->transition<states::char_literal>(state);
-          } else if (std::isalpha(cv) || ch == u8'_') {
+          } else if (is_nondigit(ch)) {
             //識別子読み込みモード、識別子の先頭は非数字でなければならない
             this->transition<states::identifier_seq>(state);
+          } else if (std::isdigit(cv)) {
+            //数値リテラル読み取り
+            this->transition<states::number_literal>(state);
           } else if (std::ispunct(cv)) {
             //区切り文字（記号）列読み取りモード
             this->transition<states::punct_seq>(state);
           } else {
-            return false;
+            //その他上記に当てはまらない非空白文字、1文字づつ分離
+            this->transition<states::end_seq>(state);
           }
           return true;
         },
@@ -270,11 +328,68 @@ namespace kusabira::PP
             return this->restart(state, ch);
           }
         },
+        //文字列リテラル判定
+        [this](states::maybe_str_literal state, char8_t ch) -> bool {
+          if (ch == u8'R') {
+            //生文字列リテラルっぽい
+            this->transition<states::maybe_rawstr_literal>(state);
+          } else if (ch == u8'\'') {
+            //文字リテラル確定
+            this->transition<states::char_literal>(state);
+          } else if (ch == u8'"') {
+            //文字列リテラル確定
+            this->transition<states::string_literal>(state);
+          } else {
+            //本当は不正確、例えば記号が来た時は明らかにエラー
+            this->transition<states::identifier_seq>(state);
+          }
+          return true;
+        },
+        //u・u8リテラル判定
+        [this](states::maybe_u8str_literal state, char8_t ch) -> bool {
+          if (ch == u8'8') {
+            //u8から始まる文字・文字列リテラルっぽい
+            this->transition<states::maybe_str_literal>(state);
+          } else if (ch == u8'\'') {
+            //u''の形の文字リテラル確定
+            this->transition<states::char_literal>(state);
+          } else if (ch == u8'"') {
+            //u""の形の文字列リテラル確定
+            this->transition<states::string_literal>(state);
+          } else if (ch == u8'R') {
+            //uRの形の文字列リテラルっぽい
+            this->transition<states::maybe_rawstr_literal>(state);
+          } else {
+            //本当は不正確、例えば記号が来た時は明らかにエラー
+            this->transition<states::identifier_seq>(state);
+          }
+          return true;
+        },
+        //生文字列リテラル判定
+        [this](states::maybe_rawstr_literal state, char8_t ch) -> bool {
+          if (ch == u8'"') {
+            //生文字列リテラル確定
+            this->transition<states::raw_string_literal>(state);
+          } else {
+            //本当は不正確、例えば記号が来た時は明らかにエラー
+            this->transition<states::identifier_seq>(state);
+          }
+          return true;
+        },
+        //生文字列リテラル読み込み
+        [this](states::raw_string_literal state, char8_t ch) -> bool {
+          if (ch == u8'"') {
+            this->transition<states::end_seq>(state);
+            return false;
+          } else {
+            return true;
+          }
+        },
         //文字列リテラル読み込み
         [this](states::string_literal state, char8_t ch) -> bool {
           if (ch == u8'\\') {
             //エスケープシーケンスを無視
-            this->transition<states::ignore_escape_seq>(state);
+            this->transition<states::ignore_escape_seq>(state, true);
           } else if (ch == u8'"') {
             //クオートを読んだら次で終了
             this->transition<states::end_seq>(state);
@@ -285,7 +400,7 @@ namespace kusabira::PP
         [this](states::char_literal state, char8_t ch) -> bool {
           if (ch == u8'\\') {
             //エスケープシーケンスを無視
-            this->transition<states::ignore_escape_seq>(state);
+            this->transition<states::ignore_escape_seq>(state, false);
           } else if (ch == u8'\'') {
             //クオートを読んだら次で終了
             this->transition<states::end_seq>(state);
@@ -294,12 +409,44 @@ namespace kusabira::PP
         },
         //エスケープシーケンスを飛ばして文字読み込み継続
         [this](states::ignore_escape_seq state, char8_t) -> bool {
-          this->transition<states::string_literal>(state);
+          if (state.is_string_parsing == true) {
+            this->transition<states::string_literal>(state);
+          } else {
+            this->transition<states::char_literal>(state);
+          }
           return true;
         },
         //識別子読み出し
         [this](states::identifier_seq state, char8_t ch) -> bool {
-          if (std::isalnum(static_cast<unsigned char>(ch)) || ch == u8'_') {
+          if (std::isalnum(static_cast<unsigned char>(ch)) or ch == u8'_') {
+            return true;
+          } else {
+            return this->restart(state, ch);
+          }
+        },
+        //数値リテラル読み出し
+        [this](states::number_literal state, char8_t ch) -> bool {
+          if (std::isdigit(static_cast<unsigned char>(ch))) {
+            //数字
+            return true;
+          } else if (ch == u8'\'') {
+            //区切り文字、2つ続かないはずだけどここではチェックしないことにする・・・
+            return true;
+          } else if (ch == u8'e' or ch == u8'E' or ch == u8'p' or ch == u8'P') {
+            //浮動小数点リテラルの指数部、符号読み取りへ
+            this->transition<states::number_sign>(state);
+            return true;
+          } else if(is_nondigit(ch) or ch == u8'.') {
+            //16進文字や小数点、サフィックス、ユーザー定義リテラル
+            return true;
+          } else {
+            return this->restart(state, ch);
+          }
+        },
+        //浮動小数点数の指数部の符号読み出し
+        [this](states::number_sign state, char8_t ch) -> bool {
+          if (ch == u8'-' or ch == u8'+') {
+            this->transition<states::number_literal>(state);
             return true;
           } else {
             return this->restart(state, ch);
@@ -324,7 +471,6 @@ namespace kusabira::PP
 
     fn should_line_continue() -> bool {
       auto visitor = kusabira::sm::overloaded{
-        [](states::raw_string_literal) -> bool { return true; },
         [](auto &&) -> bool { return false; }
       };
 
