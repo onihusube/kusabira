@@ -109,11 +109,11 @@ namespace kusabira::sm {
   };
 
   /**
-    * @brief Stateの共通部分となるクラス
-    * @tparam Table 状態遷移テーブル
-    * @tparam States... 取りうる状態の型のリスト
-    * @detail 継承して使用する
-    */
+  * @brief Stateの共通部分となるクラス
+  * @tparam Table 状態遷移テーブル
+  * @tparam States... 取りうる状態の型のリスト
+  * @detail 継承して使用する
+  */
   template <typename Table, typename... States>
   class state_base {
 
@@ -176,12 +176,74 @@ namespace kusabira::PP
     /**
     * @brief 生文字列リテラルっぽい文字
     */
-    struct maybe_rawstr_literal{};
+    struct maybe_rawstr_literal {
+    };
 
     /**
     * @brief 生文字列リテラル
+    * @detail 生文字列リテラルのデリミタと範囲を決定するための特殊処理、プッシュダウンオートマトン風
     */
-    struct raw_string_literal {};
+    struct raw_string_literal {
+
+      std::pmr::u8string m_stack;
+      bool m_is_delimiter = true;
+      std::size_t m_index = 0;
+
+      raw_string_literal()
+        : m_stack{u8')', 1, kusabira::u8_pmralloc{&kusabira::def_mr}}
+      {}
+
+      /**
+      * @brief 生文字列リテラルのデリミタを保存する
+      * @param ch 1文字の入力
+      * @return falseで終端"を検出
+      */
+      fn delimiter_push(char8_t ch) -> bool {
+        //デリミタ読み取り中
+        if (ch == u8'(') {
+          m_is_delimiter = false;
+          //)delimiter" の形にしておく
+          m_stack.push_back(u8'"');
+        } else {
+          //delimiter読み取り中に末尾に達してしまったら終了、エラー
+          if (ch == u8'"') return false;
+          //delimiterに現れてはいけない文字（閉じかっこ、バックスラッシュ、ホワイトスペース系）が現れたらエラー
+          //if (ch ==u8')' || ch == u8'\\' || std::isspace(static_cast<unsigned char>(ch))) return false;
+          m_stack.push_back(ch);
+        }
+        return true;
+      }
+
+      /**
+      * @brief 生文字列リテラル本体を読む、デリミタをチェックする
+      * @param ch 1文字の入力
+      * @return falseで終端"を検出
+      */
+      fn delimiter_check(char8_t ch) -> bool {
+        //生文字列本体読み取り中
+        if (m_stack[m_index] != ch) {
+          m_index = 0;
+        } else {
+          //デリミタっぽいものを検出している時
+          ++m_index;
+          if (m_index == m_stack.length()) return false;
+        }
+        return true;
+      }
+
+      /**
+      * @brief 生文字列リテラルを読む
+      * @param ch 1文字の入力
+      * @return falseで終端"を検出
+      */
+      fn input_char(char8_t ch) -> bool {
+        if (m_is_delimiter) {
+          return this->delimiter_push(ch);
+        } else {
+          return this->delimiter_check(ch);
+        }
+      }
+    };
 
     struct char_literal {};
 
@@ -216,13 +278,13 @@ namespace kusabira::PP
         row<end_seq, init>,
         row<white_space_seq, init>,
         row<identifier_seq, init>,
-        row<maybe_str_literal, string_literal, char_literal, maybe_rawstr_literal, identifier_seq>,
-        row<maybe_u8str_literal, string_literal, char_literal, maybe_str_literal, maybe_rawstr_literal, identifier_seq>,
-        row<maybe_rawstr_literal, raw_string_literal, identifier_seq>,
+        row<maybe_str_literal, string_literal, char_literal, maybe_rawstr_literal, identifier_seq, init>,
+        row<maybe_u8str_literal, string_literal, char_literal, maybe_str_literal, maybe_rawstr_literal, identifier_seq, init>,
+        row<maybe_rawstr_literal, raw_string_literal, identifier_seq, init>,
         row<raw_string_literal, end_seq>,
-        row<string_literal, ignore_escape_seq, end_seq>,
-        row<char_literal, ignore_escape_seq, end_seq>,
-        row<ignore_escape_seq, string_literal, char_literal>,
+        row<string_literal, ignore_escape_seq, end_seq, init>,
+        row<char_literal, ignore_escape_seq, end_seq, init>,
+        row<ignore_escape_seq, string_literal, char_literal, init>,
         row<number_literal, number_sign, init>,
         row<number_sign, number_literal, init>,
         row<punct_seq, init>>;
@@ -236,7 +298,9 @@ namespace kusabira::PP
   enum class pp_token_category : unsigned int {
     Whitspaces,     //ホワイトスペースの列、もしくはコメント
     Identifier,     //識別子、文字列リテラルのプレフィックス、ユーザー定義リテラル、ヘッダ名、importを含む
-    StringLiteral,  //文字・文字列リテラル、LRUu8等のプレフィックスは含まない
+    StringLiteral,  //文字・文字列リテラル、LRUu8等のプレフィックスを含むがユーザ定義リテラルは含まない
+    RawStringLIteral,
+    RawStringLIteralEnd,
     NumberLiteral,  //数値リテラル
     OPorPunc,       //記号列、それが演算子として妥当であるかはチェックしていない
     OtherChar       //その他の非空白文字の一文字
@@ -270,12 +334,18 @@ namespace kusabira::PP
     template<typename NowState>
     fn restart(NowState state, char8_t c) -> bool {
       this->transition<states::init>(state);
-      [[maybe_unused]] bool discard = this->read(c);
-  
+      [[maybe_unused]] bool discard = this->input_char(c);
+
       return false;
     }
 
-    fn read(char8_t c) -> bool {
+    /**
+    * @brief 文字を入力する
+    * @detail 状態機械により1文字ごとにトークンを判定してゆく
+    * @param c 入力文字
+    * @return 受理状態に到達したらfalse
+    */
+    fn input_char(char8_t c) -> bool {
 
       auto visitor = kusabira::sm::overloaded{
         //最初の文字による初期状態決定
@@ -289,7 +359,7 @@ namespace kusabira::PP
           } else if (ch == u8'R') {
             //生文字列リテラルの可能性がある
             this->transition<states::maybe_rawstr_literal>(state);
-          } else if (ch == u8'L' or ch == u8'R' or ch == u8'U' ) {
+          } else if (ch == u8'L' or ch == u8'U' ) {
             //文字列リテラルの可能性がある
             this->transition<states::maybe_str_literal>(state);
           } else if (ch == u8'u') {
@@ -357,7 +427,7 @@ namespace kusabira::PP
             //u""の形の文字列リテラル確定
             this->transition<states::string_literal>(state);
           } else if (ch == u8'R') {
-            //uRの形の文字列リテラルっぽい
+            //uRの形の生文字列リテラルっぽい
             this->transition<states::maybe_rawstr_literal>(state);
           } else {
             //本当は不正確、例えば記号が来た時は明らかにエラー
@@ -378,12 +448,10 @@ namespace kusabira::PP
         },
         //生文字列リテラル読み込み
         [this](states::raw_string_literal state, char8_t ch) -> bool {
-          if (ch == u8'"') {
+          if (state.input_char(ch) == false) {
             this->transition<states::end_seq>(state);
-            return false;
-          } else {
-            return true;
           }
+          return true;
         },
         //文字列リテラル読み込み
         [this](states::string_literal state, char8_t ch) -> bool {
@@ -449,6 +517,7 @@ namespace kusabira::PP
             this->transition<states::number_literal>(state);
             return true;
           } else {
+            //指数部に符号以外のものが出てきたらエラーでは？
             return this->restart(state, ch);
           }
         },
@@ -460,8 +529,7 @@ namespace kusabira::PP
             return this->restart(state, ch);
           }
         },
-        //知らない人対策
-        [](auto&&, auto) { return false;}
+        //[](auto&&, auto) { return false;}
       };
 
       return this->visit([&visitor, c](auto state) {
@@ -469,9 +537,21 @@ namespace kusabira::PP
       });
     }
 
-    fn should_line_continue() -> bool {
+    /**
+    * @brief 改行文字を入力する
+    * @return 受理状態に到達したらfalse
+    */
+    fn input_newline() -> bool {
+
       auto visitor = kusabira::sm::overloaded{
-        [](auto &&) -> bool { return false; }
+        [](states::raw_string_literal) -> bool { return true; },
+        //生文字列リテラル以外は改行でトークン分割する
+        [this](auto&& state) -> bool {
+          this->transition<states::init>(state);
+          return false; 
+        },
+        //コンパイルエラー対策
+        [](states::init) -> bool { return false;}
       };
 
       return this->visit(visitor);
