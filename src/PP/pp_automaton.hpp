@@ -122,9 +122,9 @@ namespace kusabira::sm {
   protected:
 
     template <typename NextState, typename NowState, typename... Args>
-    void transition(NowState, Args&&... args) {
+    void transition(NowState&&, Args&&... args) {
       //状態遷移が妥当かを状態遷移表をもとにチェック
-      static_assert(kusabira::sm::transition_check<NowState, NextState, Table>::value, "Invalid state transition.");
+      static_assert(kusabira::sm::transition_check<std::remove_cvref_t<NowState>, NextState, Table>::value, "Invalid state transition.");
 
       m_state.template emplace<NextState>(std::forward<Args>(args)...);
     }
@@ -176,8 +176,7 @@ namespace kusabira::PP
     /**
     * @brief 生文字列リテラルっぽい文字
     */
-    struct maybe_rawstr_literal {
-    };
+    struct maybe_rawstr_literal {};
 
     /**
     * @brief 生文字列リテラル
@@ -190,8 +189,12 @@ namespace kusabira::PP
       std::size_t m_index = 0;
 
       raw_string_literal()
-        : m_stack{u8')', 1, kusabira::u8_pmralloc{&kusabira::def_mr}}
+        : m_stack{ 1, u8')', kusabira::u8_pmralloc{&kusabira::def_mr} }
       {}
+
+      //バグの元なので削除
+      raw_string_literal(const raw_string_literal&) = delete;
+      raw_string_literal(raw_string_literal&&) = default;
 
       /**
       * @brief 生文字列リテラルのデリミタを保存する
@@ -199,14 +202,12 @@ namespace kusabira::PP
       * @return falseで終端"を検出
       */
       fn delimiter_push(char8_t ch) -> bool {
-        //デリミタ読み取り中
+        //デリミタ読み取り中、最大16文字らしい・・・・
         if (ch == u8'(') {
           m_is_delimiter = false;
           //)delimiter" の形にしておく
           m_stack.push_back(u8'"');
         } else {
-          //delimiter読み取り中に末尾に達してしまったら終了、エラー
-          if (ch == u8'"') return false;
           //delimiterに現れてはいけない文字（閉じかっこ、バックスラッシュ、ホワイトスペース系）が現れたらエラー
           //if (ch ==u8')' || ch == u8'\\' || std::isspace(static_cast<unsigned char>(ch))) return false;
           m_stack.push_back(ch);
@@ -221,12 +222,12 @@ namespace kusabira::PP
       */
       fn delimiter_check(char8_t ch) -> bool {
         //生文字列本体読み取り中
-        if (m_stack[m_index] != ch) {
-          m_index = 0;
-        } else {
+        if (m_stack[m_index] == ch) {
           //デリミタっぽいものを検出している時
           ++m_index;
           if (m_index == m_stack.length()) return false;
+        } else {
+          m_index = 0;
         }
         return true;
       }
@@ -447,7 +448,7 @@ namespace kusabira::PP
           return true;
         },
         //生文字列リテラル読み込み
-        [this](states::raw_string_literal state, char8_t ch) -> bool {
+        [this](states::raw_string_literal& state, char8_t ch) -> bool {
           if (state.input_char(ch) == false) {
             this->transition<states::end_seq>(state);
           }
@@ -476,7 +477,7 @@ namespace kusabira::PP
           return true;
         },
         //エスケープシーケンスを飛ばして文字読み込み継続
-        [this](states::ignore_escape_seq state, char8_t) -> bool {
+        [this](states::ignore_escape_seq& state, char8_t) -> bool {
           if (state.is_string_parsing == true) {
             this->transition<states::string_literal>(state);
           } else {
@@ -532,7 +533,7 @@ namespace kusabira::PP
         //[](auto&&, auto) { return false;}
       };
 
-      return this->visit([&visitor, c](auto state) {
+      return this->visit([&visitor, c](auto& state) {
         return visitor(state, c);
       });
     }
@@ -544,17 +545,17 @@ namespace kusabira::PP
     fn input_newline() -> bool {
 
       auto visitor = kusabira::sm::overloaded{
-        [](states::raw_string_literal) -> bool { return true; },
+        [](states::raw_string_literal&) -> bool { return true; },
+        //init -> initはテーブルに無い
+        [](states::init) -> bool { return false; },
         //生文字列リテラル以外は改行でトークン分割する
         [this](auto&& state) -> bool {
           this->transition<states::init>(state);
           return false; 
-        },
-        //コンパイルエラー対策
-        [](states::init) -> bool { return false;}
+        }
       };
 
-      return this->visit(visitor);
+      return this->visit(std::move(visitor));
     }
   };
 

@@ -106,14 +106,44 @@ namespace pp_automaton_test
   }
 
   TEST_CASE("raw string literal test") {
-    kusabira::PP::pp_tokenizer_sm sm{};
-    std::u8string str = u8R"*(R"(abcde")")*";
+    {
+      kusabira::PP::pp_tokenizer_sm sm{};
+      std::u8string str = u8R"*(R"(abcde")")*";
 
-    //std::cout << reinterpret_cast<const char*>(str.c_str()) << std::endl;
-
-    for (auto c : str) {
-      CHECK_UNARY(sm.input_char(c));
+      for (auto c : str) {
+        CHECK_UNARY(sm.input_char(c));
+      }
+      CHECK_UNARY_FALSE(sm.input_char(' '));
     }
-    CHECK_UNARY_FALSE(sm.input_char(' '));
+
+    {
+      kusabira::PP::pp_tokenizer_sm sm{};
+      std::u8string str = u8R"*(R"+++(abcde")+++")*";
+
+      for (auto c : str) {
+        CHECK_UNARY(sm.input_char(c));
+      }
+      CHECK_UNARY_FALSE(sm.input_char(' '));
+    }
+
+    {
+      kusabira::PP::pp_tokenizer_sm sm{};
+      std::u8string str = u8R"*(R"abcdefghijklmnopqrstuvwxyz(abcde")abcdefghijklmnopqrstuvwxyz")*";
+
+      for (auto c : str) {
+        CHECK_UNARY(sm.input_char(c));
+      }
+      CHECK_UNARY_FALSE(sm.input_char(' '));
+    }
+
+    {
+      kusabira::PP::pp_tokenizer_sm sm{};
+      std::u8string str = u8R"*(R"!"#%&'*+,-./:;<=>?[]^_{|}~(abcde")!"#%&'*+,-./:;<=>?[]^_{|}~")*";
+
+      for (auto c : str) {
+        CHECK_UNARY(sm.input_char(c));
+      }
+      CHECK_UNARY_FALSE(sm.input_char(' '));
+    }
   }
 }

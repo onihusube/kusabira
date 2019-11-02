@@ -1,4 +1,4 @@
-project('kusabira', 'cpp', default_options : ['warning_level=3', 'cpp_std=c++17'], meson_version : '>=0.50.0')
+project('kusabira', 'cpp', default_options : ['warning_level=3', 'cpp_std=c++17', 'cpp_debugstl=true'], meson_version : '>=0.50.0')
 
 #依存プロジェクト
 doctest_proj = subproject('doctest')
