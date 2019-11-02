@@ -156,6 +156,14 @@ namespace kusabira::PP
 
     struct white_space_seq {};
 
+    struct maybe_commet {};
+
+    struct line_comment {};
+
+    struct block_comment {};
+
+    struct maybe_end_block_comment {};
+
     struct identifier_seq {};
 
     /**
@@ -274,10 +282,18 @@ namespace kusabira::PP
     using kusabira::sm::table;
     using kusabira::sm::row;
 
-    using transition_table = table<
-        row<init, white_space_seq, identifier_seq, maybe_str_literal, maybe_u8str_literal, maybe_rawstr_literal, raw_string_literal, string_literal, char_literal, number_literal, number_sign, punct_seq, end_seq>,
+    /**
+    * @brief 状態遷移テーブル
+    * @detail 各行の先頭が始まりの状態、その後はそこからの遷移先の候補、そこに無い遷移先は妥当でない
+    */
+    using transition_table = table <
+        row<init, white_space_seq, maybe_commet, line_comment, block_comment, maybe_end_block_comment, identifier_seq, maybe_str_literal, maybe_u8str_literal, maybe_rawstr_literal, raw_string_literal, string_literal, char_literal, number_literal, number_sign, punct_seq, end_seq > ,
         row<end_seq, init>,
         row<white_space_seq, init>,
+        row<maybe_commet, line_comment, block_comment, punct_seq, init>,
+        row<line_comment, init>,
+        row<block_comment, maybe_end_block_comment, init>,
+        row<maybe_end_block_comment, block_comment, init>,
         row<identifier_seq, init>,
         row<maybe_str_literal, string_literal, char_literal, maybe_rawstr_literal, identifier_seq, init>,
         row<maybe_u8str_literal, string_literal, char_literal, maybe_str_literal, maybe_rawstr_literal, identifier_seq, init>,
@@ -288,7 +304,7 @@ namespace kusabira::PP
         row<ignore_escape_seq, string_literal, char_literal, init>,
         row<number_literal, number_sign, init>,
         row<number_sign, number_literal, init>,
-        row<punct_seq, init>>;
+        row<punct_seq, maybe_commet, init>>;
   } // namespace states
 
   /**
@@ -297,11 +313,13 @@ namespace kusabira::PP
   * @detail 規格書 5.4 Preprocessing tokens [lex.pptoken]のプリプロセッシングトークン分類とは一致していない（同じものを対象としてはいる）
   */
   enum class pp_token_category : unsigned int {
-    Whitspaces,     //ホワイトスペースの列、もしくはコメント
+    Whitspaces,     //ホワイトスペースの列
+    LineComment,    //行コメント
+    BlockComment,   //コメントブロック、C形式コメント
     Identifier,     //識別子、文字列リテラルのプレフィックス、ユーザー定義リテラル、ヘッダ名、importを含む
     StringLiteral,  //文字・文字列リテラル、LRUu8等のプレフィックスを含むがユーザ定義リテラルは含まない
-    RawStringLIteral,
-    RawStringLIteralEnd,
+    RawStrLiteral,  //生文字列リテラルの途中
+    RawStrLiteralEnd,//終端を伴う生文字列リテラル
     NumberLiteral,  //数値リテラル
     OPorPunc,       //記号列、それが演算子として妥当であるかはチェックしていない
     OtherChar       //その他の非空白文字の一文字
@@ -312,10 +330,16 @@ namespace kusabira::PP
     return std::isalpha(static_cast<unsigned char>(ch)) or ch == u8'_';
   }
 
+  /**
+  * @brief 現在の読み取り文字を識別するオートマトン
+  * @detail トークナイザ内で使用
+  * @detail 1文字づつ入力し、状態を更新していく
+  */
   struct pp_tokenizer_sm
       : protected kusabira::sm::state_base<
             states::transition_table,
             states::init, states::end_seq,
+            states::maybe_commet, states::line_comment, states::block_comment, states::maybe_end_block_comment,
             states::white_space_seq, states::identifier_seq,
             states::maybe_str_literal, states::maybe_rawstr_literal, states::maybe_u8str_literal,
             states::raw_string_literal,
@@ -357,6 +381,8 @@ namespace kusabira::PP
           if (std::isspace(cv)) {
             //ホワイトスペース列読み込みモード
             this->transition<states::white_space_seq>(state);
+          } else if (ch == u8'/') {
+            this->transition<states::maybe_commet>(state);
           } else if (ch == u8'R') {
             //生文字列リテラルの可能性がある
             this->transition<states::maybe_rawstr_literal>(state);
@@ -397,6 +423,44 @@ namespace kusabira::PP
             return true;
           } else {
             return this->restart(state, ch);
+          }
+        },
+        [this](states::maybe_commet state, char8_t ch) -> bool {
+          if (ch == u8'/') {
+            //行コメント
+            this->transition<states::line_comment>(state);
+          } else if (ch == u8'*') {
+            //ブロックコメント
+            this->transition<states::block_comment>(state);
+          } else if (std::ispunct(static_cast<unsigned char>(ch))) {
+            //他の記号が出てきたら記号列として読み込み継続
+            this->transition<states::punct_seq>(state);
+          } else {
+            //他の文字が出てきたら単体の/演算子だったという事・・・
+            return false;
+          }
+          return true;
+        },
+        [this](states::line_comment, char8_t) -> bool {
+          //改行が現れるまではそのまま・・・
+          return true;
+        },
+        [this](states::block_comment state, char8_t ch) -> bool {
+          if (ch == u8'*') {
+            //終わりかもしれない・・・
+            this->transition<states::maybe_end_block_comment>(state);
+          }
+          return true;
+        },
+        [this](states::maybe_end_block_comment state, char8_t ch) -> bool {
+          if (ch == u8'/') {
+            //ブロック閉じを検出
+            this->transition<states::init>(state);
+            return false;
+          } else {
+            //閉じなかったらブロックコメント読み取りへ戻る
+            this->transition<states::block_comment>(state);
+            return true;
           }
         },
         //文字列リテラル判定
@@ -524,11 +588,12 @@ namespace kusabira::PP
         },
         //記号列の読み出し
         [this](states::punct_seq state, char8_t ch) -> bool {
-          if (std::ispunct(static_cast<unsigned char>(ch))) {
-            return true;
-          } else {
+          if (ch == u8'/') {
+            this->transition<states::maybe_commet>(state);
+          } else if (std::ispunct(static_cast<unsigned char>(ch)) == false) {
             return this->restart(state, ch);
           }
+          return true;
         },
         //[](auto&&, auto) { return false;}
       };
@@ -545,10 +610,11 @@ namespace kusabira::PP
     fn input_newline() -> bool {
 
       auto visitor = kusabira::sm::overloaded{
+        [](states::block_comment) -> bool { return true; },
         [](states::raw_string_literal&) -> bool { return true; },
         //init -> initはテーブルに無い
         [](states::init) -> bool { return false; },
-        //生文字列リテラル以外は改行でトークン分割する
+        //生文字列リテラルとコメントブロック以外は改行でトークン分割する
         [this](auto&& state) -> bool {
           this->transition<states::init>(state);
           return false; 
