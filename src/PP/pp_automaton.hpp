@@ -156,7 +156,7 @@ namespace kusabira::PP
 
     struct white_space_seq {};
 
-    struct maybe_commet {};
+    struct maybe_comment {};
 
     struct line_comment {};
 
@@ -287,10 +287,10 @@ namespace kusabira::PP
     * @detail 各行の先頭が始まりの状態、その後はそこからの遷移先の候補、そこに無い遷移先は妥当でない
     */
     using transition_table = table <
-        row<init, white_space_seq, maybe_commet, line_comment, block_comment, maybe_end_block_comment, identifier_seq, maybe_str_literal, maybe_u8str_literal, maybe_rawstr_literal, raw_string_literal, string_literal, char_literal, number_literal, number_sign, punct_seq, end_seq > ,
+        row<init, white_space_seq, maybe_comment, line_comment, block_comment, maybe_end_block_comment, identifier_seq, maybe_str_literal, maybe_u8str_literal, maybe_rawstr_literal, raw_string_literal, string_literal, char_literal, number_literal, number_sign, punct_seq, end_seq > ,
         row<end_seq, init>,
         row<white_space_seq, init>,
-        row<maybe_commet, line_comment, block_comment, punct_seq, init>,
+        row<maybe_comment, line_comment, block_comment, punct_seq, init>,
         row<line_comment, init>,
         row<block_comment, maybe_end_block_comment, init>,
         row<maybe_end_block_comment, block_comment, init>,
@@ -304,7 +304,7 @@ namespace kusabira::PP
         row<ignore_escape_seq, string_literal, char_literal, init>,
         row<number_literal, number_sign, init>,
         row<number_sign, number_literal, init>,
-        row<punct_seq, maybe_commet, init>>;
+        row<punct_seq, maybe_comment, init>>;
   } // namespace states
 
   /**
@@ -339,7 +339,7 @@ namespace kusabira::PP
       : protected kusabira::sm::state_base<
             states::transition_table,
             states::init, states::end_seq,
-            states::maybe_commet, states::line_comment, states::block_comment, states::maybe_end_block_comment,
+            states::maybe_comment, states::line_comment, states::block_comment, states::maybe_end_block_comment,
             states::white_space_seq, states::identifier_seq,
             states::maybe_str_literal, states::maybe_rawstr_literal, states::maybe_u8str_literal,
             states::raw_string_literal,
@@ -382,7 +382,7 @@ namespace kusabira::PP
             //ホワイトスペース列読み込みモード
             this->transition<states::white_space_seq>(state);
           } else if (ch == u8'/') {
-            this->transition<states::maybe_commet>(state);
+            this->transition<states::maybe_comment>(state);
           } else if (ch == u8'R') {
             //生文字列リテラルの可能性がある
             this->transition<states::maybe_rawstr_literal>(state);
@@ -425,7 +425,7 @@ namespace kusabira::PP
             return this->restart(state, ch);
           }
         },
-        [this](states::maybe_commet state, char8_t ch) -> bool {
+        [this](states::maybe_comment state, char8_t ch) -> bool {
           if (ch == u8'/') {
             //行コメント
             this->transition<states::line_comment>(state);
@@ -589,7 +589,7 @@ namespace kusabira::PP
         //記号列の読み出し
         [this](states::punct_seq state, char8_t ch) -> bool {
           if (ch == u8'/') {
-            this->transition<states::maybe_commet>(state);
+            this->transition<states::maybe_comment>(state);
           } else if (std::ispunct(static_cast<unsigned char>(ch)) == false) {
             return this->restart(state, ch);
           }
