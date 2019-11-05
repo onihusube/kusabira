@@ -58,7 +58,7 @@ namespace kusabira::PP {
 
 #ifndef _MSC_VER
         //CRLF読み取り時にCRが残っていたら飛ばす、非Windowsの時のみ
-        if (m_buffer.back() == '\r') {
+        if (not m_buffer.empty() and m_buffer.back() == '\r') {
           --last;
         }
 #endif

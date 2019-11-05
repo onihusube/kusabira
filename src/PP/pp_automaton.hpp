@@ -611,6 +611,7 @@ namespace kusabira::PP
 
       auto visitor = kusabira::sm::overloaded{
         [](states::block_comment) -> bool { return true; },
+        [](states::maybe_end_block_comment) -> bool { return true;},
         [](states::raw_string_literal&) -> bool { return true; },
         //init -> initはテーブルに無い
         [](states::init) -> bool { return false; },
