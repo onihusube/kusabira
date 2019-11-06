@@ -253,5 +253,75 @@ namespace pp_automaton_test
       //英数字とドット、'以外のもの
       CHECK_UNARY_FALSE(sm.input_char(u8';'));
     }
+
+    {
+      kusabira::PP::pp_tokenizer_sm sm{};
+      std::u8string str = u8R"*(0x1.2p3)*";
+
+      for (auto c : str)
+      {
+        CHECK_UNARY(sm.input_char(c));
+      }
+
+      //英数字とドット、'以外のもの
+      CHECK_UNARY_FALSE(sm.input_char(u8';'));
+    }
+
+    {
+      kusabira::PP::pp_tokenizer_sm sm{};
+      std::u8string str = u8R"*(1e10)*";
+
+      for (auto c : str)
+      {
+        CHECK_UNARY(sm.input_char(c));
+      }
+
+      //英数字とドット、'以外のもの
+      CHECK_UNARY_FALSE(sm.input_char(u8';'));
+    }
+
+    {
+      kusabira::PP::pp_tokenizer_sm sm{};
+      std::u8string str = u8R"*(0x1ffp10)*";
+
+      for (auto c : str)
+      {
+        CHECK_UNARY(sm.input_char(c));
+      }
+
+      //英数字とドット、'以外のもの
+      CHECK_UNARY_FALSE(sm.input_char(u8';'));
+    }
+
+    {
+      kusabira::PP::pp_tokenizer_sm sm{};
+      std::u8string str = u8R"*(0xa.bp10)*";
+
+      for (auto c : str)
+      {
+        CHECK_UNARY(sm.input_char(c));
+      }
+
+      //英数字とドット、'以外のもの
+      CHECK_UNARY_FALSE(sm.input_char(u8';'));
+    }
+
+    {
+      kusabira::PP::pp_tokenizer_sm sm{};
+
+      CHECK_UNARY(sm.input_char(u8'0'));
+      CHECK_UNARY(sm.input_char(u8'F'));
+      //ユーザー定義リテラルは別
+      CHECK_UNARY_FALSE(sm.input_char(u8'_'));
+    }
+
+    {
+      kusabira::PP::pp_tokenizer_sm sm{};
+
+      CHECK_UNARY(sm.input_char(u8'0'));
+      CHECK_UNARY(sm.input_char(u8'F'));
+      //16進数までしか考慮しない
+      CHECK_UNARY_FALSE(sm.input_char(u8'g'));
+    }
   }
 }

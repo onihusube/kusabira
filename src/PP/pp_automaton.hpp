@@ -140,8 +140,28 @@ namespace kusabira::sm {
 
 } // namespace kusabira::sm
 
+
 namespace kusabira::PP
 {
+  /**
+  * @brief プリプロセッシングトークンのカテゴリ
+  * @detail トークナイズ後に識別を容易にするためのもの
+  * @detail 規格書 5.4 Preprocessing tokens [lex.pptoken]のプリプロセッシングトークン分類とは一致していない（同じものを対象としてはいる）
+  */
+  enum class pp_token_category : std::uint8_t {
+    NotDetarmin,    //未確定
+    Whitespaces,    //ホワイトスペースの列
+    LineComment,    //行コメント
+    BlockComment,   //コメントブロック、C形式コメント
+    Identifier,     //識別子、文字列リテラルのプレフィックス、ユーザー定義リテラル、ヘッダ名、importを含む
+    NumberLiteral,  //数値リテラル、サフィックス、ユーザー定義リテラルは含まない
+    StringLiteral,  //文字・文字列リテラル、LRUu8等のプレフィックスを含むがユーザ定義リテラルは含まない
+    RawStrLiteral,  //生文字列リテラル
+    OPorPunc,       //記号列、それが演算子として妥当であるかはチェックしていない
+    OtherChar       //その他の非空白文字の一文字
+  };
+
+
 
   /**
   * @brief プリプロセッシングトークンを分割する状態機械の状態型定義
@@ -307,27 +327,30 @@ namespace kusabira::PP
         row<punct_seq, maybe_comment, init>>;
   } // namespace states
 
+
+
+
   /**
-  * @brief プリプロセッシングトークンのカテゴリ
-  * @detail トークナイズ後に識別を容易にするためのもの
-  * @detail 規格書 5.4 Preprocessing tokens [lex.pptoken]のプリプロセッシングトークン分類とは一致していない（同じものを対象としてはいる）
+  * @brief 数値リテラル（pp-number）として受け入れ可能かを調べる
+  * @detail 指数部の符号指定はここには含まれていない
+  * @return 受理可能ならtrue
   */
-  enum class pp_token_category : unsigned int {
-    Whitspaces,     //ホワイトスペースの列
-    LineComment,    //行コメント
-    BlockComment,   //コメントブロック、C形式コメント
-    Identifier,     //識別子、文字列リテラルのプレフィックス、ユーザー定義リテラル、ヘッダ名、importを含む
-    StringLiteral,  //文字・文字列リテラル、LRUu8等のプレフィックスを含むがユーザ定義リテラルは含まない
-    RawStrLiteral,  //生文字列リテラルの途中
-    RawStrLiteralEnd,//終端を伴う生文字列リテラル
-    NumberLiteral,  //数値リテラル
-    OPorPunc,       //記号列、それが演算子として妥当であるかはチェックしていない
-    OtherChar       //その他の非空白文字の一文字
-  };
-
-
-  fni is_nondigit(char8_t ch) -> bool {
-    return std::isalpha(static_cast<unsigned char>(ch)) or ch == u8'_';
+  fni is_number_literal(char8_t ch) -> bool {
+    if (std::isxdigit(static_cast<unsigned char>(ch)))
+    {
+      //16進の範囲で使われうる英数字
+      return true;
+    }
+    else if (ch == u8'x' or ch == u8'\'' or ch == u8'.')
+    {
+      //16進記号のxかドットか区切り文字、2つ続かないはずだけどここではチェックしないことにする・・・
+      return true;
+    }
+    else
+    {
+      //サフィックスやユーザー定義リテラルは分割する
+      return false;
+    }
   }
 
   /**
@@ -346,6 +369,7 @@ namespace kusabira::PP
             states::string_literal, states::char_literal, states::ignore_escape_seq,
             states::number_literal, states::number_sign, states::punct_seq>
   {
+    pp_token_category m_cat;
 
     pp_tokenizer_sm() = default;
 
@@ -398,11 +422,11 @@ namespace kusabira::PP
           } else if (ch == u8'\'') {
             //文字リテラル読み込み
             this->transition<states::char_literal>(state);
-          } else if (is_nondigit(ch)) {
+          } else if (std::isalpha(cv) or ch == u8'_') {
             //識別子読み込みモード、識別子の先頭は非数字でなければならない
             this->transition<states::identifier_seq>(state);
           } else if (std::isdigit(cv)) {
-            //数値リテラル読み取り
+            //数値リテラル読み取り、必ず数字で始まる
             this->transition<states::number_literal>(state);
           } else if (std::ispunct(cv)) {
             //区切り文字（記号）列読み取りモード
@@ -422,6 +446,7 @@ namespace kusabira::PP
           if (std::isspace(static_cast<unsigned char>(ch))) {
             return true;
           } else {
+            m_cat = pp_token_category::Whitespaces;
             return this->restart(state, ch);
           }
         },
@@ -437,6 +462,7 @@ namespace kusabira::PP
             this->transition<states::punct_seq>(state);
           } else {
             //他の文字が出てきたら単体の/演算子だったという事・・・
+            m_cat = pp_token_category::OPorPunc;
             return false;
           }
           return true;
@@ -456,6 +482,7 @@ namespace kusabira::PP
           if (ch == u8'/') {
             //ブロック閉じを検出
             this->transition<states::init>(state);
+            m_cat = pp_token_category::BlockComment;
             return false;
           } else {
             //閉じなかったらブロックコメント読み取りへ戻る
@@ -514,6 +541,7 @@ namespace kusabira::PP
         //生文字列リテラル読み込み
         [this](states::raw_string_literal& state, char8_t ch) -> bool {
           if (state.input_char(ch) == false) {
+            m_cat = pp_token_category::RawStrLiteral;
             this->transition<states::end_seq>(state);
           }
           return true;
@@ -525,6 +553,7 @@ namespace kusabira::PP
             this->transition<states::ignore_escape_seq>(state, true);
           } else if (ch == u8'"') {
             //クオートを読んだら次で終了
+            m_cat = pp_token_category::StringLiteral;
             this->transition<states::end_seq>(state);
           }
           return true;
@@ -536,6 +565,7 @@ namespace kusabira::PP
             this->transition<states::ignore_escape_seq>(state, false);
           } else if (ch == u8'\'') {
             //クオートを読んだら次で終了
+            m_cat = pp_token_category::StringLiteral;
             this->transition<states::end_seq>(state);
           }
           return true;
@@ -554,25 +584,20 @@ namespace kusabira::PP
           if (std::isalnum(static_cast<unsigned char>(ch)) or ch == u8'_') {
             return true;
           } else {
+            m_cat = pp_token_category::Identifier;
             return this->restart(state, ch);
           }
         },
         //数値リテラル読み出し
         [this](states::number_literal state, char8_t ch) -> bool {
-          if (std::isdigit(static_cast<unsigned char>(ch))) {
-            //数字
-            return true;
-          } else if (ch == u8'\'') {
-            //区切り文字、2つ続かないはずだけどここではチェックしないことにする・・・
-            return true;
-          } else if (ch == u8'e' or ch == u8'E' or ch == u8'p' or ch == u8'P') {
+          if (ch == u8'e' or ch == u8'E' or ch == u8'p' or ch == u8'P') {
             //浮動小数点リテラルの指数部、符号読み取りへ
             this->transition<states::number_sign>(state);
             return true;
-          } else if(is_nondigit(ch) or ch == u8'.') {
-            //16進文字や小数点、サフィックス、ユーザー定義リテラル
+          } else if(is_number_literal(ch)) {
             return true;
           } else {
+            m_cat = pp_token_category::NumberLiteral;
             return this->restart(state, ch);
           }
         },
@@ -581,8 +606,12 @@ namespace kusabira::PP
           if (ch == u8'-' or ch == u8'+') {
             this->transition<states::number_literal>(state);
             return true;
+          } else if (is_number_literal(ch)){
+            //符号は省略可
+            return true;
           } else {
-            //指数部に符号以外のものが出てきたらエラーでは？
+            //指数部に符号や数字以外のものが出てきた
+            m_cat = pp_token_category::NumberLiteral;
             return this->restart(state, ch);
           }
         },
@@ -623,6 +652,15 @@ namespace kusabira::PP
       };
 
       return this->visit(std::move(visitor));
+    }
+
+    /**
+    * @brief 識別したトークンの種類を取得
+    * @detail input関数がfalseを返した後にのみ正しい値が取得できる
+    * @return カテゴリを表すenum値
+    */
+    fn get_category() -> pp_token_category {
+      return m_cat;
     }
   };
 
