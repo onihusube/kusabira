@@ -161,12 +161,20 @@ namespace kusabira::PP
     OtherChar       //その他の非空白文字の一文字
   };
 
+  struct tokenize_result {
+    bool status = true;
+    pp_token_category category = pp_token_category::NotDetarmin;
 
+    explicit operator bool() const noexcept {
+      return status;
+    }
+  };
 
   /**
   * @brief プリプロセッシングトークンを分割する状態機械の状態型定義
   */
-  namespace states {
+  namespace states
+  {
     struct init {};
 
     /**
