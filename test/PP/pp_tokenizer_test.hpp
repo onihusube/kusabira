@@ -12,7 +12,7 @@ namespace kusabira::test {
   * @detail その他変なところでやられると全くうまく動かない
   * @return kusabiraのテストファイル群があるトップのディレクトリ
   */
-  fni get_testfiles_dir() -> std::filesystem::path {
+  ifn get_testfiles_dir() -> std::filesystem::path {
     auto current_dir = std::filesystem::current_path();
     const auto parentdir_name = current_dir.parent_path().filename().string();
 

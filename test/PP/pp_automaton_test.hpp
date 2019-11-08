@@ -323,5 +323,21 @@ namespace pp_automaton_test
       //16進数までしか考慮しない
       CHECK_UNARY_FALSE(sm.input_char(u8'g'));
     }
+
+    {
+      kusabira::PP::pp_tokenizer_sm sm{};
+
+      //単体の/演算子
+      CHECK_UNARY(sm.input_char(u8'/'));
+      CHECK_UNARY_FALSE(sm.input_char(u8'a'));
+    }
+
+    {
+      kusabira::PP::pp_tokenizer_sm sm{};
+
+      //単体の/演算子
+      CHECK_UNARY(sm.input_char(u8'/'));
+      CHECK_UNARY_FALSE(sm.input_char(u8'9'));
+    }
   }
 }

@@ -143,157 +143,188 @@ namespace kusabira::sm {
 
 namespace kusabira::PP
 {
-  /**
-  * @brief プリプロセッシングトークンのカテゴリ
-  * @detail トークナイズ後に識別を容易にするためのもの
-  * @detail 規格書 5.4 Preprocessing tokens [lex.pptoken]のプリプロセッシングトークン分類とは一致していない（同じものを対象としてはいる）
-  */
-  enum class pp_token_category : std::uint8_t {
-    NotDetarmin,    //未確定
-    Whitespaces,    //ホワイトスペースの列
-    LineComment,    //行コメント
-    BlockComment,   //コメントブロック、C形式コメント
-    Identifier,     //識別子、文字列リテラルのプレフィックス、ユーザー定義リテラル、ヘッダ名、importを含む
-    NumberLiteral,  //数値リテラル、サフィックス、ユーザー定義リテラルは含まない
-    StringLiteral,  //文字・文字列リテラル、LRUu8等のプレフィックスを含むがユーザ定義リテラルは含まない
-    RawStrLiteral,  //生文字列リテラル
-    OPorPunc,       //記号列、それが演算子として妥当であるかはチェックしていない
-    OtherChar       //その他の非空白文字の一文字
-  };
-
-  struct tokenize_result {
-    bool status = true;
-    pp_token_category category = pp_token_category::NotDetarmin;
-
-    explicit operator bool() const noexcept {
-      return status;
-    }
-  };
 
   /**
   * @brief プリプロセッシングトークンを分割する状態機械の状態型定義
   */
-  namespace states
-  {
+  namespace states {
+    namespace detail {
+
+      /**
+      * @brief 生文字列リテラルを読む
+      * @detail 生文字列リテラルのデリミタと範囲を決定するための特殊処理、プッシュダウンオートマトン風
+      */
+      struct rawstr_literal_accepter {
+
+        //std::pmr::u8string m_stack;
+        char8_t m_stack[18] = {u8')'};
+        bool m_is_delimiter = true;
+        std::uint8_t m_index = 0;
+        std::uint8_t m_length = 1;
+
+        rawstr_literal_accepter() = default;
+
+        //バグの元なので削除
+        rawstr_literal_accepter(const rawstr_literal_accepter &) = delete;
+        rawstr_literal_accepter(rawstr_literal_accepter &&) = default;
+
+        /**
+        * @brief 生文字列リテラルのデリミタを保存する
+        * @param ch 1文字の入力
+        * @return 受理状態、デリミタ関連のエラーを報告しうる
+        */
+        fn delimiter_push(char8_t ch) -> kusabira::PP::pp_tokenize_result {
+          //デリミタ読み取り中、最大16文字
+          if (ch == u8'(') {
+            m_is_delimiter = false;
+            //)delimiter" の形にしておく
+            m_stack[m_length] = u8'"';
+          } else {
+            //delimiterに現れてはいけない文字（閉じかっこ、バックスラッシュ、ホワイトスペース系）が現れたらエラー
+            if (ch == u8')' || ch == u8'\\' || std::isspace(static_cast<unsigned char>(ch)))
+              return kusabira::PP::pp_tokenize_status::RawStrLiteralDelimiterInvalid;
+            //デリミタの長さが16文字を超えたらエラー
+            if (17 <= m_length) return kusabira::PP::pp_tokenize_status::RawStrLiteralDelimiterOver16Chars;
+            m_stack[m_length] = ch;
+          }
+          ++m_length;
+          return kusabira::PP::pp_tokenize_status::Unaccepted;
+        }
+
+        /**
+        * @brief 生文字列リテラル本体を読む、デリミタをチェックする
+        * @param ch 1文字の入力
+        * @return 生文字列リテラルとして受理したかどうか、エラーにはならない
+        */
+        fn delimiter_check(char8_t ch) -> kusabira::PP::pp_tokenize_result {
+          //生文字列本体読み取り中
+          if (m_stack[m_index] == ch) {
+            //デリミタっぽいものを検出している時
+            ++m_index;
+            if (m_index == m_length) return kusabira::PP::pp_tokenize_status::RawStrLiteral;
+          } else {
+            m_index = 0;
+          }
+          return kusabira::PP::pp_tokenize_status::Unaccepted;
+        }
+
+        /**
+        * @brief 生文字列リテラルを読む
+        * @param ch 1文字の入力
+        * @return 受理状態
+        */
+        fn operator()(char8_t ch) -> kusabira::PP::pp_tokenize_result {
+          if (m_is_delimiter) {
+            return this->delimiter_push(ch);
+          } else {
+            return this->delimiter_check(ch);
+          }
+        }
+
+      };
+    }
+
+    /**
+    * @brief 初期状態、トークン最初の文字を受け取る
+    */
     struct init {};
 
     /**
-    * @brief 文字列リテラルの終了のためなど、この状態は何を読んでもfalseを返しリセットする
+    * @brief 文字列リテラルの終了のためなど、この状態は何を読んでもリセットする
     */
-    struct end_seq {};
+    struct end_seq {
+      pp_tokenize_status category;
 
-    struct white_space_seq {};
+      end_seq(pp_tokenize_status prev_status = {}) : category{prev_status}
+      {}
+    };
 
-    struct maybe_comment {};
+    struct white_space_seq {
+      static constexpr pp_tokenize_status Category = pp_tokenize_status::Whitespaces;
+    };
 
-    struct line_comment {};
+    struct maybe_comment {
+      static constexpr pp_tokenize_status Category = pp_tokenize_status::OPorPunc;
+    };
 
-    struct block_comment {};
+    struct line_comment {
+      static constexpr pp_tokenize_status Category = pp_tokenize_status::LineComment;
+    };
 
-    struct maybe_end_block_comment {};
+    struct block_comment {
+      static constexpr pp_tokenize_status Category = pp_tokenize_status::BlockComment;
+    };
 
-    struct identifier_seq {};
+    struct maybe_end_block_comment {
+      static constexpr pp_tokenize_status Category = pp_tokenize_status::Unaccepted;
+    };
+
+    struct identifier_seq {
+      static constexpr pp_tokenize_status Category = pp_tokenize_status::Identifier;
+    };
 
     /**
     * @brief 文字・文字列リテラルっぽい文字
     */
-    struct maybe_str_literal {};
+    struct maybe_str_literal {
+      static constexpr pp_tokenize_status Category = pp_tokenize_status::Identifier;
+    };
 
     /**
     * @brief UTF-8文字・文字列リテラルっぽい文字
     */
-    struct maybe_u8str_literal {};
-
-    /**
-    * @brief uR""の形の文字列リテラルかもしれない・・・
-    */
-    struct maybe_uR_prefix {};
+    struct maybe_u8str_literal {
+      static constexpr pp_tokenize_status Category = pp_tokenize_status::Identifier;
+    };
 
     /**
     * @brief 生文字列リテラルっぽい文字
     */
-    struct maybe_rawstr_literal {};
+    struct maybe_rawstr_literal {
+      static constexpr pp_tokenize_status Category = pp_tokenize_status::Identifier;
+    };
 
     /**
     * @brief 生文字列リテラル
-    * @detail 生文字列リテラルのデリミタと範囲を決定するための特殊処理、プッシュダウンオートマトン風
     */
     struct raw_string_literal {
 
-      std::pmr::u8string m_stack;
-      bool m_is_delimiter = true;
-      std::size_t m_index = 0;
+      static constexpr pp_tokenize_status Category = pp_tokenize_status::RawStrLiteral;
 
-      raw_string_literal()
-        : m_stack{ 1, u8')', kusabira::u8_pmralloc{&kusabira::def_mr} }
-      {}
-
-      //バグの元なので削除
-      raw_string_literal(const raw_string_literal&) = delete;
-      raw_string_literal(raw_string_literal&&) = default;
-
-      /**
-      * @brief 生文字列リテラルのデリミタを保存する
-      * @param ch 1文字の入力
-      * @return falseで終端"を検出
-      */
-      fn delimiter_push(char8_t ch) -> bool {
-        //デリミタ読み取り中、最大16文字らしい・・・・
-        if (ch == u8'(') {
-          m_is_delimiter = false;
-          //)delimiter" の形にしておく
-          m_stack.push_back(u8'"');
-        } else {
-          //delimiterに現れてはいけない文字（閉じかっこ、バックスラッシュ、ホワイトスペース系）が現れたらエラー
-          //if (ch ==u8')' || ch == u8'\\' || std::isspace(static_cast<unsigned char>(ch))) return false;
-          m_stack.push_back(ch);
-        }
-        return true;
-      }
-
-      /**
-      * @brief 生文字列リテラル本体を読む、デリミタをチェックする
-      * @param ch 1文字の入力
-      * @return falseで終端"を検出
-      */
-      fn delimiter_check(char8_t ch) -> bool {
-        //生文字列本体読み取り中
-        if (m_stack[m_index] == ch) {
-          //デリミタっぽいものを検出している時
-          ++m_index;
-          if (m_index == m_stack.length()) return false;
-        } else {
-          m_index = 0;
-        }
-        return true;
-      }
+      detail::rawstr_literal_accepter m_reader{};
 
       /**
       * @brief 生文字列リテラルを読む
       * @param ch 1文字の入力
       * @return falseで終端"を検出
       */
-      fn input_char(char8_t ch) -> bool {
-        if (m_is_delimiter) {
-          return this->delimiter_push(ch);
-        } else {
-          return this->delimiter_check(ch);
-        }
+      fn input_char(char8_t ch) -> pp_tokenize_result {
+        return m_reader(ch);
       }
     };
 
-    struct char_literal {};
+    struct char_literal {
+      static constexpr pp_tokenize_status Category = pp_tokenize_status::UnexpectedNewLine;
+    };
 
-    struct string_literal {};
+    struct string_literal {
+      static constexpr pp_tokenize_status Category = pp_tokenize_status::UnexpectedNewLine;
+    };
 
-    struct number_literal {};
+    struct number_literal {
+      static constexpr pp_tokenize_status Category = pp_tokenize_status::NumberLiteral;
+    };
 
-    struct number_sign {};
+    struct number_sign {
+      static constexpr pp_tokenize_status Category = pp_tokenize_status::NumberLiteral;
+    };
 
     /**
     * @brief 文字列リテラル中のエスケープシーケンスを無視する
     */
     struct ignore_escape_seq {
+
+      static constexpr pp_tokenize_status Category = pp_tokenize_status::UnexpectedNewLine;
 
       //文字と文字列、どちらを読み取り中なのか?
       //trueで文字列リテラル
@@ -304,8 +335,9 @@ namespace kusabira::PP
       {}
     };
 
-    struct punct_seq {};
-
+    struct punct_seq {
+      static constexpr pp_tokenize_status Category = pp_tokenize_status::OPorPunc;
+    };
 
     using kusabira::sm::table;
     using kusabira::sm::row;
@@ -335,27 +367,28 @@ namespace kusabira::PP
         row<punct_seq, maybe_comment, init>>;
   } // namespace states
 
-
-
+  /**
+  * @brief 識別子として受理可能かを調べる
+  * @return 受理可能ならtrue
+  */
+  ifn is_identifier(char8_t ch) -> bool {
+    return std::isalnum(static_cast<unsigned char>(ch)) or ch == u8'_';
+  }
 
   /**
   * @brief 数値リテラル（pp-number）として受け入れ可能かを調べる
   * @detail 指数部の符号指定はここには含まれていない
   * @return 受理可能ならtrue
   */
-  fni is_number_literal(char8_t ch) -> bool {
+  ifn is_number_literal(char8_t ch) -> bool {
     if (std::isxdigit(static_cast<unsigned char>(ch)))
     {
       //16進の範囲で使われうる英数字
       return true;
-    }
-    else if (ch == u8'x' or ch == u8'\'' or ch == u8'.')
-    {
+    } else if (ch == u8'x' or ch == u8'\'' or ch == u8'.') {
       //16進記号のxかドットか区切り文字、2つ続かないはずだけどここではチェックしないことにする・・・
       return true;
-    }
-    else
-    {
+    } else {
       //サフィックスやユーザー定義リテラルは分割する
       return false;
     }
@@ -372,12 +405,10 @@ namespace kusabira::PP
             states::init, states::end_seq,
             states::maybe_comment, states::line_comment, states::block_comment, states::maybe_end_block_comment,
             states::white_space_seq, states::identifier_seq,
-            states::maybe_str_literal, states::maybe_rawstr_literal, states::maybe_u8str_literal,
-            states::raw_string_literal,
+            states::maybe_str_literal, states::maybe_rawstr_literal, states::maybe_u8str_literal, states::raw_string_literal,
             states::string_literal, states::char_literal, states::ignore_escape_seq,
             states::number_literal, states::number_sign, states::punct_seq>
   {
-    pp_token_category m_cat;
 
     pp_tokenizer_sm() = default;
 
@@ -389,250 +420,261 @@ namespace kusabira::PP
     * @return false
     */
     template<typename NowState>
-    fn restart(NowState state, char8_t c) -> bool {
+    fn restart(NowState state, char8_t c, pp_tokenize_status status) -> pp_tokenize_result {
       this->transition<states::init>(state);
-      [[maybe_unused]] bool discard = this->input_char(c);
+      [[maybe_unused]] auto discard = this->input_char(c);
 
-      return false;
+      return status;
     }
 
     /**
     * @brief 文字を入力する
     * @detail 状態機械により1文字ごとにトークンを判定してゆく
     * @param c 入力文字
-    * @return 受理状態に到達したらfalse
+    * @return 受理状態か否かを表すステータス値
     */
-    fn input_char(char8_t c) -> bool {
+    fn input_char(char8_t c) -> pp_tokenize_result {
 
       auto visitor = kusabira::sm::overloaded{
-        //最初の文字による初期状態決定
-        [this](states::init state, char8_t ch) -> bool {
-          //Cの<ctype>関数群は文字をunsigned charとして扱うのでキャストしておく
-          auto cv = static_cast<unsigned char>(ch);
+          //最初の文字による初期状態決定
+          [this](states::init state, char8_t ch) -> pp_tokenize_result {
+            //Cの<ctype>関数群は文字をunsigned charとして扱うのでキャストしておく
+            auto cv = static_cast<unsigned char>(ch);
 
-          if (std::isspace(cv)) {
-            //ホワイトスペース列読み込みモード
-            this->transition<states::white_space_seq>(state);
-          } else if (ch == u8'/') {
-            this->transition<states::maybe_comment>(state);
-          } else if (ch == u8'R') {
-            //生文字列リテラルの可能性がある
-            this->transition<states::maybe_rawstr_literal>(state);
-          } else if (ch == u8'L' or ch == u8'U' ) {
-            //文字列リテラルの可能性がある
-            this->transition<states::maybe_str_literal>(state);
-          } else if (ch == u8'u') {
-            //u・u8リテラルの可能性がある
-            this->transition<states::maybe_u8str_literal>(state);
-          } else if (ch == u8'"') {
-            //文字列リテラル読み込み
-            this->transition<states::string_literal>(state);
-          } else if (ch == u8'\'') {
-            //文字リテラル読み込み
-            this->transition<states::char_literal>(state);
-          } else if (std::isalpha(cv) or ch == u8'_') {
-            //識別子読み込みモード、識別子の先頭は非数字でなければならない
-            this->transition<states::identifier_seq>(state);
-          } else if (std::isdigit(cv)) {
-            //数値リテラル読み取り、必ず数字で始まる
-            this->transition<states::number_literal>(state);
-          } else if (std::ispunct(cv)) {
-            //区切り文字（記号）列読み取りモード
-            this->transition<states::punct_seq>(state);
-          } else {
-            //その他上記に当てはまらない非空白文字、1文字づつ分離
-            this->transition<states::end_seq>(state);
+            if (std::isspace(cv)) {
+              //ホワイトスペース列読み込みモード
+              this->transition<states::white_space_seq>(state);
+            } else if (ch == u8'/') {
+              this->transition<states::maybe_comment>(state);
+            } else if (ch == u8'R') {
+              //生文字列リテラルの可能性がある
+              this->transition<states::maybe_rawstr_literal>(state);
+            } else if (ch == u8'L' or ch == u8'U' ) {
+              //文字列リテラルの可能性がある
+              this->transition<states::maybe_str_literal>(state);
+            } else if (ch == u8'u') {
+              //u・u8リテラルの可能性がある
+              this->transition<states::maybe_u8str_literal>(state);
+            } else if (ch == u8'"') {
+              //文字列リテラル読み込み
+              this->transition<states::string_literal>(state);
+            } else if (ch == u8'\'') {
+              //文字リテラル読み込み
+              this->transition<states::char_literal>(state);
+            } else if (std::isalpha(cv) or ch == u8'_') {
+              //識別子読み込みモード、識別子の先頭は非数字でなければならない
+              this->transition<states::identifier_seq>(state);
+            } else if (std::isdigit(cv)) {
+              //数値リテラル読み取り、必ず数字で始まる
+              this->transition<states::number_literal>(state);
+            } else if (std::ispunct(cv)) {
+              //区切り文字（記号）列読み取りモード
+              this->transition<states::punct_seq>(state);
+            } else {
+              //その他上記に当てはまらない非空白文字、1文字づつ分離
+              this->transition<states::end_seq>(state, pp_tokenize_status::OtherChar);
+            }
+            return pp_tokenize_status::Unaccepted;
+          },
+          //トークン終端を検出後に次のトークン読み込みを始める、文字列リテラル等の時
+          [this](states::end_seq state, char8_t ch) -> pp_tokenize_result {
+            return this->restart(state, ch, state.category);
+          },
+          //ホワイトスペースシーケンス読み出し
+          [this](states::white_space_seq state, char8_t ch) -> pp_tokenize_result {
+            if (std::isspace(static_cast<unsigned char>(ch))) {
+              return pp_tokenize_status::Unaccepted;
+            } else {
+              return this->restart(state, ch, pp_tokenize_status::Whitespaces);
+            }
+          },
+          //コメント判定
+          [this](states::maybe_comment state, char8_t ch) -> pp_tokenize_result {
+            if (ch == u8'/') {
+              //行コメント
+              this->transition<states::line_comment>(state);
+            } else if (ch == u8'*') {
+              //ブロックコメント
+              this->transition<states::block_comment>(state);
+            } else if (std::ispunct(static_cast<unsigned char>(ch))) {
+              //他の記号が出てきたら記号列として読み込み継続
+              this->transition<states::punct_seq>(state);
+            } else {
+              //他の文字が出てきたら単体の/演算子だったという事・・・
+              return this->restart(state, ch, pp_tokenize_status::OPorPunc);
+            }
+            return pp_tokenize_status::Unaccepted;
+          },
+          //行コメント読み取り
+          [this](states::line_comment, char8_t) -> pp_tokenize_result {
+            //改行が現れるまではそのまま・・・
+            return pp_tokenize_status::Unaccepted;
+          },
+          //ブロックコメント読み取り
+          [this](states::block_comment state, char8_t ch) -> pp_tokenize_result {
+            if (ch == u8'*')
+            {
+              //終わりかもしれない・・・
+              this->transition<states::maybe_end_block_comment>(state);
+            }
+            return pp_tokenize_status::Unaccepted;
+          },
+          //ブロックコメントの終端を判定
+          [this](states::maybe_end_block_comment state, char8_t ch) -> pp_tokenize_result {
+            if (ch == u8'/') {
+              //ブロック閉じを検出
+              this->transition<states::init>(state);
+              return pp_tokenize_status::BlockComment;
+            } else {
+              //閉じなかったらブロックコメント読み取りへ戻る
+              this->transition<states::block_comment>(state);
+              return pp_tokenize_status::Unaccepted;
+            }
+          },
+          //文字列リテラル判定
+          [this](states::maybe_str_literal state, char8_t ch) -> pp_tokenize_result {
+            if (ch == u8'R') {
+              //生文字列リテラルっぽい
+              this->transition<states::maybe_rawstr_literal>(state);
+            } else if (ch == u8'\'') {
+              //文字リテラル確定
+              this->transition<states::char_literal>(state);
+            } else if (ch == u8'"') {
+              //文字列リテラル確定
+              this->transition<states::string_literal>(state);
+            } else if (is_identifier(ch)) {
+              //識別子らしい
+              this->transition<states::identifier_seq>(state);
+            } else {
+              //それ以外なら1文字の識別子ということ
+              return this->restart(state, ch, pp_tokenize_status::Identifier);
+            }
+            return pp_tokenize_status::Unaccepted;
+          },
+          //u・u8リテラル判定
+          [this](states::maybe_u8str_literal state, char8_t ch) -> pp_tokenize_result {
+            if (ch == u8'8') {
+              //u8から始まる文字・文字列リテラルっぽい
+              this->transition<states::maybe_str_literal>(state);
+            } else if (ch == u8'\'') {
+              //u''の形の文字リテラル確定
+              this->transition<states::char_literal>(state);
+            } else if (ch == u8'"') {
+              //u""の形の文字列リテラル確定
+              this->transition<states::string_literal>(state);
+            } else if (ch == u8'R') {
+              //uRの形の生文字列リテラルっぽい
+              this->transition<states::maybe_rawstr_literal>(state);
+            } else if (is_identifier(ch)) {
+              //識別子らしい
+              this->transition<states::identifier_seq>(state);
+            } else {
+              //それ以外なら1文字の識別子ということ
+              return this->restart(state, ch, pp_tokenize_status::Identifier);
+            }
+            return pp_tokenize_status::Unaccepted;
+          },
+          //生文字列リテラル判定
+          [this](states::maybe_rawstr_literal state, char8_t ch) -> pp_tokenize_result {
+            if (ch == u8'"') {
+              //生文字列リテラル確定
+              this->transition<states::raw_string_literal>(state);
+            } else if (is_identifier(ch)) {
+              //識別子らしい
+              this->transition<states::identifier_seq>(state);
+            } else {
+              //それ以外なら1文字の識別子ということ
+              return this->restart(state, ch, pp_tokenize_status::Identifier);
+            }
+            return pp_tokenize_status::Unaccepted;
+          },
+          //生文字列リテラル読み込み
+          [this](states::raw_string_literal &state, char8_t ch) -> pp_tokenize_result {
+            auto status = state.input_char(ch);
+            if (status == pp_tokenize_status::RawStrLiteral) {
+              //受理完了
+              this->transition<states::end_seq>(state, pp_tokenize_status::RawStrLiteral);
+            } else if (status < pp_tokenize_status::Unaccepted) {
+              //不正な入力、エラー
+              return status;
+            }
+            return pp_tokenize_status::Unaccepted;
+          },
+          //文字列リテラル読み込み
+          [this](states::string_literal state, char8_t ch) -> pp_tokenize_result {
+            if (ch == u8'\\') {
+              //エスケープシーケンスを無視
+              this->transition<states::ignore_escape_seq>(state, true);
+            } else if (ch == u8'"') {
+              //クオートを読んだら次で終了
+              this->transition<states::end_seq>(state, pp_tokenize_status::StringLiteral);
+            }
+            return pp_tokenize_status::Unaccepted;
+          },
+          //文字リテラル読み込み
+          [this](states::char_literal state, char8_t ch) -> pp_tokenize_result {
+            if (ch == u8'\\') {
+              //エスケープシーケンスを無視
+              this->transition<states::ignore_escape_seq>(state, false);
+            } else if (ch == u8'\'') {
+              //クオートを読んだら次で終了
+              this->transition<states::end_seq>(state, pp_tokenize_status::StringLiteral);
+            }
+            return pp_tokenize_status::Unaccepted;
+          },
+          //エスケープシーケンスを飛ばして文字読み込み継続
+          [this](states::ignore_escape_seq &state, char8_t) -> pp_tokenize_result {
+            if (state.is_string_parsing == true) {
+              this->transition<states::string_literal>(state);
+            } else {
+              this->transition<states::char_literal>(state);
+            }
+            return pp_tokenize_status::Unaccepted;
+          },
+          //識別子読み出し
+          [this](states::identifier_seq state, char8_t ch) -> pp_tokenize_result {
+            if (std::isalnum(static_cast<unsigned char>(ch)) or ch == u8'_')
+            {
+              return pp_tokenize_status::Unaccepted;
+            } else
+            {
+              return this->restart(state, ch, pp_tokenize_status::Identifier);
+            }
+          },
+          //数値リテラル読み出し
+          [this](states::number_literal state, char8_t ch) -> pp_tokenize_result {
+            if (ch == u8'e' or ch == u8'E' or ch == u8'p' or ch == u8'P') {
+              //浮動小数点リテラルの指数部、符号読み取りへ
+              this->transition<states::number_sign>(state);
+              return pp_tokenize_status::Unaccepted;
+            } else if(is_number_literal(ch)) {
+              return pp_tokenize_status::Unaccepted;
+            } else {
+              return this->restart(state, ch, pp_tokenize_status::NumberLiteral);
+            }
+          },
+          //浮動小数点数の指数部の符号読み出し
+          [this](states::number_sign state, char8_t ch) -> pp_tokenize_result {
+            if (ch == u8'-' or ch == u8'+') {
+              this->transition<states::number_literal>(state);
+              return pp_tokenize_status::Unaccepted;
+            } else if (is_number_literal(ch)) {
+              //符号は省略可
+              return pp_tokenize_status::Unaccepted;
+            } else {
+              //指数部に符号や数字以外のものが出てきた
+              return this->restart(state, ch, pp_tokenize_status::NumberLiteral);
+            }
+          },
+          //記号列の読み出し
+          [this](states::punct_seq state, char8_t ch) -> pp_tokenize_result {
+            if (ch == u8'/') {
+              this->transition<states::maybe_comment>(state);
+            } else if (std::ispunct(static_cast<unsigned char>(ch)) == false) {
+              return this->restart(state, ch, pp_tokenize_status::OPorPunc);
+            }
+            return pp_tokenize_status::Unaccepted;
           }
-          return true;
-        },
-        //トークン終端を検出後に次のトークン読み込みを始める、文字列リテラル等の時
-        [this](states::end_seq state, char8_t ch) -> bool {
-          return this->restart(state, ch);
-        },
-        //ホワイトスペースシーケンス読み出し
-        [this](states::white_space_seq state, char8_t ch) -> bool {
-          if (std::isspace(static_cast<unsigned char>(ch))) {
-            return true;
-          } else {
-            m_cat = pp_token_category::Whitespaces;
-            return this->restart(state, ch);
-          }
-        },
-        [this](states::maybe_comment state, char8_t ch) -> bool {
-          if (ch == u8'/') {
-            //行コメント
-            this->transition<states::line_comment>(state);
-          } else if (ch == u8'*') {
-            //ブロックコメント
-            this->transition<states::block_comment>(state);
-          } else if (std::ispunct(static_cast<unsigned char>(ch))) {
-            //他の記号が出てきたら記号列として読み込み継続
-            this->transition<states::punct_seq>(state);
-          } else {
-            //他の文字が出てきたら単体の/演算子だったという事・・・
-            m_cat = pp_token_category::OPorPunc;
-            return false;
-          }
-          return true;
-        },
-        [this](states::line_comment, char8_t) -> bool {
-          //改行が現れるまではそのまま・・・
-          return true;
-        },
-        [this](states::block_comment state, char8_t ch) -> bool {
-          if (ch == u8'*') {
-            //終わりかもしれない・・・
-            this->transition<states::maybe_end_block_comment>(state);
-          }
-          return true;
-        },
-        [this](states::maybe_end_block_comment state, char8_t ch) -> bool {
-          if (ch == u8'/') {
-            //ブロック閉じを検出
-            this->transition<states::init>(state);
-            m_cat = pp_token_category::BlockComment;
-            return false;
-          } else {
-            //閉じなかったらブロックコメント読み取りへ戻る
-            this->transition<states::block_comment>(state);
-            return true;
-          }
-        },
-        //文字列リテラル判定
-        [this](states::maybe_str_literal state, char8_t ch) -> bool {
-          if (ch == u8'R') {
-            //生文字列リテラルっぽい
-            this->transition<states::maybe_rawstr_literal>(state);
-          } else if (ch == u8'\'') {
-            //文字リテラル確定
-            this->transition<states::char_literal>(state);
-          } else if (ch == u8'"') {
-            //文字列リテラル確定
-            this->transition<states::string_literal>(state);
-          } else {
-            //本当は不正確、例えば記号が来た時は明らかにエラー
-            this->transition<states::identifier_seq>(state);
-          }
-          return true;
-        },
-        //u・u8リテラル判定
-        [this](states::maybe_u8str_literal state, char8_t ch) -> bool {
-          if (ch == u8'8') {
-            //u8から始まる文字・文字列リテラルっぽい
-            this->transition<states::maybe_str_literal>(state);
-          } else if (ch == u8'\'') {
-            //u''の形の文字リテラル確定
-            this->transition<states::char_literal>(state);
-          } else if (ch == u8'"') {
-            //u""の形の文字列リテラル確定
-            this->transition<states::string_literal>(state);
-          } else if (ch == u8'R') {
-            //uRの形の生文字列リテラルっぽい
-            this->transition<states::maybe_rawstr_literal>(state);
-          } else {
-            //本当は不正確、例えば記号が来た時は明らかにエラー
-            this->transition<states::identifier_seq>(state);
-          }
-          return true;
-        },
-        //生文字列リテラル判定
-        [this](states::maybe_rawstr_literal state, char8_t ch) -> bool {
-          if (ch == u8'"') {
-            //生文字列リテラル確定
-            this->transition<states::raw_string_literal>(state);
-          } else {
-            //本当は不正確、例えば記号が来た時は明らかにエラー
-            this->transition<states::identifier_seq>(state);
-          }
-          return true;
-        },
-        //生文字列リテラル読み込み
-        [this](states::raw_string_literal& state, char8_t ch) -> bool {
-          if (state.input_char(ch) == false) {
-            m_cat = pp_token_category::RawStrLiteral;
-            this->transition<states::end_seq>(state);
-          }
-          return true;
-        },
-        //文字列リテラル読み込み
-        [this](states::string_literal state, char8_t ch) -> bool {
-          if (ch == u8'\\') {
-            //エスケープシーケンスを無視
-            this->transition<states::ignore_escape_seq>(state, true);
-          } else if (ch == u8'"') {
-            //クオートを読んだら次で終了
-            m_cat = pp_token_category::StringLiteral;
-            this->transition<states::end_seq>(state);
-          }
-          return true;
-        },
-        //文字リテラル読み込み
-        [this](states::char_literal state, char8_t ch) -> bool {
-          if (ch == u8'\\') {
-            //エスケープシーケンスを無視
-            this->transition<states::ignore_escape_seq>(state, false);
-          } else if (ch == u8'\'') {
-            //クオートを読んだら次で終了
-            m_cat = pp_token_category::StringLiteral;
-            this->transition<states::end_seq>(state);
-          }
-          return true;
-        },
-        //エスケープシーケンスを飛ばして文字読み込み継続
-        [this](states::ignore_escape_seq& state, char8_t) -> bool {
-          if (state.is_string_parsing == true) {
-            this->transition<states::string_literal>(state);
-          } else {
-            this->transition<states::char_literal>(state);
-          }
-          return true;
-        },
-        //識別子読み出し
-        [this](states::identifier_seq state, char8_t ch) -> bool {
-          if (std::isalnum(static_cast<unsigned char>(ch)) or ch == u8'_') {
-            return true;
-          } else {
-            m_cat = pp_token_category::Identifier;
-            return this->restart(state, ch);
-          }
-        },
-        //数値リテラル読み出し
-        [this](states::number_literal state, char8_t ch) -> bool {
-          if (ch == u8'e' or ch == u8'E' or ch == u8'p' or ch == u8'P') {
-            //浮動小数点リテラルの指数部、符号読み取りへ
-            this->transition<states::number_sign>(state);
-            return true;
-          } else if(is_number_literal(ch)) {
-            return true;
-          } else {
-            m_cat = pp_token_category::NumberLiteral;
-            return this->restart(state, ch);
-          }
-        },
-        //浮動小数点数の指数部の符号読み出し
-        [this](states::number_sign state, char8_t ch) -> bool {
-          if (ch == u8'-' or ch == u8'+') {
-            this->transition<states::number_literal>(state);
-            return true;
-          } else if (is_number_literal(ch)){
-            //符号は省略可
-            return true;
-          } else {
-            //指数部に符号や数字以外のものが出てきた
-            m_cat = pp_token_category::NumberLiteral;
-            return this->restart(state, ch);
-          }
-        },
-        //記号列の読み出し
-        [this](states::punct_seq state, char8_t ch) -> bool {
-          if (ch == u8'/') {
-            this->transition<states::maybe_comment>(state);
-          } else if (std::ispunct(static_cast<unsigned char>(ch)) == false) {
-            return this->restart(state, ch);
-          }
-          return true;
-        },
-        //[](auto&&, auto) { return false;}
       };
 
       return this->visit([&visitor, c](auto& state) {
@@ -642,34 +684,46 @@ namespace kusabira::PP
 
     /**
     * @brief 改行文字を入力する
-    * @return 受理状態に到達したらfalse
+    * @return 受理状態か否かを表すステータス値
     */
-    fn input_newline() -> bool {
+    fn input_newline() -> pp_tokenize_result {
 
       auto visitor = kusabira::sm::overloaded{
-        [](states::block_comment) -> bool { return true; },
-        [](states::maybe_end_block_comment) -> bool { return true;},
-        [](states::raw_string_literal&) -> bool { return true; },
-        //init -> initはテーブルに無い
-        [](states::init) -> bool { return false; },
-        //生文字列リテラルとコメントブロック以外は改行でトークン分割する
-        [this](auto&& state) -> bool {
-          this->transition<states::init>(state);
-          return false; 
-        }
+          [](states::block_comment) -> pp_tokenize_result { return pp_tokenize_status::Unaccepted; },
+          [this](states::maybe_end_block_comment state) -> pp_tokenize_result {
+            //ブロックコメント中の改行は無条件で継続
+            this->transition<states::block_comment>(state);
+            return pp_tokenize_status::Unaccepted;
+          },
+          [](states::raw_string_literal& state) -> pp_tokenize_result {
+            auto status = state.input_char(u8'\n');
+            if (pp_tokenize_status::Unaccepted < status) {
+              //受理状態にはならないはず・・・
+              return pp_tokenize_status::FailedRawStrLiteralRead;
+            } else if (status < pp_tokenize_status::Unaccepted) {
+              //不正な入力、エラー、おそらくデリミタ読み取りの途中
+              return status;
+            }
+            return pp_tokenize_status::Unaccepted;
+          },
+          [this](states::end_seq state) -> pp_tokenize_result {
+            this->transition<states::init>(state);
+            return state.category;
+          },
+          //init -> initはテーブルに無い
+          [](states::init) -> pp_tokenize_result { return pp_tokenize_status::Unaccepted; },
+          //生文字列リテラルとコメントブロック以外は改行でトークン分割する
+          [this](auto &&state) -> pp_tokenize_result {
+            using state_t = std::remove_cvref_t<decltype(state)>;
+            this->transition<states::init>(state);
+            //状態によってはエラーを報告する
+            return state_t::Category;
+          }
       };
 
       return this->visit(std::move(visitor));
     }
 
-    /**
-    * @brief 識別したトークンの種類を取得
-    * @detail input関数がfalseを返した後にのみ正しい値が取得できる
-    * @return カテゴリを表すenum値
-    */
-    fn get_category() -> pp_token_category {
-      return m_cat;
-    }
   };
 
 } // namespace kusabira::PP
