@@ -6,6 +6,7 @@
 #include <optional>
 #include <forward_list>
 #include <cctype>
+#include <string>
 
 #include "common.hpp"
 #include "pp_automaton.hpp"

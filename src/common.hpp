@@ -4,6 +4,7 @@
 #include <memory_resource>
 #include <optional>
 #include <system_error>
+#include <compare>
 
 #define  fn [[nodiscard]] auto
 #define ifn [[nodiscard]] inline auto
@@ -50,15 +51,31 @@ namespace kusabira::PP
   };
 
 
+  /**
+  * @brief pp_tokenize_statusの薄いラッパー
+  * @detail テンプレートメソッド（NVI）のように、内部の変更の漏出を抑えるためのもの
+  */
   struct pp_tokenize_result {
     pp_tokenize_status status;
 
+    /**
+    * @brief 現在の値は受理状態か否か
+    * @detail エラーも1つの受理状態として扱う
+    * @return 受理状態ならtrue
+    */
     explicit operator bool() const noexcept {
-      return pp_tokenize_status::Unaccepted == this->status;
+      return pp_tokenize_status::Unaccepted != this->status;
     }
 
-    fn operator==(pp_tokenize_status status) const noexcept -> bool {
-      return this->status == status;
+    auto operator<=>(const pp_tokenize_result&) const = default;
+    bool operator==(const pp_tokenize_result&) const = default;
+
+    fn operator<=>(const pp_tokenize_status ext_status) const noexcept -> std::strong_ordering {
+      return this->status <=> ext_status;
+    }
+
+    fn operator==(const pp_tokenize_status ext_status) const noexcept -> bool {
+      return this->status == ext_status;
     }
   };
 
