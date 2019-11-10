@@ -1,6 +1,6 @@
 #pragma once
 
-#include "pp_automaton_test.hpp"
+#include "PP/pp_automaton.hpp"
 
 namespace pp_automaton_test
 {

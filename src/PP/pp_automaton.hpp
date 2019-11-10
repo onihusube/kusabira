@@ -417,7 +417,8 @@ namespace kusabira::PP
     * @detail 初期状態に戻し、現在の入力文字をもとに次のトークン認識を開始する
     * @tparam NosWtate 今の状態型
     * @param state 現在の状態
-    * @return false
+    * @param status 返すべき受理状態
+    * @return status
     */
     template<typename NowState>
     fn restart(NowState state, char8_t c, pp_tokenize_status status) -> pp_tokenize_result {
@@ -633,11 +634,9 @@ namespace kusabira::PP
           },
           //識別子読み出し
           [this](states::identifier_seq state, char8_t ch) -> pp_tokenize_result {
-            if (std::isalnum(static_cast<unsigned char>(ch)) or ch == u8'_')
-            {
+            if (std::isalnum(static_cast<unsigned char>(ch)) or ch == u8'_') {
               return { pp_tokenize_status::Unaccepted };
-            } else
-            {
+            } else {
               return this->restart(state, ch, pp_tokenize_status::Identifier);
             }
           },
@@ -689,36 +688,39 @@ namespace kusabira::PP
     fn input_newline() -> pp_tokenize_result {
 
       auto visitor = kusabira::sm::overloaded{
-          [](states::block_comment) -> pp_tokenize_result { return {pp_tokenize_status::Unaccepted}; },
-          [this](states::maybe_end_block_comment state) -> pp_tokenize_result {
-            //ブロックコメント中の改行は無条件で継続
-            this->transition<states::block_comment>(state);
-            return { pp_tokenize_status::Unaccepted };
-          },
-          [](states::raw_string_literal& state) -> pp_tokenize_result {
-            auto status = state.input_char(u8'\n');
-            if (pp_tokenize_status::Unaccepted < status) {
-              //受理状態にはならないはず・・・
-              return { pp_tokenize_status::FailedRawStrLiteralRead };
-            } else if (status < pp_tokenize_status::Unaccepted) {
-              //不正な入力、エラー、おそらくデリミタ読み取りの途中
-              return status;
-            }
-            return { pp_tokenize_status::Unaccepted };
-          },
-          [this](states::end_seq state) -> pp_tokenize_result {
-            this->transition<states::init>(state);
-            return { state.category };
-          },
-          //init -> initはテーブルに無い
-          [](states::init) -> pp_tokenize_result { return {pp_tokenize_status::Unaccepted}; },
-          //生文字列リテラルとコメントブロック以外は改行でトークン分割する
-          [this](auto &&state) -> pp_tokenize_result {
-            using state_t = std::remove_cvref_t<decltype(state)>;
-            this->transition<states::init>(state);
-            //状態によってはエラーを報告する
-            return { state_t::Category };
+        //init -> initはテーブルに無い
+        [](states::init) -> pp_tokenize_result { return {pp_tokenize_status::Unaccepted}; },
+        //1つ前の状態からもらったカテゴリを返す
+        [this](states::end_seq state) -> pp_tokenize_result {
+          this->transition<states::init>(state);
+          return { state.category };
+        },
+        //ブロックコメント中の改行は無条件で継続
+        [](states::block_comment) -> pp_tokenize_result { return {pp_tokenize_status::Unaccepted}; },
+        [this](states::maybe_end_block_comment state) -> pp_tokenize_result {
+          this->transition<states::block_comment>(state);
+          return { pp_tokenize_status::Unaccepted };
+        },
+        //生文字列リテラルは複数行にわたりうる
+        [](states::raw_string_literal& state) -> pp_tokenize_result {
+          auto status = state.input_char(u8'\n');
+          if (pp_tokenize_status::Unaccepted < status) {
+            //受理状態にはならないはず・・・
+            return { pp_tokenize_status::FailedRawStrLiteralRead };
+          } else if (status < pp_tokenize_status::Unaccepted) {
+            //不正な入力、エラー、おそらくデリミタ読み取りの途中
+            return status;
           }
+          return { pp_tokenize_status::Unaccepted };
+        },
+        //生文字列リテラルとコメントブロック以外は改行でトークン分割する
+        [this](auto&& state) -> pp_tokenize_result {
+          using state_t = std::remove_cvref_t<decltype(state)>;
+
+          this->transition<states::init>(state);
+          //状態によってはエラーを報告する
+          return { state_t::Category };
+        }
       };
 
       return this->visit(std::move(visitor));
