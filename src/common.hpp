@@ -4,11 +4,14 @@
 #include <memory_resource>
 #include <optional>
 #include <system_error>
+#ifdef __cpp_impl_three_way_comparison
 #include <compare>
+#endif
 
 #define  fn [[nodiscard]] auto
 #define ifn [[nodiscard]] inline auto
 #define cfn [[nodiscard]] constexpr auto
+#define ffn [[nodiscard]] friend auto
 
 namespace kusabira {
   namespace fs = std::filesystem;
@@ -67,12 +70,27 @@ namespace kusabira::PP
       return pp_tokenize_status::Unaccepted != this->status;
     }
 
+#ifdef __cpp_impl_three_way_comparison
     auto operator<=>(const pp_tokenize_result&) const = default;
     bool operator==(const pp_tokenize_result&) const = default;
 
     fn operator<=>(const pp_tokenize_status ext_status) const noexcept -> std::strong_ordering {
       return this->status <=> ext_status;
     }
+#else
+
+    fn operator==(const pp_tokenize_result& that) const noexcept -> bool {
+      return this->status == that.status;
+    }
+
+    fn operator<(const pp_tokenize_status ext_status) const noexcept -> bool {
+      return this->status < ext_status;
+    }
+
+    ffn operator<(const pp_tokenize_status ext_status, const pp_tokenize_result& that) noexcept -> bool {
+      return ext_status < that.status;
+    }
+#endif
 
     fn operator==(const pp_tokenize_status ext_status) const noexcept -> bool {
       return this->status == ext_status;
