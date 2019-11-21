@@ -201,9 +201,11 @@ int table13(unsigned char c) {
   }
 }
 
-void table_generate(int(*table)(unsigned char)) {
+void table_generate(int(*table)(unsigned char), int tilde = -1) {
   std::cout << "{";
-  for (unsigned int i = 0; i < 127; ++i) {
+  //制御文字33文字を飛ばす、!からスタート
+  //チルダより後ろは無視
+  for (unsigned int i = 33; i < 126; ++i) {
     int out = -1;
     auto c = static_cast<unsigned char>(i);
 
@@ -213,12 +215,13 @@ void table_generate(int(*table)(unsigned char)) {
     
     std::cout << out << ", ";
   }
-  std::cout << -1 << "}";
+  //最後のチルダについての出力、チルダは1文字記号
+  std::cout << tilde << "}";
 }
 
 int main()
 {
-  table_generate(table0);
+  table_generate(table0, 0);
   std::cout << "," << std::endl;
   table_generate(table1);
   std::cout << "," << std::endl;
