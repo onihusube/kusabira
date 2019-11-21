@@ -57,7 +57,7 @@ int table1(unsigned char c) {
 //%から始まる記号列のテーブル
 int table2(unsigned char c) {
   if (c == ':' || c == '>' || c == '=') {
-    //=の時だけ受理
+    //%:, %>の時だけ受理
     return 0;
   } else {
     //その他の記号
@@ -76,6 +76,125 @@ int table3(unsigned char c) {
   } else if (c == '=') {
     //<=>を判定するため
     return 11;
+  } else {
+    //その他の記号
+    return -1;
+  }
+}
+
+//>から始まる記号列のテーブル
+int table4(unsigned char c) {
+  if (c == '=') {
+    //>=
+    return 0;
+  } else if (c == '>') {
+    //>>=を判定するため
+    return 1;
+  } else {
+    //その他の記号
+    return -1;
+  }
+}
+
+//+から始まる記号列のテーブル
+int table5(unsigned char c) {
+  if (c == '=' || c == '+') {
+    //+=, ++
+    return 0;
+  } else {
+    //その他の記号
+    return -1;
+  }
+}
+
+//-から始まる記号列のテーブル
+int table6(unsigned char c) {
+  if (c == '=' || c == '-') {
+    //-=, --
+    return 0;
+  } else if (c == '>') {
+    //->, ->*をチェック
+    return 12;
+  } else {
+    //その他の記号
+    return -1;
+  }
+}
+
+//&から始まる記号列のテーブル
+int table7(unsigned char c) {
+  if (c == '=' || c == '&') {
+    //&=, &&
+    return 0;
+  } else {
+    //その他の記号
+    return -1;
+  }
+}
+
+//|から始まる記号列のテーブル
+int table8(unsigned char c) {
+  if (c == '=' || c == '|') {
+    //|=, ||
+    return 0;
+  } else {
+    //その他の記号
+    return -1;
+  }
+}
+
+//:から始まる記号列のテーブル
+int table9(unsigned char c) {
+  if (c == '>' || c == ':') {
+    //:>, ::
+    return 0;
+  } else {
+    //その他の記号
+    return -1;
+  }
+}
+
+//.から始まる記号列のテーブル
+int table10(unsigned char c) {
+  if (c == '*') {
+    //.*
+    return 0;
+  } else if (c == '.') {
+    //...(elipsis)のチェック
+    return 13;
+  } else {
+    //その他の記号
+    return -1;
+  }
+}
+
+//<=>のテーブル
+int table11(unsigned char c) {
+  if (c == '>') {
+    //<=>
+    return 0;
+  } else {
+    //その他の記号
+    return -1;
+  }
+}
+
+//->*のテーブル
+int table12(unsigned char c) {
+  if (c == '*') {
+    //->*
+    return 0;
+  } else {
+    //その他の記号
+    return -1;
+  }
+}
+
+//...のテーブル
+int table13(unsigned char c) {
+  if (c == '.') {
+    //...
+    return 0;
   } else {
     //その他の記号
     return -1;
@@ -104,5 +223,26 @@ int main()
   table_generate(table1);
   std::cout << "," << std::endl;
   table_generate(table2);
+  std::cout << "," << std::endl;
+  table_generate(table3);
+  std::cout << "," << std::endl;
+  table_generate(table4);
+  std::cout << "," << std::endl;
+  table_generate(table5);
+  std::cout << "," << std::endl;
+  table_generate(table6);
+  std::cout << "," << std::endl;
+  table_generate(table7);
+  std::cout << "," << std::endl;
+  table_generate(table8);
+  std::cout << "," << std::endl;
+  table_generate(table9);
+  std::cout << "," << std::endl;
+  table_generate(table10);
+  std::cout << "," << std::endl;
+  table_generate(table11);
+  std::cout << "," << std::endl;
+  table_generate(table12);
+  std::cout << "," << std::endl;
+  table_generate(table13);
 }
-
