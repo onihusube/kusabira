@@ -4,6 +4,7 @@
 #include <cctype>
 
 #include "common.hpp"
+#include "op_and_punc_table.hpp"
 
 namespace kusabira::sm {
 
@@ -222,6 +223,22 @@ namespace kusabira::PP
         }
 
       };
+
+      /**
+      * @brief 記号列の受理を判定する
+      * @param ch 入力文字
+      * @param row_index 参照するテーブル番号
+      */
+      ifn ref_table(char8_t ch, int row_index = 0) -> int {
+        //制御文字は考慮しない
+        std::uint8_t index = ch - 33;
+
+        //Ascii範囲外の文字か制御文字
+        if ((126 - 33) < index) return -1;
+
+        //テーブルを参照して受理すべきかを決定
+        return kusabira::table::symbol_table[row_index][index];
+      }
     }
 
     /**
@@ -337,6 +354,23 @@ namespace kusabira::PP
 
     struct punct_seq {
       static constexpr pp_tokenize_status Category = pp_tokenize_status::OPorPunc;
+
+      int m_index;
+
+      punct_seq(int iddex = 0) : m_index{iddex}
+      {}
+
+      /**
+      * @brief 演算子、区切り文字をチェックする
+      * @param ch 1文字の入力
+      * @return falseで終端"を検出
+      */
+      fn input_char(char8_t ch) -> int {
+        //テーブルを参照して受理すべきかを決定
+        m_index = kusabira::table::ref_symbol_table(ch, m_index);
+
+        return m_index;
+      }
     };
 
     using kusabira::sm::table;
@@ -468,9 +502,15 @@ namespace kusabira::PP
             } else if (std::isdigit(cv)) {
               //数値リテラル読み取り、必ず数字で始まる
               this->transition<states::number_literal>(state);
-            } else if (std::ispunct(cv)) {
+            } else if (int res = kusabira::table::ref_symbol_table(cv); 0 <= res) {
               //区切り文字（記号）列読み取りモード
-              this->transition<states::punct_seq>(state);
+              if (res == 0) {
+                //1文字記号の入力
+                this->transition<states::end_seq>(state, pp_tokenize_status::OPorPunc);
+              } else {
+                //記号列の読み取り
+                this->transition<states::punct_seq>(state);
+              }
             } else {
               //その他上記に当てはまらない非空白文字、1文字づつ分離
               this->transition<states::end_seq>(state, pp_tokenize_status::OtherChar);
@@ -497,9 +537,9 @@ namespace kusabira::PP
             } else if (ch == u8'*') {
               //ブロックコメント
               this->transition<states::block_comment>(state);
-            } else if (std::ispunct(static_cast<unsigned char>(ch))) {
-              //他の記号が出てきたら記号列として読み込み継続
-              this->transition<states::punct_seq>(state);
+            } else if (ch == u8'=') {
+              // /=演算子の受理
+              this->transition<states::end_seq>(state, pp_tokenize_status::OPorPunc);
             } else {
               //他の文字が出てきたら単体の/演算子だったという事・・・
               return this->restart(state, ch, pp_tokenize_status::OPorPunc);
@@ -668,8 +708,11 @@ namespace kusabira::PP
           //記号列の読み出し
           [this](states::punct_seq state, char8_t ch) -> pp_tokenize_result {
             if (ch == u8'/') {
-              this->transition<states::maybe_comment>(state);
-            } else if (std::ispunct(static_cast<unsigned char>(ch)) == false) {
+              // /が2文字目以降にくる記号列は無い
+              return this->restart(state, ch, pp_tokenize_status::OPorPunc);
+            }
+            
+            if (std::ispunct(static_cast<unsigned char>(ch)) == false) {
               return this->restart(state, ch, pp_tokenize_status::OPorPunc);
             }
             return { pp_tokenize_status::Unaccepted };
