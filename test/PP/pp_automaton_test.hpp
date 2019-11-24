@@ -61,41 +61,57 @@ namespace pp_automaton_test
     CHECK_EQ(res, kusabira::PP::pp_tokenize_status::Identifier);
 
     //記号列読み取りに入る
-    CHECK_UNARY_FALSE(sm.input_char(input.at(index)));
+    res = sm.input_char(input.at(index++));
+    CHECK_UNARY(res);
+    CHECK_EQ(res, kusabira::PP::pp_tokenize_status::OPorPunc);
   }
 
   TEST_CASE("punct test") {
     kusabira::PP::pp_tokenizer_sm sm{};
 
-    std::u8string accept = u8"{}[]#()<:>%;.?*-~!+-*/^&|=&,";
-
-    for (auto ch : accept) {
-      CHECK_UNARY_FALSE(sm.input_char(ch));
+    std::u8string onechar = u8"{}[]##()~,?:.=!+-*/%^&|<>;";
+    
+    //1文字記号の受理
+    CHECK_UNARY_FALSE(sm.input_char(onechar.at(0)));
+    for (int i = 1; i < onechar.length(); ++i) {
+      auto res = sm.input_char(onechar.at(i));
+      CHECK_UNARY(res);
+      CHECK_EQ(res, kusabira::PP::pp_tokenize_status::OPorPunc);
     }
 
-    std::u8string input = u8"<< <=>a";
-    int index = 0;
+    auto semicolon = sm.input_newline();
+    CHECK_UNARY(semicolon);
+    CHECK_EQ(semicolon, kusabira::PP::pp_tokenize_status::OPorPunc);
 
-    for (; index < 2; ++index) {
-      CHECK_UNARY_FALSE(sm.input_char(input.at(index)));
+    //std::u8string twochar = u8"<::><%%>%:%:::.*->+=-=*=/=%=^=&=|===!=>=&&||";
+
+    std::u8string_view twochar[] = { u8"<: ", u8":> ", u8"<% ", u8"%> ", u8"%: ", u8":: ", u8".* ", u8"-> ", u8"+= ", u8"-= ", u8"*= ", u8"/= ", u8"%= ", u8"^= ", u8"&= ", u8"|= ", u8"== ", u8"!= ", u8"<= ", u8">= ", u8"&& ", u8"|| ", u8"<< ", u8">> " };
+
+    //2文字記号の受理
+    for (auto op : twochar) {
+      CHECK_UNARY_FALSE(sm.input_char(op.at(0)));
+      CHECK_UNARY_FALSE(sm.input_char(op.at(1)));
+      //3文字目の読み取り（スペース）によって受理状態へ
+      auto res = sm.input_char(op.at(2));
+      CHECK_UNARY(res);
+      CHECK_EQ(res, kusabira::PP::pp_tokenize_status::OPorPunc);
+      //状態のリセット
+      [[maybe_unused]] auto discard = sm.input_newline();
     }
 
-    auto res = sm.input_char(input.at(index++));
+    std::u8string_view threechar[] = { u8"... ", u8"<<= ", u8">>= ", u8"->* ", u8"<=> " };
 
-    CHECK_UNARY(res);
-    CHECK_EQ(res, kusabira::PP::pp_tokenize_status::OPorPunc);
-
-    //スペース読み取りを終了
-    CHECK_UNARY(sm.input_char(input.at(index)));
-
-    for (; index < 6; ++index) {
-      CHECK_UNARY_FALSE(sm.input_char(input.at(index)));
+    for (auto op : threechar) {
+      CHECK_UNARY_FALSE(sm.input_char(op.at(0)));
+      CHECK_UNARY_FALSE(sm.input_char(op.at(1)));
+      CHECK_UNARY_FALSE(sm.input_char(op.at(2)));
+      //4文字目の読み取り（スペース）によって受理状態へ
+      auto res = sm.input_char(op.at(3));
+      CHECK_UNARY(res);
+      CHECK_EQ(res, kusabira::PP::pp_tokenize_status::OPorPunc);
+      //状態のリセット
+      [[maybe_unused]] auto discard = sm.input_newline();
     }
-
-    //aを読み込み、記号列の受理
-    res = sm.input_char(input.at(index));
-    CHECK_UNARY(res);
-    CHECK_EQ(res, kusabira::PP::pp_tokenize_status::OPorPunc);
   }
 
   TEST_CASE("string literal test") {
@@ -520,7 +536,6 @@ namespace pp_automaton_test
     //記号列
     CHECK_UNARY_FALSE(sm.input_char(u8'<'));
     CHECK_UNARY_FALSE(sm.input_char(u8'='));
-    CHECK_UNARY_FALSE(sm.input_char(u8'>'));
 
     res = sm.input_newline();
     CHECK_UNARY(res);

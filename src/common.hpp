@@ -34,7 +34,7 @@ namespace kusabira::PP
   */
   enum class pp_tokenize_status : std::int8_t {
     
-    UnknownError,
+    UnknownError = std::numeric_limits<std::int8_t>::min(),
     FailedRawStrLiteralRead,            //生文字列リテラルの読み取りに失敗した、バグの可能性が高い
     RawStrLiteralDelimiterOver16Chars,  //生文字列リテラルデリミタの長さが16文字を超えた
     RawStrLiteralDelimiterInvalid,      //生文字列リテラルデリミタに現れてはいけない文字が現れた

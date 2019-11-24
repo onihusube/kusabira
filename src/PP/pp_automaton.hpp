@@ -384,7 +384,7 @@ namespace kusabira::PP
         row<init, white_space_seq, maybe_comment, line_comment, block_comment, maybe_end_block_comment, identifier_seq, maybe_str_literal, maybe_u8str_literal, maybe_rawstr_literal, raw_string_literal, string_literal, char_literal, number_literal, number_sign, punct_seq, end_seq > ,
         row<end_seq, init>,
         row<white_space_seq, init>,
-        row<maybe_comment, line_comment, block_comment, punct_seq, init>,
+        row<maybe_comment, line_comment, block_comment, punct_seq, end_seq, init>,
         row<line_comment, init>,
         row<block_comment, maybe_end_block_comment, init>,
         row<maybe_end_block_comment, block_comment, init>,
@@ -398,7 +398,7 @@ namespace kusabira::PP
         row<ignore_escape_seq, string_literal, char_literal, init>,
         row<number_literal, number_sign, init>,
         row<number_sign, number_literal, init>,
-        row<punct_seq, maybe_comment, init>>;
+        row<punct_seq, maybe_comment, end_seq, init>>;
   } // namespace states
 
   /**
@@ -509,7 +509,7 @@ namespace kusabira::PP
                 this->transition<states::end_seq>(state, pp_tokenize_status::OPorPunc);
               } else {
                 //記号列の読み取り
-                this->transition<states::punct_seq>(state);
+                this->transition<states::punct_seq>(state, res);
               }
             } else {
               //その他上記に当てはまらない非空白文字、1文字づつ分離
@@ -711,8 +711,13 @@ namespace kusabira::PP
               // /が2文字目以降にくる記号列は無い
               return this->restart(state, ch, pp_tokenize_status::OPorPunc);
             }
-            
-            if (std::ispunct(static_cast<unsigned char>(ch)) == false) {
+
+            //正しい記号列だけを認識する
+            int res = state.input_char(ch);
+            if (res == 0) {
+              //受理、ほとんどの記号列は2文字
+              this->transition<states::end_seq>(state, pp_tokenize_status::OPorPunc);
+            } else if (res < 0) {
               return this->restart(state, ch, pp_tokenize_status::OPorPunc);
             }
             return { pp_tokenize_status::Unaccepted };
