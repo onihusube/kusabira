@@ -21,3 +21,6 @@ files = ['src/common.hpp', 'src/PP/pp_tokenizer.hpp', 'test/PP/pp_tokenizer_test
 include_dir = include_directories('src', 'subprojects/doctest')
 
 exe = executable('kusabira_test', 'test/kusabira_test.cpp', include_directories : include_dir, extra_files : files, cpp_args : options, dependencies : doctest_dep)
+
+#テストの設定
+test('kusabira test', exe)

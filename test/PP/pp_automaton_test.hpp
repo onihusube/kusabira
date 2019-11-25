@@ -73,7 +73,7 @@ namespace pp_automaton_test
     
     //1文字記号の受理
     CHECK_UNARY_FALSE(sm.input_char(onechar.at(0)));
-    for (int i = 1; i < onechar.length(); ++i) {
+    for (auto i = 1u; i < onechar.length(); ++i) {
       auto res = sm.input_char(onechar.at(i));
       CHECK_UNARY(res);
       CHECK_EQ(res, kusabira::PP::pp_tokenize_status::OPorPunc);
