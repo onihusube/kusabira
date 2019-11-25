@@ -85,7 +85,7 @@ namespace pp_automaton_test
 
     //std::u8string twochar = u8"<::><%%>%:%:::.*->+=-=*=/=%=^=&=|===!=>=&&||";
 
-    std::u8string_view twochar[] = { u8"<: ", u8":> ", u8"<% ", u8"%> ", u8"%: ", u8":: ", u8".* ", u8"-> ", u8"+= ", u8"-= ", u8"*= ", u8"/= ", u8"%= ", u8"^= ", u8"&= ", u8"|= ", u8"== ", u8"!= ", u8"<= ", u8">= ", u8"&& ", u8"|| ", u8"<< ", u8">> " };
+    std::u8string_view twochar[] = { u8"<: ", u8":> ", u8"<% ", u8"%> ", u8"%: "/*, u8":: "*/, u8".* ", u8"-> ", u8"+= ", u8"-= ", u8"*= ", u8"/= ", u8"%= ", u8"^= ", u8"&= ", u8"|= ", u8"== ", u8"!= ", u8"<= ", u8">= ", u8"&& ", u8"|| ", u8"<< ", u8">> " };
 
     //2文字記号の受理
     for (auto op : twochar) {
@@ -107,6 +107,94 @@ namespace pp_automaton_test
       CHECK_UNARY_FALSE(sm.input_char(op.at(2)));
       //4文字目の読み取り（スペース）によって受理状態へ
       auto res = sm.input_char(op.at(3));
+      CHECK_UNARY(res);
+      CHECK_EQ(res, kusabira::PP::pp_tokenize_status::OPorPunc);
+      //状態のリセット
+      [[maybe_unused]] auto discard = sm.input_newline();
+    }
+
+    //最長一致規則の例外対応、:は1つづつ分離し、代替トークンはそのまま受理
+    std::u8string_view exception_op[] = {u8":: ", u8"<::> ", u8"<:::>=", u8"<::: "};
+
+    //::
+    {
+      auto op = exception_op[0];
+      CHECK_UNARY_FALSE(sm.input_char(op.at(0)));
+      //:は１つづつ受理
+      auto res = sm.input_char(op.at(1));
+      CHECK_UNARY(res);
+      CHECK_EQ(res, kusabira::PP::pp_tokenize_status::OPorPunc);
+
+      res = sm.input_char(op.at(2));
+      CHECK_UNARY(res);
+      CHECK_EQ(res, kusabira::PP::pp_tokenize_status::OPorPunc);
+      //状態のリセット
+      [[maybe_unused]] auto discard = sm.input_newline();
+    }
+
+    //<::>
+    {
+      auto op = exception_op[1];
+      CHECK_UNARY_FALSE(sm.input_char(op.at(0)));
+      CHECK_UNARY_FALSE(sm.input_char(op.at(1)));
+      //<:受理
+      auto res = sm.input_char(op.at(2));
+      CHECK_UNARY(res);
+      CHECK_EQ(res, kusabira::PP::pp_tokenize_status::OPorPunc);
+
+      CHECK_UNARY_FALSE(sm.input_char(op.at(3)));
+      //:>受理
+      res = sm.input_char(op.at(4));
+      CHECK_UNARY(res);
+      CHECK_EQ(res, kusabira::PP::pp_tokenize_status::OPorPunc);
+      //状態のリセット
+      [[maybe_unused]] auto discard = sm.input_newline();
+    }
+
+    //<:::>=
+    {
+      auto op = exception_op[2];
+      CHECK_UNARY_FALSE(sm.input_char(op.at(0)));
+      CHECK_UNARY_FALSE(sm.input_char(op.at(1)));
+      //<:受理
+      auto res = sm.input_char(op.at(2));
+      CHECK_UNARY(res);
+      CHECK_EQ(res, kusabira::PP::pp_tokenize_status::OPorPunc);
+
+      //:受理
+      res = sm.input_char(op.at(3));
+      CHECK_UNARY(res);
+      CHECK_EQ(res, kusabira::PP::pp_tokenize_status::OPorPunc);
+
+      CHECK_UNARY_FALSE(sm.input_char(op.at(4)));
+      //:>受理、:と<=にはしない
+      res = sm.input_char(op.at(5));
+      CHECK_UNARY(res);
+      CHECK_EQ(res, kusabira::PP::pp_tokenize_status::OPorPunc);
+
+      //状態のリセット、単体=演算子
+      res = sm.input_newline();
+      CHECK_UNARY(res);
+      CHECK_EQ(res, kusabira::PP::pp_tokenize_status::OPorPunc);
+    }
+
+    //<:::
+    {
+      auto op = exception_op[3];
+      CHECK_UNARY_FALSE(sm.input_char(op.at(0)));
+      CHECK_UNARY_FALSE(sm.input_char(op.at(1)));
+      //<:受理
+      auto res = sm.input_char(op.at(2));
+      CHECK_UNARY(res);
+      CHECK_EQ(res, kusabira::PP::pp_tokenize_status::OPorPunc);
+
+      //:受理
+      res = sm.input_char(op.at(3));
+      CHECK_UNARY(res);
+      CHECK_EQ(res, kusabira::PP::pp_tokenize_status::OPorPunc);
+
+      //:受理
+      res = sm.input_char(op.at(4));
       CHECK_UNARY(res);
       CHECK_EQ(res, kusabira::PP::pp_tokenize_status::OPorPunc);
       //状態のリセット

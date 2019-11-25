@@ -145,8 +145,8 @@ int table8(unsigned char c) {
 
 //:から始まる記号列のテーブル
 int table9(unsigned char c) {
-  if (c == '>' || c == ':') {
-    //:>, ::
+  if (c == '>'/* || c == ':'*/) {
+    //:>, ::とは認識しない
     return 0;
   } else {
     //その他の記号

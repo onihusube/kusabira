@@ -308,6 +308,10 @@ namespace kusabira::PP
 
       static constexpr pp_tokenize_status Category = pp_tokenize_status::RawStrLiteral;
 
+      raw_string_literal() = default;
+
+      raw_string_literal(const raw_string_literal &) = delete;
+
       detail::rawstr_literal_accepter m_reader{};
 
       /**
@@ -359,6 +363,8 @@ namespace kusabira::PP
 
       punct_seq(int iddex = 0) : m_index{iddex}
       {}
+
+      punct_seq(const punct_seq &) = delete;
 
       /**
       * @brief 演算子、区切り文字をチェックする
@@ -455,7 +461,7 @@ namespace kusabira::PP
     * @return status
     */
     template<typename NowState>
-    fn restart(NowState state, char8_t c, pp_tokenize_status status) -> pp_tokenize_result {
+    fn restart(NowState&& state, char8_t c, pp_tokenize_status status) -> pp_tokenize_result {
       this->transition<states::init>(state);
       [[maybe_unused]] auto discard = this->input_char(c);
 
@@ -630,7 +636,7 @@ namespace kusabira::PP
             return { pp_tokenize_status::Unaccepted };
           },
           //生文字列リテラル読み込み
-          [this](states::raw_string_literal &state, char8_t ch) -> pp_tokenize_result {
+          [this](states::raw_string_literal& state, char8_t ch) -> pp_tokenize_result {
             auto status = state.input_char(ch);
             if (status == pp_tokenize_status::RawStrLiteral) {
               //受理完了
@@ -706,7 +712,7 @@ namespace kusabira::PP
             }
           },
           //記号列の読み出し
-          [this](states::punct_seq state, char8_t ch) -> pp_tokenize_result {
+          [this](states::punct_seq& state, char8_t ch) -> pp_tokenize_result {
             if (ch == u8'/') {
               // /が2文字目以降にくる記号列は無い
               return this->restart(state, ch, pp_tokenize_status::OPorPunc);
