@@ -50,7 +50,8 @@ namespace kusabira::PP
     StringLiteral,  //文字・文字列リテラル、LRUu8等のプレフィックスを含むがユーザ定義リテラルは含まない
     RawStrLiteral,  //生文字列リテラル
     OPorPunc,       //記号列、それが演算子として妥当であるかはチェックしていない
-    OtherChar       //その他の非空白文字の一文字
+    OtherChar,      //その他の非空白文字の一文字
+    NewLine         //改行
   };
 
 

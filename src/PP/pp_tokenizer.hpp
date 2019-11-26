@@ -59,6 +59,7 @@ namespace kusabira::PP {
 
 #ifndef _MSC_VER
         //CRLF読み取り時にCRが残っていたら飛ばす、非Windowsの時のみ
+        //バグの元になる可能性はある？要検証
         if (not m_buffer.empty() and m_buffer.back() == '\r') {
           --last;
         }
@@ -133,6 +134,15 @@ namespace kusabira::PP {
     }
   };
 
+
+  struct pp_token {
+    using line_iterator = std::pmr::forward_list<logical_line>::iterator;
+
+    kusabira::pp_tokenize_result kind;
+    std::u8string_view token;
+    line_iterator srcline_ref;
+  };
+
   /**
   * @brief ソースファイルからプリプロセッシングトークンを抽出する
   * @detail ファイルの読み込みはこのクラスでは実装しない
@@ -142,6 +152,7 @@ namespace kusabira::PP {
     using char_iterator = std::pmr::u8string::iterator;
 
     filereader m_fr;
+    kusabira::PP::pp_tokenizer_sm m_accepter{};
     std::pmr::polymorphic_allocator<logical_line> m_alloc;
 
     std::pmr::forward_list<logical_line> m_lines; //行バッファ
@@ -175,6 +186,37 @@ namespace kusabira::PP {
       else {
         return false;
       }
+    }
+
+    fn tokenize() -> std::optional<pp_token> {
+
+      //現在の文字位置が行終端に到達していたら次の行を読む
+      if (m_pos == m_end) {
+        //次の行の読み込みができなかったら終了
+        if (this->readline() == false) return std::nullopt;
+      }
+
+      //現在の先頭文字位置を記録
+      const auto first = m_pos;
+
+      //行末に到達したら終了
+      for (; m_pos != m_end; ++m_pos) {
+        if (auto res = m_accepter.input_char(*m_pos); res) {
+          //受理
+        } else {
+          //非受理
+          continue;
+        }
+      }
+
+      //改行入力
+      if (auto res = m_accepter.input_newline(); res)
+      {
+      }
+
+      //ホワイトスペースかそれ以外の文字、の列（のview）
+      //return std::optional<std::u8string_view>(std::in_place, &*first, std::distance(first, m_pos));
+      return {};
     }
 
     /**
