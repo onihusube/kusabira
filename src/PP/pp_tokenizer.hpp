@@ -20,6 +20,7 @@ namespace kusabira::PP {
   */
   struct logical_line {
 
+    //()集成体初期化がポータブルになったならこのコンストラクタは消える定め
     logical_line(u8_pmralloc& alloc, std::size_t line_num)
       : line{alloc}
       , phisic_line{line_num}
@@ -28,13 +29,16 @@ namespace kusabira::PP {
 
     //論理1行の文字列
     std::pmr::u8string line;
+
     //元の開始行
     std::size_t phisic_line;
+
     //1行毎の文字列長、このvectorの長さ=継続行数
     std::pmr::vector<std::size_t> line_offset;
   };
 
   using maybe_line = std::optional<logical_line>;
+
 
   /**
   * @brief ソースファイルから文字列を読み出す処理を担う
@@ -42,9 +46,13 @@ namespace kusabira::PP {
   */
   class filereader {
 
+    //入力ファイルストリーム
     std::ifstream m_srcstream;
+    //char8_tの多相アロケータ
     u8_pmralloc m_alloc;
+    //1行分を一時的に持っておくバッファ
     std::pmr::string m_buffer;
+    //現在の物理行数
     std::size_t m_line_num = 1;
 
     /**
@@ -135,35 +143,58 @@ namespace kusabira::PP {
   };
 
 
+  /**
+  * @brief プリプロセッシングトークン1つを表現する型
+  */
   struct pp_token {
-    using line_iterator = std::pmr::forward_list<logical_line>::iterator;
+    using line_iterator = std::pmr::forward_list<logical_line>::const_iterator;
 
-    kusabira::pp_tokenize_result kind;
+    //()集成体初期化がポータブルになったならこのコンストラクタは消える定め
+    pp_token(kusabira::PP::pp_tokenize_result result, std::u8string_view view, line_iterator line)
+      : kind{ std::move(result) }
+      , token{ std::move(view) }
+      , srcline_ref{ std::move(line) }
+    {}
+
+    //トークン種別
+    kusabira::PP::pp_tokenize_result kind;
+
+    //トークン文字列
     std::u8string_view token;
+
+    //対応する論理行オブジェクトへのイテレータ
     line_iterator srcline_ref;
   };
+
 
   /**
   * @brief ソースファイルからプリプロセッシングトークンを抽出する
   * @detail ファイルの読み込みはこのクラスでは実装しない
   */
-  struct tokenizer {
-    using line_iterator = std::pmr::forward_list<logical_line>::iterator;
-    using char_iterator = std::pmr::u8string::iterator;
+  class tokenizer {
+    using line_iterator = std::pmr::forward_list<logical_line>::const_iterator;
+    using char_iterator = std::pmr::u8string::const_iterator;
 
+    //ファイルリーダー
     filereader m_fr;
+    //トークナイズのためのオートマトン
     kusabira::PP::pp_tokenizer_sm m_accepter{};
-    std::pmr::polymorphic_allocator<logical_line> m_alloc;
+    //行バッファ
+    std::pmr::forward_list<logical_line> m_lines;
+    //行位置
+    line_iterator m_line_pos;
+    //文字位置
+    char_iterator m_pos{};
+    //文字の終端
+    char_iterator m_end{};
 
-    std::pmr::forward_list<logical_line> m_lines; //行バッファ
-    line_iterator m_line_pos; //行位置
-    char_iterator m_pos{};  //文字位置
-    char_iterator m_end{};  //文字の終端
+    //std::pmr::polymorphic_allocator<logical_line> m_alloc;
+
+  public:
 
     tokenizer(const fs::path& srcpath, std::pmr::memory_resource* mr = &kusabira::def_mr) 
       : m_fr{srcpath, mr}
-      , m_alloc{mr}
-      , m_lines{m_alloc}
+      , m_lines{ std::pmr::polymorphic_allocator<logical_line>{mr} }
       , m_line_pos{m_lines.before_begin()}
     {}
 
@@ -188,79 +219,53 @@ namespace kusabira::PP {
       }
     }
 
+    /**
+    * @brief トークンを一つ切り出す
+    * @return 切り出したトークンのoptional
+    */
     fn tokenize() -> std::optional<pp_token> {
+      using kusabira::PP::pp_tokenize_status;
+      using kusabira::PP::pp_tokenize_result;
 
       //現在の文字位置が行終端に到達していたら次の行を読む
       if (m_pos == m_end) {
         //次の行の読み込みができなかったら終了
-        if (this->readline() == false) return std::nullopt;
+        if (this->readline() == false) {
+          return std::nullopt;
+        } else {
+          //new-line character、プリプロセッサディレクティブの改行を表現するために
+          return std::optional<pp_token>{std::in_place, pp_tokenize_result{ pp_tokenize_status::NewLine }, std::u8string_view{}, m_line_pos};
+        }
       }
 
       //現在の先頭文字位置を記録
       const auto first = m_pos;
 
-      //行末に到達したら終了
+      //行末に到達するまで、1文字づつ読んでいく
       for (; m_pos != m_end; ++m_pos) {
         if (auto res = m_accepter.input_char(*m_pos); res) {
           //受理
+          return std::optional<pp_token>{std::in_place, res, std::u8string_view{ &*first, std::size_t(std::distance(first, m_pos)) }, m_line_pos};
         } else {
           //非受理
+          if (res < pp_tokenize_status::Unaccepted) {
+            //トークナイズ中のエラー、すなわちコンパイルエラー
+            //エラー情報を呼び出し側に引き渡す必要がある、とりあえず実装
+            return std::nullopt;
+          }
           continue;
         }
       }
 
       //改行入力
-      if (auto res = m_accepter.input_newline(); res)
-      {
+      if (auto res = m_accepter.input_newline(); res) {
+        return std::optional<pp_token>{std::in_place, res, std::u8string_view{ &*first, std::size_t(std::distance(first, m_pos)) }, m_line_pos};
       }
 
-      //ホワイトスペースかそれ以外の文字、の列（のview）
-      //return std::optional<std::u8string_view>(std::in_place, &*first, std::distance(first, m_pos));
+      //ここに来ることは無いようにしたいね・・・
       return {};
     }
 
-    /**
-    * @brief 文字を1文字読み進める
-    * @param mode 読み取りモード（ホワイトスペース/非空白文字）
-    * @param pos 現在の読み取り位置
-    * @return 読み取り対象以外に達したらfalse
-    */
-    fn skip_read(bool mode, char_iterator& pos) -> bool {
-      ++pos;
-      bool is_space = std::isspace(static_cast<unsigned char>(*pos));
-
-      if (mode == true) {
-        //ホワイトスペース読み取りモード（ホワイトスペースである間読み取り）
-        return is_space;
-      } else {
-        //非空白文字読み取りモード（ホワイトスペースではない間読み取り）
-        return !is_space;
-      }
-    }
-
-    /**
-    * @brief ホワイトスペースとそれ以外を分別する
-    * @return ホワイトスペース/それ以外の文字列と付随情報
-    */
-    fn separate_whitspace() -> std::optional<std::u8string_view> {
-      //現在の文字位置が行終端に到達していたら次の行を読む
-      if (m_pos != m_end) {
-        //次の行の読み込みができなかったら終了
-        if (this->readline() == false) return std::nullopt;
-      }
-
-      //1文字目はホワイトスペースかそれ以外かで読み取るものが変わる
-      bool mode = std::isspace(static_cast<unsigned char>(*m_pos)) ? true : false;
-      //先頭位置
-      const auto first = m_pos;
-
-      do {
-        if (skip_read(mode, m_pos) == false) break;
-      } while (m_pos != m_end); //行末に到達しても終了
-
-      //ホワイトスペースかそれ以外の文字、の列（のview）
-      return std::optional<std::u8string_view>(std::in_place, &*first, std::distance(first, m_pos));
-    }
   };
 
 } // namespace kusabira::PP
