@@ -297,7 +297,8 @@ namespace pp_automaton_test
       {
         CHECK_UNARY_FALSE(sm.input_char(c));
       }
-      CHECK_UNARY_FALSE(sm.input_newline());
+      //一旦受理する
+      CHECK_UNARY(sm.input_newline());
 
       std::u8string line2 = u8R"(12345)";
 
@@ -305,7 +306,8 @@ namespace pp_automaton_test
       {
         CHECK_UNARY_FALSE(sm.input_char(c));
       }
-      CHECK_UNARY_FALSE(sm.input_newline());
+      //一旦受理する
+      CHECK_UNARY(sm.input_newline());
 
       std::u8string line3 = u8R"+({}`**})")+";
 
@@ -360,7 +362,8 @@ namespace pp_automaton_test
       {
         CHECK_UNARY_FALSE(sm.input_char(c));
       }
-      CHECK_UNARY_FALSE(sm.input_newline());
+      //一旦受理する
+      CHECK_UNARY(sm.input_newline());
 
       std::u8string line2 = u8R"(07340^*-\^[@];eaff***)";
 
@@ -368,7 +371,8 @@ namespace pp_automaton_test
       {
         CHECK_UNARY_FALSE(sm.input_char(c));
       }
-      CHECK_UNARY_FALSE(sm.input_newline());
+      //一旦受理する
+      CHECK_UNARY(sm.input_newline());
 
       std::u8string line3 = u8R"+(*eooo38*49*:8@[]:]:*}*}{}{9*)+";
 
@@ -545,6 +549,25 @@ namespace pp_automaton_test
     //識別子
     CHECK_EQ(res, kusabira::PP::pp_tokenize_status::Identifier);
 
+    //生文字列リテラルぽい？2
+    CHECK_UNARY_FALSE(sm.input_char(u8'R'));
+    CHECK_UNARY_FALSE(sm.input_char(u8'"'));
+    CHECK_UNARY_FALSE(sm.input_char(u8'('));
+    CHECK_UNARY_FALSE(sm.input_char(u8'a'));
+
+    res = sm.input_newline();
+    CHECK_UNARY(res);
+    //生文字列リテラルの途中
+    CHECK_EQ(res, kusabira::PP::pp_tokenize_status::DuringRawStr);
+
+    CHECK_UNARY_FALSE(sm.input_char(u8'b'));
+    CHECK_UNARY_FALSE(sm.input_char(u8')'));
+    CHECK_UNARY_FALSE(sm.input_char(u8'"'));
+
+    res = sm.input_newline();
+    CHECK_UNARY(res);
+    //生文字列リテラル
+    CHECK_EQ(res, kusabira::PP::pp_tokenize_status::RawStrLiteral);
 
     //L文字列リテラルぽい？
     CHECK_UNARY_FALSE(sm.input_char(u8'L'));

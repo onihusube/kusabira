@@ -750,10 +750,10 @@ namespace kusabira::PP
           return { state.category };
         },
         //ブロックコメント中の改行は無条件で継続
-        [](states::block_comment) -> pp_tokenize_result { return {pp_tokenize_status::Unaccepted}; },
+        [](states::block_comment) -> pp_tokenize_result { return {pp_tokenize_status::BlockComment}; },
         [this](states::maybe_end_block_comment state) -> pp_tokenize_result {
           this->transition<states::block_comment>(state);
-          return { pp_tokenize_status::Unaccepted };
+          return { pp_tokenize_status::BlockComment };
         },
         //生文字列リテラルは複数行にわたりうる
         [](states::raw_string_literal& state) -> pp_tokenize_result {
@@ -765,7 +765,7 @@ namespace kusabira::PP
             //不正な入力、エラー、おそらくデリミタ読み取りの途中
             return status;
           }
-          return { pp_tokenize_status::Unaccepted };
+          return { pp_tokenize_status::DuringRawStr };
         },
         //生文字列リテラルとコメントブロック以外は改行でトークン分割する
         [this](auto&& state) -> pp_tokenize_result {

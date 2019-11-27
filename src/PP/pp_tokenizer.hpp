@@ -244,26 +244,21 @@ namespace kusabira::PP {
       //行末に到達するまで、1文字づつ読んでいく
       for (; m_pos != m_end; ++m_pos) {
         if (auto res = m_accepter.input_char(*m_pos); res) {
-          //受理
-          return std::optional<pp_token>{std::in_place, res, std::u8string_view{ &*first, std::size_t(std::distance(first, m_pos)) }, m_line_pos};
+          //受理、エラーとごっちゃ
+          return std::optional<pp_token>{std::in_place, std::move(res), std::u8string_view{ &*first, std::size_t(std::distance(first, m_pos)) }, m_line_pos};
         } else {
           //非受理
-          if (res < pp_tokenize_status::Unaccepted) {
-            //トークナイズ中のエラー、すなわちコンパイルエラー
-            //エラー情報を呼び出し側に引き渡す必要がある、とりあえず実装
-            return std::nullopt;
-          }
           continue;
         }
       }
 
       //改行入力
       if (auto res = m_accepter.input_newline(); res) {
-        return std::optional<pp_token>{std::in_place, res, std::u8string_view{ &*first, std::size_t(std::distance(first, m_pos)) }, m_line_pos};
+        return std::optional<pp_token>{std::in_place, std::move(res), std::u8string_view{&*first, std::size_t(std::distance(first, m_pos))}, m_line_pos};
       }
 
       //ここに来ることは無いようにしたいね・・・
-      return {};
+      return std::nullopt;
     }
 
   };
