@@ -223,23 +223,7 @@ namespace kusabira::PP
         }
 
       };
-
-      /**
-      * @brief 記号列の受理を判定する
-      * @param ch 入力文字
-      * @param row_index 参照するテーブル番号
-      */
-      ifn ref_table(char8_t ch, int row_index = 0) -> int {
-        //制御文字は考慮しない
-        std::uint8_t index = ch - 33;
-
-        //Ascii範囲外の文字か制御文字
-        if ((126 - 33) < index) return -1;
-
-        //テーブルを参照して受理すべきかを決定
-        return kusabira::table::symbol_table[row_index][index];
-      }
-    }
+    } // namespace detail
 
     /**
     * @brief 初期状態、トークン最初の文字を受け取る
@@ -356,6 +340,10 @@ namespace kusabira::PP
       {}
     };
 
+    /**
+    * @brief 演算子記号、区切り文字を認識する
+    * @detail 有効でない記号列は認識されず、最小の演算子か記号に分割される
+    */
     struct punct_seq {
       static constexpr pp_tokenize_status Category = pp_tokenize_status::OPorPunc;
 
@@ -369,7 +357,7 @@ namespace kusabira::PP
       /**
       * @brief 演算子、区切り文字をチェックする
       * @param ch 1文字の入力
-      * @return falseで終端"を検出
+      * @return 
       */
       fn input_char(char8_t ch) -> int {
         //テーブルを参照して受理すべきかを決定
@@ -386,7 +374,8 @@ namespace kusabira::PP
     * @brief 状態遷移テーブル
     * @detail 各行の先頭が始まりの状態、その後はそこからの遷移先の候補、そこに無い遷移先は妥当でない
     */
-    using transition_table = table <
+    using transition_table = table
+      <
         row<init, white_space_seq, maybe_comment, line_comment, block_comment, maybe_end_block_comment, identifier_seq, maybe_str_literal, maybe_u8str_literal, maybe_rawstr_literal, raw_string_literal, string_literal, char_literal, number_literal, number_sign, punct_seq, end_seq > ,
         row<end_seq, init>,
         row<white_space_seq, init>,
@@ -404,8 +393,11 @@ namespace kusabira::PP
         row<ignore_escape_seq, string_literal, char_literal, init>,
         row<number_literal, number_sign, init>,
         row<number_sign, number_literal, init>,
-        row<punct_seq, maybe_comment, end_seq, init>>;
+        row<punct_seq, maybe_comment, end_seq, init>
+      >;
+
   } // namespace states
+
 
   /**
   * @brief 識別子として受理可能かを調べる
@@ -433,6 +425,7 @@ namespace kusabira::PP
       return false;
     }
   }
+
 
   /**
   * @brief 現在の読み取り文字を識別するオートマトン
@@ -743,7 +736,7 @@ namespace kusabira::PP
 
       auto visitor = kusabira::sm::overloaded{
         //init -> initはテーブルに無い
-        [](states::init) -> pp_tokenize_result { return {pp_tokenize_status::Unaccepted}; },
+        [](states::init) -> pp_tokenize_result { return {pp_tokenize_status::Empty}; },
         //1つ前の状態からもらったカテゴリを返す
         [this](states::end_seq state) -> pp_tokenize_result {
           this->transition<states::init>(state);

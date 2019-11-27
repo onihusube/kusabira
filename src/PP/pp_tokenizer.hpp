@@ -188,16 +188,6 @@ namespace kusabira::PP {
     //文字の終端
     char_iterator m_end{};
 
-    //std::pmr::polymorphic_allocator<logical_line> m_alloc;
-
-  public:
-
-    tokenizer(const fs::path& srcpath, std::pmr::memory_resource* mr = &kusabira::def_mr) 
-      : m_fr{srcpath, mr}
-      , m_lines{ std::pmr::polymorphic_allocator<logical_line>{mr} }
-      , m_line_pos{m_lines.before_begin()}
-    {}
-
     /**
     * @brief 現在の読み取り行を進める
     * @return 行読み取りに成功したか否か
@@ -213,11 +203,18 @@ namespace kusabira::PP {
         m_end = str.end();
 
         return true;
-      }
-      else {
+      } else {
         return false;
       }
     }
+
+  public:
+
+    tokenizer(const fs::path& srcpath, std::pmr::memory_resource* mr = &kusabira::def_mr) 
+      : m_fr{srcpath, mr}
+      , m_lines{ std::pmr::polymorphic_allocator<logical_line>{mr} }
+      , m_line_pos{m_lines.before_begin()}
+    {}
 
     /**
     * @brief トークンを一つ切り出す
@@ -228,13 +225,13 @@ namespace kusabira::PP {
       using kusabira::PP::pp_tokenize_result;
 
       //現在の文字位置が行終端に到達していたら次の行を読む
-      if (m_pos == m_end) {
+      if (auto before_line = m_line_pos; m_pos == m_end) {
         //次の行の読み込みができなかったら終了
         if (this->readline() == false) {
           return std::nullopt;
         } else {
           //new-line character、プリプロセッサディレクティブの改行を表現するために
-          return std::optional<pp_token>{std::in_place, pp_tokenize_result{ pp_tokenize_status::NewLine }, std::u8string_view{}, m_line_pos};
+          return std::optional<pp_token>{std::in_place, pp_tokenize_result{ pp_tokenize_status::NewLine }, std::u8string_view{}, std::move(before_line)};
         }
       }
 
@@ -257,8 +254,8 @@ namespace kusabira::PP {
         return std::optional<pp_token>{std::in_place, std::move(res), std::u8string_view{&*first, std::size_t(std::distance(first, m_pos))}, m_line_pos};
       }
 
-      //ここに来ることは無いようにしたいね・・・
-      return std::nullopt;
+      //ここに来ることは無いはずでは・・・
+      return std::optional<pp_token>{std::in_place, pp_tokenize_result{ pp_tokenize_status::UnknownError }, std::u8string_view{}, m_line_pos};
     }
 
   };

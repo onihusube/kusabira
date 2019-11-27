@@ -52,7 +52,8 @@ namespace kusabira::PP
     DuringRawStr,   //生文字列リテラルの途中、改行時
     OPorPunc,       //記号列、それが演算子として妥当であるかはチェックしていない
     OtherChar,      //その他の非空白文字の一文字
-    NewLine         //改行
+    NewLine,        //改行
+    Empty           //空のトークン
   };
 
 
