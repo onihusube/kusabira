@@ -240,9 +240,9 @@ namespace kusabira::PP {
 
       //行末に到達するまで、1文字づつ読んでいく
       for (; m_pos != m_end; ++m_pos) {
-        if (auto res = m_accepter.input_char(*m_pos); res) {
+        if (auto is_accept = m_accepter.input_char(*m_pos); is_accept) {
           //受理、エラーとごっちゃ
-          return std::optional<pp_token>{std::in_place, std::move(res), std::u8string_view{ &*first, std::size_t(std::distance(first, m_pos)) }, m_line_pos};
+          return std::optional<pp_token>{std::in_place, std::move(is_accept), std::u8string_view{ &*first, std::size_t(std::distance(first, m_pos)) }, m_line_pos};
         } else {
           //非受理
           continue;
@@ -250,8 +250,8 @@ namespace kusabira::PP {
       }
 
       //改行入力
-      if (auto res = m_accepter.input_newline(); res) {
-        return std::optional<pp_token>{std::in_place, std::move(res), std::u8string_view{&*first, std::size_t(std::distance(first, m_pos))}, m_line_pos};
+      if (auto is_accept = m_accepter.input_newline(); is_accept) {
+        return std::optional<pp_token>{std::in_place, std::move(is_accept), std::u8string_view{&*first, std::size_t(std::distance(first, m_pos))}, m_line_pos};
       }
 
       //ここに来ることは無いはずでは・・・

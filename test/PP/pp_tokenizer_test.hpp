@@ -165,4 +165,19 @@ namespace pp_tokenaizer_test
     }
   }
 
+  TEST_CASE("tokenize test") {
+    using kusabira::PP::pp_tokenize_status;
+
+    auto testdir = kusabira::test::get_testfiles_dir() / "PP";
+
+    CHECK_UNARY(std::filesystem::is_directory(testdir));
+    CHECK_UNARY(std::filesystem::exists(testdir));
+
+    kusabira::PP::tokenizer tokenizer{testdir / "pp_test.cpp"};
+
+    auto token = tokenizer.tokenize();
+
+    CHECK_UNARY(token);
+    CHECK_EQ(token->kind, pp_tokenize_status::OPorPunc);
+  }
 } // namespace pp_tokenaizer_test
