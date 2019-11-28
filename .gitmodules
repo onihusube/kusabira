@@ -1,3 +1,6 @@
 [submodule "subprojects/doctest"]
 	path = subprojects/doctest
 	url = https://github.com/onqtam/doctest.git
+[submodule "subprojects/tlexpected"]
+	path = subprojects/tlexpected
+	url = https://github.com/onihusube/expected.git

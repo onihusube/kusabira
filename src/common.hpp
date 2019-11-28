@@ -8,6 +8,8 @@
 #include <compare>
 #endif
 
+#include "tl/expected.hpp"
+
 #define  fn [[nodiscard]] auto
 #define ifn [[nodiscard]] inline auto
 #define cfn [[nodiscard]] constexpr auto
