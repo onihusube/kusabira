@@ -15,4 +15,3 @@ vignettes/*.pdf
 rsconnect/
 build/
 .vscode/settings.json
-.vscode/c_cpp_properties.json

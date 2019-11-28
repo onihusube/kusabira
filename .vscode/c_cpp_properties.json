@@ -1,0 +1,49 @@
+{
+    "env": {
+        "kusabiraDefaultIncludePath": [
+            "${workspaceFolder}/src",
+            "${workspaceFolder}/subprojects/doctest"
+        ]
+    },
+    "configurations": [
+        {
+            "name": "Mac g++",
+            "includePath": [ 
+                "${kusabiraDefaultIncludePath}" 
+            ],
+            "defines": [],
+            "compilerPath": "$/usr/local/bin/g++-9",
+            "cStandard": "c11",
+            "cppStandard": "c++20",
+            "intelliSenseMode": "gcc-x64",
+            "compileCommands": "${workspaceFolder}/build/compile_commands.json"
+        },
+        {
+            "name": "Mac",
+            "includePath": [
+                "${kusabiraDefaultIncludePath}"
+            ],
+            "macFrameworkPath": [
+                "/System/Library/Frameworks",
+                "/Library/Frameworks"
+            ],
+            "compilerPath": "$/usr/bin/clang++",
+            "cStandard": "c11",
+            "cppStandard": "c++20",
+            "intelliSenseMode": "clang-x64",
+            "compileCommands": "${workspaceFolder}/build/compile_commands.json"
+        },
+        {
+            "name": "Linux",
+            "includePath": [
+                "${kusabiraDefaultIncludePath}"
+            ],
+            "defines": [],
+            "compilerPath": "/usr/bin/g++",
+            "cStandard": "c11",
+            "cppStandard": "c++20",
+            "intelliSenseMode": "gcc-x64"
+        }
+    ],
+    "version": 4
+}

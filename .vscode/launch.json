@@ -5,7 +5,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "(lldb) 起動",
+            "name": "lldb debug",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/meson-out/kusabira_test",
@@ -14,7 +14,8 @@
             "cwd": "${workspaceFolder}/build",
             "environment": [],
             "externalConsole": false,
-            "MIMode": "lldb"
+            "MIMode": "lldb",
+            "preLaunchTask": "build"
         }
     ]
 }
