@@ -103,3 +103,17 @@ namespace kusabira::PP
   };
 
 } // namespace kusabira::PP
+
+namespace kusabira::err {
+
+  struct error_report {
+    kusabira::PP::pp_tokenize_status error_code;
+  };
+
+  template<typename Status, typename TopPos, typename Line>
+  ifn make_error_report(Status status, TopPos itr, Line line_itr) -> error_report {
+
+    return {};
+  }
+
+} // namespace kusabira::err
