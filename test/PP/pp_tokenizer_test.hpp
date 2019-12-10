@@ -175,9 +175,46 @@ namespace pp_tokenaizer_test
 
     kusabira::PP::tokenizer tokenizer{testdir / "pp_test.cpp"};
 
-    auto token = tokenizer.tokenize();
+    auto check = [&tokenizer](pp_tokenize_status caegory, std::u8string_view str) {
+      auto token = tokenizer.tokenize();
 
-    CHECK_UNARY(token);
-    CHECK_EQ(token->kind, pp_tokenize_status::OPorPunc);
+      REQUIRE(token);
+      CHECK_EQ(token->kind, caegory);
+      CHECK_EQ(token->token, str);
+    };
+
+    check(pp_tokenize_status::OPorPunc, u8"#");
+    check(pp_tokenize_status::Identifier, u8"include");
+    check(pp_tokenize_status::Whitespaces, u8" ");
+    check(pp_tokenize_status::OPorPunc, u8"<");
+    check(pp_tokenize_status::Identifier, u8"iostream");
+    check(pp_tokenize_status::OPorPunc, u8">");
+
+    check(pp_tokenize_status::OPorPunc, u8"#");
+    check(pp_tokenize_status::Identifier, u8"include");
+    check(pp_tokenize_status::OPorPunc, u8"<");
+    check(pp_tokenize_status::Identifier, u8"cmath");
+    check(pp_tokenize_status::OPorPunc, u8">");
+
+    check(pp_tokenize_status::Empty, u8"");
+
+    check(pp_tokenize_status::OPorPunc, u8"#");
+    check(pp_tokenize_status::Identifier, u8"define");
+    check(pp_tokenize_status::Whitespaces, u8" ");
+    check(pp_tokenize_status::Identifier, u8"N");
+    check(pp_tokenize_status::Whitespaces, u8" ");
+    check(pp_tokenize_status::NumberLiteral, u8"10");
+
+    check(pp_tokenize_status::Empty, u8"");
+
+    /*check(pp_tokenize_status::Identifier, u8"int");
+    check(pp_tokenize_status::Whitespaces, u8" ");
+    check(pp_tokenize_status::Identifier, u8"main");
+    check(pp_tokenize_status::OPorPunc, u8"(");
+    check(pp_tokenize_status::OPorPunc, u8")");
+    check(pp_tokenize_status::Whitespaces, u8" ");
+    check(pp_tokenize_status::OPorPunc, u8"{");*/
+
+    //check(pp_tokenize_status::OPorPunc, u8"}");
   }
 } // namespace pp_tokenaizer_test

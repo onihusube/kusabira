@@ -341,15 +341,15 @@ namespace pp_automaton_test
 
     {
       kusabira::PP::pp_tokenizer_sm sm{};
-      std::u8string str = u8R"*(/*dkshahkhfakhfa**hfh][]@][\n\r@[^0214*030504909540]]*)*";
+      std::u8string str = u8R"*(/*dkshahkhfakhfa**hfh][]@][\n\r@[^0214*030504909540]]*/)*";
 
       for (auto c : str)
       {
         CHECK_UNARY_FALSE(sm.input_char(c));
       }
 
-      //ブロック閉じの/入力
-      auto res = sm.input_char(u8'/');
+      //ブロック閉じ後の1文字入力
+      auto res = sm.input_char(u8' ');
       CHECK_UNARY(res);
       CHECK_EQ(res, kusabira::PP::pp_tokenize_status::BlockComment);
     }
@@ -374,15 +374,15 @@ namespace pp_automaton_test
       //一旦受理する
       CHECK_UNARY(sm.input_newline());
 
-      std::u8string line3 = u8R"+(*eooo38*49*:8@[]:]:*}*}{}{9*)+";
+      std::u8string line3 = u8R"+(*eooo38*49*:8@[]:]:*}*}{}{9*/)+";
 
       for (auto c : line3)
       {
         CHECK_UNARY_FALSE(sm.input_char(c));
       }
 
-      //ブロック閉じの/入力
-      auto res = sm.input_char(u8'/');
+      //ブロック閉じ後の1文字入力
+      auto res = sm.input_char(u8' ');
       CHECK_UNARY(res);
       CHECK_EQ(res, kusabira::PP::pp_tokenize_status::BlockComment);
     }

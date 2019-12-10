@@ -257,7 +257,7 @@ namespace kusabira::PP
     };
 
     struct maybe_end_block_comment {
-      static constexpr pp_tokenize_status Category = pp_tokenize_status::Unaccepted;
+      static constexpr pp_tokenize_status Category = pp_tokenize_status::BlockComment;
     };
 
     struct identifier_seq {
@@ -382,7 +382,7 @@ namespace kusabira::PP
         row<maybe_comment, line_comment, block_comment, punct_seq, end_seq, init>,
         row<line_comment, init>,
         row<block_comment, maybe_end_block_comment, init>,
-        row<maybe_end_block_comment, block_comment, init>,
+        row<maybe_end_block_comment, block_comment, end_seq, init>,
         row<identifier_seq, init>,
         row<maybe_str_literal, string_literal, char_literal, maybe_rawstr_literal, identifier_seq, init>,
         row<maybe_u8str_literal, string_literal, char_literal, maybe_str_literal, maybe_rawstr_literal, identifier_seq, init>,
@@ -446,7 +446,7 @@ namespace kusabira::PP
     pp_tokenizer_sm() = default;
 
     /**
-    * @brief トークン終端を検出した時、次のトークン認識を開始する
+    * @brief 現在のトークン読み取りを完了し、初期状態へ戻る
     * @detail 初期状態に戻し、現在の入力文字をもとに次のトークン認識を開始する
     * @tparam NosWtate 今の状態型
     * @param state 現在の状態
@@ -454,9 +454,9 @@ namespace kusabira::PP
     * @return status
     */
     template<typename NowState>
-    fn restart(NowState&& state, char8_t c, pp_tokenize_status status) -> pp_tokenize_result {
+    fn restart(NowState&& state, pp_tokenize_status status) -> pp_tokenize_result {
       this->transition<states::init>(state);
-      [[maybe_unused]] auto discard = this->input_char(c);
+      //[[maybe_unused]] auto discard = this->input_char(c);
 
       return { status };
     }
@@ -464,6 +464,9 @@ namespace kusabira::PP
     /**
     * @brief 文字を入力する
     * @detail 状態機械により1文字ごとにトークンを判定してゆく
+    * @detail トークンによってはそのトークンの範囲内で終了判定ができるものと、1文字余分に読まないとわからないものがあるが
+    * @detail 全て1文字余分に読んだ上で受理を返す
+    * @detail 余分に読んだ1文字は破棄し、次のトークン判定はその文字から読み直す
     * @param c 入力文字
     * @return 受理状態か否かを表すステータス値
     */
@@ -516,16 +519,17 @@ namespace kusabira::PP
             }
             return { pp_tokenize_status::Unaccepted };
           },
-          //トークン終端を検出後に次のトークン読み込みを始める、文字列リテラル等の時
-          [this](states::end_seq state, char8_t ch) -> pp_tokenize_result {
-            return this->restart(state, ch, state.category);
+          //トークン終端を検出後に次の1文字をもって終了する
+          [this](states::end_seq state, char8_t) -> pp_tokenize_result {
+            return this->restart(state, state.category);
           },
           //ホワイトスペースシーケンス読み出し
           [this](states::white_space_seq state, char8_t ch) -> pp_tokenize_result {
             if (std::isspace(static_cast<unsigned char>(ch))) {
               return { pp_tokenize_status::Unaccepted };
             } else {
-              return this->restart(state, ch, pp_tokenize_status::Whitespaces);
+              //ホワイトスペース以外出現で終了
+              return this->restart(state, pp_tokenize_status::Whitespaces);
             }
           },
           //コメント判定
@@ -541,7 +545,7 @@ namespace kusabira::PP
               this->transition<states::end_seq>(state, pp_tokenize_status::OPorPunc);
             } else {
               //他の文字が出てきたら単体の/演算子だったという事・・・
-              return this->restart(state, ch, pp_tokenize_status::OPorPunc);
+              return this->restart(state, pp_tokenize_status::OPorPunc);
             }
             return {pp_tokenize_status::Unaccepted};
           },
@@ -563,8 +567,8 @@ namespace kusabira::PP
           [this](states::maybe_end_block_comment state, char8_t ch) -> pp_tokenize_result {
             if (ch == u8'/') {
               //ブロック閉じを検出
-              this->transition<states::init>(state);
-              return { pp_tokenize_status::BlockComment };
+              this->transition<states::end_seq>(state, pp_tokenize_status::BlockComment);
+              return {pp_tokenize_status::Unaccepted};
             } else {
               //閉じなかったらブロックコメント読み取りへ戻る
               this->transition<states::block_comment>(state);
@@ -587,7 +591,7 @@ namespace kusabira::PP
               this->transition<states::identifier_seq>(state);
             } else {
               //それ以外なら1文字の識別子ということ
-              return this->restart(state, ch, pp_tokenize_status::Identifier);
+              return this->restart(state, pp_tokenize_status::Identifier);
             }
             return { pp_tokenize_status::Unaccepted };
           },
@@ -610,7 +614,7 @@ namespace kusabira::PP
               this->transition<states::identifier_seq>(state);
             } else {
               //それ以外なら1文字の識別子ということ
-              return this->restart(state, ch, pp_tokenize_status::Identifier);
+              return this->restart(state, pp_tokenize_status::Identifier);
             }
             return { pp_tokenize_status::Unaccepted };
           },
@@ -624,7 +628,7 @@ namespace kusabira::PP
               this->transition<states::identifier_seq>(state);
             } else {
               //それ以外なら1文字の識別子ということ
-              return this->restart(state, ch, pp_tokenize_status::Identifier);
+              return this->restart(state, pp_tokenize_status::Identifier);
             }
             return { pp_tokenize_status::Unaccepted };
           },
@@ -676,7 +680,8 @@ namespace kusabira::PP
             if (std::isalnum(static_cast<unsigned char>(ch)) or ch == u8'_') {
               return { pp_tokenize_status::Unaccepted };
             } else {
-              return this->restart(state, ch, pp_tokenize_status::Identifier);
+              //識別子以外のものが出たら終了
+              return this->restart(state, pp_tokenize_status::Identifier);
             }
           },
           //数値リテラル読み出し
@@ -688,7 +693,8 @@ namespace kusabira::PP
             } else if(is_number_literal(ch)) {
               return { pp_tokenize_status::Unaccepted };
             } else {
-              return this->restart(state, ch, pp_tokenize_status::NumberLiteral);
+              //数字リテラル以外が出たら終了
+              return this->restart(state, pp_tokenize_status::NumberLiteral);
             }
           },
           //浮動小数点数の指数部の符号読み出し
@@ -701,14 +707,14 @@ namespace kusabira::PP
               return { pp_tokenize_status::Unaccepted };
             } else {
               //指数部に符号や数字以外のものが出てきた
-              return this->restart(state, ch, pp_tokenize_status::NumberLiteral);
+              return this->restart(state, pp_tokenize_status::NumberLiteral);
             }
           },
           //記号列の読み出し
           [this](states::punct_seq& state, char8_t ch) -> pp_tokenize_result {
             if (ch == u8'/') {
               // /が2文字目以降にくる記号列は無い
-              return this->restart(state, ch, pp_tokenize_status::OPorPunc);
+              return this->restart(state, pp_tokenize_status::OPorPunc);
             }
 
             //正しい記号列だけを認識する
@@ -717,7 +723,8 @@ namespace kusabira::PP
               //受理、ほとんどの記号列は2文字
               this->transition<states::end_seq>(state, pp_tokenize_status::OPorPunc);
             } else if (res < 0) {
-              return this->restart(state, ch, pp_tokenize_status::OPorPunc);
+              //適正な記号以外が出たら終了
+              return this->restart(state, pp_tokenize_status::OPorPunc);
             }
             return { pp_tokenize_status::Unaccepted };
           }

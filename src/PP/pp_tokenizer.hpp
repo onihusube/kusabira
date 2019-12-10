@@ -187,10 +187,12 @@ namespace kusabira::PP {
     char_iterator m_pos{};
     //文字の終端
     char_iterator m_end{};
+    //終了判定、ファイルを読み切ったらtrue
+    bool m_is_terminate = false;
 
     /**
     * @brief 現在の読み取り行を進める
-    * @return 行読み取りに成功したか否か
+    * @return ファイル終端に到達したか否か
     */
     fn readline() -> bool {
       if (auto line_opt = m_fr.readline(); line_opt) {
@@ -202,9 +204,9 @@ namespace kusabira::PP {
         m_pos = str.begin();
         m_end = str.end();
 
-        return true;
-      } else {
         return false;
+      } else {
+        return true;
       }
     }
 
@@ -214,7 +216,10 @@ namespace kusabira::PP {
       : m_fr{srcpath, mr}
       , m_lines{ std::pmr::polymorphic_allocator<logical_line>{mr} }
       , m_line_pos{m_lines.before_begin()}
-    {}
+    {
+      //とりあえず1行読んでおく
+      m_is_terminate = this->readline();
+    }
 
     /**
     * @brief トークンを一つ切り出す
@@ -224,16 +229,8 @@ namespace kusabira::PP {
       using kusabira::PP::pp_tokenize_status;
       using kusabira::PP::pp_tokenize_result;
 
-      //現在の文字位置が行終端に到達していたら次の行を読む
-      if (auto before_line = m_line_pos; m_pos == m_end) {
-        //次の行の読み込みができなかったら終了
-        if (this->readline() == false) {
-          return std::nullopt;
-        } else {
-          //new-line character、プリプロセッサディレクティブの改行を表現するために
-          return std::optional<pp_token>{std::in_place, pp_tokenize_result{ pp_tokenize_status::NewLine }, std::u8string_view{}, std::move(before_line)};
-        }
-      }
+      //読み込み終了のお知らせ
+      if (m_is_terminate == true) return std::nullopt;
 
       //現在の先頭文字位置を記録
       const auto first = m_pos;
@@ -242,22 +239,22 @@ namespace kusabira::PP {
       for (; m_pos != m_end; ++m_pos) {
         if (auto is_accept = m_accepter.input_char(*m_pos); is_accept) {
           //受理、エラーとごっちゃ
-          return std::optional<pp_token>{std::in_place, std::move(is_accept), std::u8string_view{ &*first, std::size_t(std::distance(first, m_pos)) }, m_line_pos};
+          return std::optional<pp_token>{std::in_place, std::move(is_accept), std::u8string_view{&*first, std::size_t(std::distance(first, m_pos))}, m_line_pos};
         } else {
           //非受理
           continue;
         }
       }
+      //ここに出てきた場合、その行の文字を全て見終わったということ
 
-      //改行入力
-      if (auto is_accept = m_accepter.input_newline(); is_accept) {
-        return std::optional<pp_token>{std::in_place, std::move(is_accept), std::u8string_view{&*first, std::size_t(std::distance(first, m_pos))}, m_line_pos};
-      }
+      //改行入力、先にreadline()してしまうと関連変数が更新されてしまうため事前に作っておく
+      std::optional<pp_token> newline_result{std::in_place, m_accepter.input_newline(), std::u8string_view{&*first, std::size_t(std::distance(first, m_pos))}, m_line_pos};
 
-      //ここに来ることは無いはずでは・・・
-      return std::optional<pp_token>{std::in_place, pp_tokenize_result{ pp_tokenize_status::UnknownError }, std::u8string_view{}, m_line_pos};
+      //次の行を読み込む
+      m_is_terminate = this->readline();
+
+      return newline_result;
     }
-
   };
 
 } // namespace kusabira::PP
