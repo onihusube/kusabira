@@ -175,14 +175,14 @@ namespace pp_tokenaizer_test
 
     kusabira::PP::tokenizer tokenizer{testdir / "pp_test.cpp"};
 
-    auto check = [&tokenizer](pp_tokenize_status caegory, std::u8string_view str) {
-      auto token = tokenizer.tokenize();
+//テスト出力に行番号が表示されないために泣く泣くラムダ式ではなくマクロにまとめた・・・
+#define check(caegory, str) \
+{auto token = tokenizer.tokenize();\
+REQUIRE(token);\
+CHECK_EQ(token->kind, caegory);\
+CHECK_EQ(token->token, str);}
 
-      REQUIRE(token);
-      CHECK_EQ(token->kind, caegory);
-      CHECK_EQ(token->token, str);
-    };
-
+    //#include <iostream>
     check(pp_tokenize_status::OPorPunc, u8"#");
     check(pp_tokenize_status::Identifier, u8"include");
     check(pp_tokenize_status::Whitespaces, u8" ");
@@ -190,14 +190,29 @@ namespace pp_tokenaizer_test
     check(pp_tokenize_status::Identifier, u8"iostream");
     check(pp_tokenize_status::OPorPunc, u8">");
 
+    //#include<cmath>
     check(pp_tokenize_status::OPorPunc, u8"#");
     check(pp_tokenize_status::Identifier, u8"include");
     check(pp_tokenize_status::OPorPunc, u8"<");
     check(pp_tokenize_status::Identifier, u8"cmath");
     check(pp_tokenize_status::OPorPunc, u8">");
 
+    //#include "hoge.hpp"
+    check(pp_tokenize_status::OPorPunc, u8"#");
+    check(pp_tokenize_status::Identifier, u8"include");
+    check(pp_tokenize_status::Whitespaces, u8" ");
+    check(pp_tokenize_status::StringLiteral, u8R"("hoge.hpp")");
+
+    //import <type_traits>
+    check(pp_tokenize_status::Identifier, u8"import");
+    check(pp_tokenize_status::Whitespaces, u8" ");
+    check(pp_tokenize_status::OPorPunc, u8"<");
+    check(pp_tokenize_status::Identifier, u8"type_traits");
+    check(pp_tokenize_status::OPorPunc, u8">");
+
     check(pp_tokenize_status::Empty, u8"");
 
+    //#define N 10
     check(pp_tokenize_status::OPorPunc, u8"#");
     check(pp_tokenize_status::Identifier, u8"define");
     check(pp_tokenize_status::Whitespaces, u8" ");
@@ -207,14 +222,66 @@ namespace pp_tokenaizer_test
 
     check(pp_tokenize_status::Empty, u8"");
 
-    /*check(pp_tokenize_status::Identifier, u8"int");
+    //main関数宣言
+    check(pp_tokenize_status::Identifier, u8"int");
     check(pp_tokenize_status::Whitespaces, u8" ");
     check(pp_tokenize_status::Identifier, u8"main");
     check(pp_tokenize_status::OPorPunc, u8"(");
     check(pp_tokenize_status::OPorPunc, u8")");
     check(pp_tokenize_status::Whitespaces, u8" ");
-    check(pp_tokenize_status::OPorPunc, u8"{");*/
+    check(pp_tokenize_status::OPorPunc, u8"{");
 
-    //check(pp_tokenize_status::OPorPunc, u8"}");
+    //  int n = 0;
+    check(pp_tokenize_status::Whitespaces, u8"  ");
+    check(pp_tokenize_status::Identifier, u8"int");
+    check(pp_tokenize_status::Whitespaces, u8" ");
+    check(pp_tokenize_status::Identifier, u8"n");
+    check(pp_tokenize_status::Whitespaces, u8" ");
+    check(pp_tokenize_status::OPorPunc, u8"=");
+    check(pp_tokenize_status::Whitespaces, u8" ");
+    check(pp_tokenize_status::NumberLiteral, u8"0");
+    check(pp_tokenize_status::OPorPunc, u8";");
+    //行コメント
+    check(pp_tokenize_status::LineComment, u8"//line comment");
+
+    check(pp_tokenize_status::Whitespaces, u8"  ");
+    //ブロックコメント
+    check(pp_tokenize_status::BlockComment, u8"/*    ");
+    check(pp_tokenize_status::BlockComment, u8"  Block");
+    check(pp_tokenize_status::BlockComment, u8"  Comment");
+    check(pp_tokenize_status::BlockComment, u8"  */");
+
+    //u8文字列リテラル
+    check(pp_tokenize_status::Whitespaces, u8"  ");
+    check(pp_tokenize_status::Identifier, u8"auto");
+    check(pp_tokenize_status::Whitespaces, u8" ");
+    check(pp_tokenize_status::Identifier, u8"str");
+    check(pp_tokenize_status::Whitespaces, u8" ");
+    check(pp_tokenize_status::OPorPunc, u8"=");
+    check(pp_tokenize_status::Whitespaces, u8" ");
+    check(pp_tokenize_status::StringLiteral, u8R"(u8"string")");
+    check(pp_tokenize_status::Identifier, u8"sv");
+    check(pp_tokenize_status::OPorPunc, u8";");
+
+    //生文字列リテラル
+    check(pp_tokenize_status::Whitespaces, u8"  ");
+    check(pp_tokenize_status::Identifier, u8"auto");
+    check(pp_tokenize_status::Whitespaces, u8" ");
+    check(pp_tokenize_status::Identifier, u8"rawstr");
+    check(pp_tokenize_status::Whitespaces, u8" ");
+    check(pp_tokenize_status::OPorPunc, u8"=");
+    check(pp_tokenize_status::Whitespaces, u8" ");
+    check(pp_tokenize_status::RawStrLiteral, u8R"*(R"(raw string)")*");
+    check(pp_tokenize_status::Identifier, u8"_udl");
+    check(pp_tokenize_status::OPorPunc, u8";");
+
+    //main関数終端
+    check(pp_tokenize_status::OPorPunc, u8"}");
+
+    //ファイル終端
+    CHECK_UNARY_FALSE(tokenizer.tokenize());
+  
+  //消しとく
+  #undef check
   }
 } // namespace pp_tokenaizer_test
