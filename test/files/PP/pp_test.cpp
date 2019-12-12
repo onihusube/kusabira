@@ -13,4 +13,9 @@ int main() {
   */
   auto str = u8"string"sv;
   auto rawstr = R"(raw string)"_udl;
+  auto rawstr2 = R"+*(raw
+string
+literal
+new line)+*"_udl;
+  float f = 1.0E-8f;
 }
