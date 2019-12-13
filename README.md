@@ -13,6 +13,20 @@ kusabiraはC++コンパイラを目指すキノコです。
 - [ ] 中間コード生成
 - [ ] LLVMバックエンドへ投げる
 
+### ビルド（現在はテスト実行のみ）
+
+- 必要なもの
+  - [Meson](https://github.com/mesonbuild/meson)
+  - Ninja (Windowsではない場合)
+  - VC++2019 latest (Windowsの場合)
+
+1. どこかのディレクトリにこのリポジトリをチェックアウトします
+    - Windowsの場合は*x64 Native Tools Command Prompt*を使用してください
+2. コマンドラインで`meson build`を実行します
+    - Windowsの場合は`meson build --backend vs`を実行します
+3. するとそのディレクトリに`build`というディレクトリができるので、そこに移動します
+4. `ninja`を実行するか、 Visual Studioのソリューションファイル(`kusabira.sln`)を開きビルドします
+
 ### 貢献
 
 C++コンパイラ開発に興味がある方の御参画をお待ちしております。一緒にC++コンパイラ作ってみませんか？
