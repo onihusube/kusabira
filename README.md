@@ -20,7 +20,7 @@ kusabiraはC++コンパイラを目指すキノコです。
   - Ninja (Windowsではない場合)
   - VC++2019 latest (Windowsの場合)
 
-1. どこかのディレクトリにこのリポジトリをチェックアウトします
+1. どこかのディレクトリにこのリポジトリをチェックアウトし、そこに移動します
     - Windowsの場合は*x64 Native Tools Command Prompt*を使用してください
 2. コマンドラインで`meson build`を実行します
     - Windowsの場合は`meson build --backend vs`を実行します
