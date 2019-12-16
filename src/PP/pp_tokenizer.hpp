@@ -183,7 +183,7 @@ namespace kusabira::PP {
   template<typename Tokenizer>
   class pp_token_iterator {
     Tokenizer& m_tokenizer;
-    std::optional<pp_token> m_line{};
+    std::optional<pp_token> m_token_opt{};
 
   public:
     using difference_type = std::size_t;
@@ -195,32 +195,33 @@ namespace kusabira::PP {
     pp_token_iterator(Tokenizer& ref_tokenizer)
       : m_tokenizer{ref_tokenizer}
     {
-      m_line = m_tokenizer.tokenize();
+      m_token_opt = m_tokenizer.tokenize();
     }
 
     pp_token_iterator(const pp_token_iterator &) = delete;
     pp_token_iterator &operator=(const pp_token_iterator &) = delete;
 
     auto operator++() -> pp_token_iterator& {
-      m_line = m_tokenizer.tokenize();
+      m_token_opt = m_tokenizer.tokenize();
       return *this;
     }
 
     fn operator*() -> reference {
-      return *m_line;
+      return *m_token_opt;
     }
 
     fn operator==(pp_token_iterator_end) const noexcept -> bool {
-      return !bool(m_line);
+      //トークンを受けているoptionalが空ならファイル末尾に到達している
+      return !m_token_opt.has_value();
     }
 
 #ifndef __cpp_impl_three_way_comparison
-
     fn operator!=(pp_token_iterator_end end) const noexcept -> bool {
       return !(*this == end);
     }
 #endif
   };
+
 
 
   /**
