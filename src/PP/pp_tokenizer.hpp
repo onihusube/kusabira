@@ -142,7 +142,6 @@ namespace kusabira::PP {
     }
   };
 
-
   /**
   * @brief プリプロセッシングトークン1つを表現する型
   */
@@ -164,6 +163,63 @@ namespace kusabira::PP {
 
     //対応する論理行オブジェクトへのイテレータ
     line_iterator srcline_ref;
+  };
+
+  /**
+  * @brief トークナイザのイテレータの番兵型
+  */
+  struct pp_token_iterator_end {
+    using difference_type = std::size_t;
+    using value_type = pp_token;
+    using pointer = value_type*;
+    using reference = value_type&;
+    using iterator_category = std::forward_iterator_tag;
+  };
+
+  /**
+  * @brief トークナイザのイテレータ型
+  * @tparam Tokenizer 対象となるトークナイザクラス
+  */
+  template<typename Tokenizer>
+  class pp_token_iterator {
+    Tokenizer& m_tokenizer;
+    std::optional<pp_token> m_line{};
+
+  public:
+    using difference_type = std::size_t;
+    using value_type = pp_token;
+    using pointer = value_type*;
+    using reference = value_type&;
+    using iterator_category = std::forward_iterator_tag;
+
+    pp_token_iterator(Tokenizer& ref_tokenizer)
+      : m_tokenizer{ref_tokenizer}
+    {
+      m_line = m_tokenizer.tokenize();
+    }
+
+    pp_token_iterator(const pp_token_iterator &) = delete;
+    pp_token_iterator &operator=(const pp_token_iterator &) = delete;
+
+    auto operator++() -> pp_token_iterator& {
+      m_line = m_tokenizer.tokenize();
+      return *this;
+    }
+
+    fn operator*() -> reference {
+      return *m_line;
+    }
+
+    fn operator==(pp_token_iterator_end) const noexcept -> bool {
+      return !bool(m_line);
+    }
+
+#ifndef __cpp_impl_three_way_comparison
+
+    fn operator!=(pp_token_iterator_end end) const noexcept -> bool {
+      return !(*this == end);
+    }
+#endif
   };
 
 
@@ -211,6 +267,7 @@ namespace kusabira::PP {
     }
 
   public:
+    using iterator = pp_token_iterator<tokenizer>;
 
     tokenizer(const fs::path& srcpath, std::pmr::memory_resource* mr = &kusabira::def_mr) 
       : m_fr{srcpath, mr}
@@ -254,6 +311,14 @@ namespace kusabira::PP {
       m_is_terminate = this->readline();
 
       return newline_result;
+    }
+
+    ffn begin(tokenizer& attached_tokenizer) -> pp_token_iterator<tokenizer> {
+      return pp_token_iterator<tokenizer>{attached_tokenizer};
+    }
+
+    ffn end(const tokenizer&) -> pp_token_iterator_end {
+      return {};
     }
   };
 

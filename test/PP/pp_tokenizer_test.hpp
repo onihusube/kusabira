@@ -336,4 +336,23 @@ CHECK_EQ(token->token, str);}
   //消しとく
   #undef check
   }
+
+
+  TEST_CASE("tokenizer iterator test") {
+
+    auto testdir = kusabira::test::get_testfiles_dir() / "PP";
+
+    REQUIRE_UNARY(std::filesystem::is_directory(testdir));
+    REQUIRE_UNARY(std::filesystem::exists(testdir));
+
+    kusabira::PP::tokenizer tokenizer{testdir / "pp_test.cpp"};
+
+    std::size_t count = 0;
+
+    for ([[maybe_unused]] auto&& token : tokenizer) {
+      ++count;
+    }
+
+    CHECK_EQ(count, 93);
+  }
 } // namespace pp_tokenaizer_test
