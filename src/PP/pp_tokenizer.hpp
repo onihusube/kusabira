@@ -173,7 +173,7 @@ namespace kusabira::PP {
     using value_type = pp_token;
     using pointer = value_type*;
     using reference = value_type&;
-    using iterator_category = std::forward_iterator_tag;
+    using iterator_category = std::input_iterator_tag;
   };
 
   /**
@@ -190,7 +190,7 @@ namespace kusabira::PP {
     using value_type = pp_token;
     using pointer = value_type*;
     using reference = value_type&;
-    using iterator_category = std::forward_iterator_tag;
+    using iterator_category = std::input_iterator_tag;
 
     pp_token_iterator() = default;
 
