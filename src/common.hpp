@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <memory_resource>
 #include <optional>
+#include <forward_list>
 #include <system_error>
 #ifdef __cpp_impl_three_way_comparison
 #include <compare>
@@ -102,18 +103,52 @@ namespace kusabira::PP
     }
   };
 
-} // namespace kusabira::PP
 
-namespace kusabira::err {
+  /**
+  * @brief ソースコードの論理行での1行を表現する型
+  * @detail 改行継続（バックスラッシュ+改行）後にソースファイルの物理行との対応を取るためのもの
+  */
+  struct logical_line {
 
-  struct error_report {
-    kusabira::PP::pp_tokenize_status error_code;
+    //()集成体初期化がポータブルになったならこのコンストラクタは消える定め
+    logical_line(u8_pmralloc &alloc, std::size_t line_num)
+        : line{alloc}
+        , phisic_line{line_num}
+        , line_offset{alloc}
+    {}
+
+    //論理1行の文字列
+    std::pmr::u8string line;
+
+    //元の開始行
+    std::size_t phisic_line;
+
+    //1行毎の文字列長、このvectorの長さ=継続行数
+    std::pmr::vector<std::size_t> line_offset;
   };
 
-  template<typename Status, typename TopPos, typename Line>
-  ifn make_error_report(Status status, TopPos itr, Line line_itr) -> error_report {
 
-    return {};
-  }
+  /**
+  * @brief プリプロセッシングトークン1つを表現する型
+  */
+  struct pp_token {
+    using line_iterator = std::pmr::forward_list<logical_line>::const_iterator;
 
-} // namespace kusabira::err
+    //()集成体初期化がポータブルになったならこのコンストラクタは消える定め
+    pp_token(kusabira::PP::pp_tokenize_result result, std::u8string_view view, line_iterator line)
+      : kind{ std::move(result) }
+      , token{ std::move(view) }
+      , srcline_ref{ std::move(line) }
+    {}
+
+    //トークン種別
+    kusabira::PP::pp_tokenize_result kind;
+
+    //トークン文字列
+    std::u8string_view token;
+
+    //対応する論理行オブジェクトへのイテレータ
+    line_iterator srcline_ref;
+  };
+
+} // namespace kusabira::PP

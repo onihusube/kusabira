@@ -18,7 +18,9 @@ else
 endif
 
 #VSプロジェクトに編集しうるファイルを追加する
-files = ['src/common.hpp', 'src/PP/pp_tokenizer.hpp', 'test/PP/pp_tokenizer_test.hpp', 'src/PP/pp_automaton.hpp', 'test/PP/pp_automaton_test.hpp', 'src/PP/op_and_punc_table.hpp']
+files = ['src/common.hpp', 'src/PP/file_reader.hpp', 'src/PP/pp_tokenizer.hpp',
+         'test/PP/pp_tokenizer_test.hpp', 'src/PP/pp_automaton.hpp', 'test/PP/pp_automaton_test.hpp',
+         'src/PP/op_and_punc_table.hpp', 'src/PP/pp_parser.hpp']
 
 include_dir = include_directories('src', 'subprojects/doctest', 'subprojects/tlexpected/include')
 

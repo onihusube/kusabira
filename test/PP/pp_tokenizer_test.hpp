@@ -2,6 +2,8 @@
 
 #include "doctest/doctest.h"
 
+#include "PP/file_reader.hpp"
+#include "PP/pp_automaton.hpp"
 #include "PP/pp_tokenizer.hpp"
 
 namespace kusabira::test {
@@ -199,7 +201,7 @@ namespace pp_tokenaizer_test
     CHECK_UNARY(std::filesystem::is_directory(testdir));
     CHECK_UNARY(std::filesystem::exists(testdir));
 
-    kusabira::PP::tokenizer tokenizer{testdir / "pp_test.cpp"};
+    kusabira::PP::tokenizer<kusabira::PP::filereader, kusabira::PP::pp_tokenizer_sm> tokenizer{testdir / "pp_test.cpp"};
 
 //テスト出力に行番号が表示されないために泣く泣くラムダ式ではなくマクロにまとめた・・・
 #define check(caegory, str) \
@@ -345,7 +347,7 @@ CHECK_EQ(token->token, str);}
     REQUIRE_UNARY(std::filesystem::is_directory(testdir));
     REQUIRE_UNARY(std::filesystem::exists(testdir));
 
-    kusabira::PP::tokenizer tokenizer{testdir / "pp_test.cpp"};
+    kusabira::PP::tokenizer<kusabira::PP::filereader, kusabira::PP::pp_tokenizer_sm> tokenizer{testdir / "pp_test.cpp"};
 
     std::size_t count = 0;
 
