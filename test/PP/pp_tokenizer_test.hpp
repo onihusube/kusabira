@@ -15,15 +15,14 @@ namespace kusabira::test {
   * @return kusabiraのテストファイル群があるトップのディレクトリ
   */
   ifn get_testfiles_dir() -> std::filesystem::path {
-    auto current_dir = std::filesystem::current_path();
-    const auto parentdir_name = current_dir.parent_path().filename().string();
+    std::filesystem::path result = std::filesystem::current_path();
+    auto parentdir_name = result.parent_path().filename().string();
 
-    std::filesystem::path result{};
 
-    if (parentdir_name == "kusabira") {
-      result = current_dir.parent_path();
-    } else {
-      result = current_dir;
+    while (parentdir_name != "kusabira")
+    {
+        result = result.parent_path();
+        parentdir_name = result.filename().string();
     }
 
     return result / "test/files";
@@ -96,7 +95,7 @@ namespace pp_tokenaizer_test
         auto line = fr.readline();
         CHECK_UNARY(line.has_value());
         CHECK_UNARY(line->line.length() == 4);
-        CHECK_EQ(line->line, u8"test");
+        CHECK_UNARY(line->line == u8"test");
         CHECK_EQ(line->phisic_line, now_line++);
         CHECK_EQ(line->line_offset.size(), 1);
         CHECK_EQ(line->line_offset[0], 4);
@@ -168,7 +167,7 @@ namespace pp_tokenaizer_test
         auto line = fr.readline();
         CHECK_UNARY(line.has_value());
         CHECK_UNARY(line->line.length() == 4);
-        CHECK_EQ(line->line, u8"test");
+        CHECK_UNARY(line->line == u8"test");
         CHECK_EQ(line->phisic_line, now_line++);
         CHECK_EQ(line->line_offset.size(), 1);
         CHECK_EQ(line->line_offset[0], 4);
@@ -208,7 +207,7 @@ namespace pp_tokenaizer_test
 {auto token = tokenizer.tokenize();\
 REQUIRE(token);\
 CHECK_EQ(token->kind, caegory);\
-CHECK_EQ(token->token, str);}
+CHECK_UNARY(token->token == str);}
 
     //#include <iostream>
     check(pp_tokenize_status::OPorPunc, u8"#");

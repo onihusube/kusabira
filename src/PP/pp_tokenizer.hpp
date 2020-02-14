@@ -163,8 +163,10 @@ namespace kusabira::PP {
       }
       //ここに出てきた場合、その行の文字を全て見終わったということ
 
+      //空行の時、不正なイテレータのデリファレンスをしないように
+      auto token_str = (first == m_pos) ? std::u8string_view{} : std::u8string_view{&*first, std::size_t(std::distance(first, m_pos))};
       //改行入力、先にreadline()してしまうと関連変数が更新されてしまうため事前に作っておく
-      std::optional<pp_token> newline_result{std::in_place, m_accepter.input_newline(), std::u8string_view{&*first, std::size_t(std::distance(first, m_pos))}, m_line_pos};
+      std::optional<pp_token> newline_result{std::in_place, m_accepter.input_newline(), token_str, m_line_pos};
 
       //次の行を読み込む
       m_is_terminate = this->readline();
