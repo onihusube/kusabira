@@ -51,6 +51,9 @@ namespace kusabira::PP {
     pp_token_iterator(const pp_token_iterator &) = default;
     pp_token_iterator &operator=(const pp_token_iterator &) = default;
 
+    pp_token_iterator(pp_token_iterator&&) = default;
+    pp_token_iterator &operator=(pp_token_iterator&&) = default;
+
     auto operator++() -> pp_token_iterator& {
       m_token_opt = m_tokenizer->tokenize();
       return *this;
