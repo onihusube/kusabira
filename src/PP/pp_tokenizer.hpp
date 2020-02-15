@@ -104,6 +104,7 @@ namespace kusabira::PP {
     char_iterator m_end{};
     //終了判定、ファイルを読み切ったらtrue
     bool m_is_terminate = false;
+    bool m_is_endline = false;
 
     /**
     * @brief 現在の読み取り行を進める
@@ -118,6 +119,9 @@ namespace kusabira::PP {
         auto& str = (*m_line_pos).line;
         m_pos = str.begin();
         m_end = str.end();
+
+        //まだ行末かどうかはわからない
+        m_is_endline = false;
 
         return false;
       } else {
@@ -148,6 +152,17 @@ namespace kusabira::PP {
       //読み込み終了のお知らせ
       if (m_is_terminate == true) return std::nullopt;
 
+      //行末に到達した
+      if (m_is_endline == true) {
+        //先にreadline()してしまうと更新されてしまうためバックアップ
+        auto linepos = m_line_pos;
+
+        //次の行を読み込む
+        m_is_terminate = this->readline();
+
+        return std::optional<pp_token>{ std::in_place, pp_tokenize_result{ pp_tokenize_status::NewLine }, std::u8string_view{}, std::move(linepos) };
+      }
+
       //現在の先頭文字位置を記録
       const auto first = m_pos;
 
@@ -162,16 +177,11 @@ namespace kusabira::PP {
         }
       }
       //ここに出てきた場合、その行の文字を全て見終わったということ
+      m_is_endline = true;
 
       //空行の時、不正なイテレータのデリファレンスをしないように
       auto token_str = (first == m_pos) ? std::u8string_view{} : std::u8string_view{&*first, std::size_t(std::distance(first, m_pos))};
-      //改行入力、先にreadline()してしまうと関連変数が更新されてしまうため事前に作っておく
-      std::optional<pp_token> newline_result{std::in_place, m_accepter.input_newline(), token_str, m_line_pos};
-
-      //次の行を読み込む
-      m_is_terminate = this->readline();
-
-      return newline_result;
+      return std::optional<pp_token>{std::in_place, m_accepter.input_newline(), token_str, m_line_pos};;
     }
 
     ffn begin(tokenizer& attached_tokenizer) -> pp_token_iterator<tokenizer> {

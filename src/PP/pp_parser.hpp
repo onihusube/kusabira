@@ -1,9 +1,9 @@
 #pragma once
 
-#include "common.hpp"
-#include "PP/file_reader.hpp"
-#include "PP/pp_automaton.hpp"
-#include "PP/pp_tokenizer.hpp"
+#include "../common.hpp"
+#include "file_reader.hpp"
+#include "pp_automaton.hpp"
+#include "pp_tokenizer.hpp"
 
 namespace kusabira::PP
 {
@@ -14,14 +14,24 @@ namespace kusabira::PP
     using iterator = decltype(begin(std::declval<Tokenizer &>()));
     using sentinel = decltype(end(std::declval<Tokenizer &>()));
 
-    static fn start(Tokenizer &pp_tokenizer) ->void
-    {
+    static fn start(Tokenizer &pp_tokenizer) -> void {
+      auto it = begin(pp_tokenizer);
+      auto se = end(pp_tokenizer);
+
+      if (it == end) {
+        //‹ó‚Ìƒtƒ@ƒCƒ‹‚¾‚Á‚½
+        return;
+      }
+      
+      group(it, end);
     }
 
-    static fn group(Tokenizer &pp_tokenizer) -> void {
+    static fn group(iterator& iter, sentinel end) -> void {
+      group_part(iter, end);
     }
 
-    static fn group_part(Tokenizer &pp_tokenizer) -> void {
+    static fn group_part(iterator& iter, sentinel end) -> void {
+
     }
 
     static fn control_line(Tokenizer &pp_tokenizer) -> void {
