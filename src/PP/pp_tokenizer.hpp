@@ -17,7 +17,7 @@ namespace kusabira::PP {
   */
   struct pp_token_iterator_end {
     using difference_type = std::size_t;
-    using value_type = pp_token;
+    using value_type = lex_token;
     using pointer = value_type*;
     using reference = value_type&;
     using iterator_category = std::input_iterator_tag;
@@ -31,11 +31,11 @@ namespace kusabira::PP {
   template<typename Tokenizer>
   class pp_token_iterator {
     Tokenizer* m_tokenizer = nullptr;
-    std::optional<pp_token> m_token_opt = std::nullopt;
+    std::optional<lex_token> m_token_opt = std::nullopt;
 
   public:
     using difference_type = std::size_t;
-    using value_type = pp_token;
+    using value_type = lex_token;
     using pointer = value_type*;
     using reference = value_type&;
     using iterator_category = std::input_iterator_tag;
@@ -145,7 +145,7 @@ namespace kusabira::PP {
     * @brief トークンを一つ切り出す
     * @return 切り出したトークンのoptional
     */
-    fn tokenize() -> std::optional<pp_token> {
+    fn tokenize() -> std::optional<lex_token> {
       using kusabira::PP::pp_tokenize_status;
       using kusabira::PP::pp_tokenize_result;
 
@@ -160,7 +160,7 @@ namespace kusabira::PP {
         //次の行を読み込む
         m_is_terminate = this->readline();
 
-        return std::optional<pp_token>{ std::in_place, pp_tokenize_result{ pp_tokenize_status::NewLine }, std::u8string_view{}, std::move(linepos) };
+        return std::optional<lex_token>{ std::in_place, pp_tokenize_result{ pp_tokenize_status::NewLine }, std::u8string_view{}, std::move(linepos) };
       }
 
       //現在の先頭文字位置を記録
@@ -170,7 +170,7 @@ namespace kusabira::PP {
       for (; m_pos != m_end; ++m_pos) {
         if (auto is_accept = m_accepter.input_char(*m_pos); is_accept) {
           //受理、エラーとごっちゃ
-          return std::optional<pp_token>{std::in_place, std::move(is_accept), std::u8string_view{&*first, std::size_t(std::distance(first, m_pos))}, m_line_pos};
+          return std::optional<lex_token>{std::in_place, std::move(is_accept), std::u8string_view{&*first, std::size_t(std::distance(first, m_pos))}, m_line_pos};
         } else {
           //非受理
           continue;
@@ -181,7 +181,7 @@ namespace kusabira::PP {
 
       //空行の時、不正なイテレータのデリファレンスをしないように
       auto token_str = (first == m_pos) ? std::u8string_view{} : std::u8string_view{&*first, std::size_t(std::distance(first, m_pos))};
-      return std::optional<pp_token>{std::in_place, m_accepter.input_newline(), token_str, m_line_pos};;
+      return std::optional<lex_token>{std::in_place, m_accepter.input_newline(), token_str, m_line_pos};;
     }
 
     ffn begin(tokenizer& attached_tokenizer) -> pp_token_iterator<tokenizer> {

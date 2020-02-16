@@ -129,13 +129,13 @@ namespace kusabira::PP
 
 
   /**
-  * @brief プリプロセッシングトークン1つを表現する型
+  * @brief 字句トークン1つを表現する型
   */
-  struct pp_token {
+  struct lex_token {
     using line_iterator = std::pmr::forward_list<logical_line>::const_iterator;
 
     //()集成体初期化がポータブルになったならこのコンストラクタは消える定め
-    pp_token(kusabira::PP::pp_tokenize_result result, std::u8string_view view, line_iterator line)
+    lex_token(kusabira::PP::pp_tokenize_result result, std::u8string_view view, line_iterator line)
       : kind{ std::move(result) }
       , token{ std::move(view) }
       , srcline_ref{ std::move(line) }
