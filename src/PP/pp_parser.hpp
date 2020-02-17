@@ -33,7 +33,7 @@ namespace kusabira::PP
     //プリプロセッシングトークン種別
     pp_token_category category;
     //構成する字句トークン列
-    std::forward_list<lex_token> tokens;
+    std::pmr::forward_list<lex_token> tokens;
   };
 
 
@@ -63,7 +63,7 @@ namespace kusabira::PP
       if (auto& top_token = *it; top_token.kind == pp_tokenize_status::Identifier) {
         using namespace std::string_view_literals;
 
-        if (auto str = top_token.token; str == u8"module"sv or str == u8"export"sv) {
+        if (auto str = top_token.token; str == u8"module" or str == u8"export") {
           this->module_file(it, se);
           //モジュールファイルとして読むため、終了後はそのまま終わり
           return;
@@ -86,23 +86,37 @@ namespace kusabira::PP
     fn group_part(iterator& it, sentinel end) -> void {
       using namespace std::string_view_literals;
 
-      //ホワイトスペース列を読み飛ばす（トークナイズがちゃんとしてれば改行文字は入ってないはず）
-      while (it != end and (*it).kind == pp_tokenize_status::Whitespaces)
-      {
-        ++it;
-      }
+      //ホワイトスペース列を読み飛ばす
+      while (it != end and (*it).kind == pp_tokenize_status::Whitespaces) ++it;
 
-      if (auto &token = *it; token.kind == pp_tokenize_status::OPorPunc) {
-        if (token.token == u8"#"sv) {
-          //多くのプリプロセッシングディレクティブ
+      if (auto& token = *it; token.kind == pp_tokenize_status::OPorPunc) {
+        //先頭#から始まればプリプロセッシングディレクティブ
+        if (token.token == u8"#") {
+          //ホワイトスペース列を読み飛ばす
+          while (it != end and (*it).kind == pp_tokenize_status::Whitespaces) ++it;
+
+          if (auto& next_token = *it; next_token.kind == pp_tokenize_status::Identifier && next_token.token.starts_with(u8"if")) {
+            //if-sectionへ
+          } else {
+            //control-lineへ
+            this->control_line(it, end);
+            //conditionally-supported-directiveはどうしよう・・・
+          }
+        } else {
+          //text-line確定
+          //改行が現れるまでトークンを読み出す
+          this->text_line(it, end);
         }
       }
     }
 
-    fn control_line(Tokenizer &pp_tokenizer) -> void {
+    fn control_line(iterator& it, sentinel end) -> void {
+
     }
-  
-    fn include_directive(Tokenizer &pp_tokenizer) -> void {
+
+    fn text_line(iterator& it, sentinel end) -> void {
+      //要するに普通のトークン列
+
     }
   };
 

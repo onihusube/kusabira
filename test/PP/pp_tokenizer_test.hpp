@@ -15,10 +15,9 @@ namespace kusabira::test {
   * @return kusabiraのテストファイル群があるトップのディレクトリ
   */
   ifn get_testfiles_dir() -> std::filesystem::path {
-    using namespace std::string_view_literals;
     std::filesystem::path result = std::filesystem::current_path();
 
-    while (result.filename().c_str() != "kusabira"sv) {
+    while (result.filename() != "kusabira") {
       result = result.parent_path();
     }
 
