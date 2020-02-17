@@ -28,9 +28,9 @@ namespace kusabira::PP
   };
 
   struct pp_token {
-    //ƒvƒŠƒvƒƒZƒbƒVƒ“ƒOƒg[ƒNƒ“í•Ê
+    //ãƒ—ãƒªãƒ—ãƒ­ã‚»ãƒƒã‚·ãƒ³ã‚°ãƒˆãƒ¼ã‚¯ãƒ³ç¨®åˆ¥
     pp_token_category category;
-    //\¬‚·‚éš‹åƒg[ƒNƒ“—ñ
+    //æ§‹æˆã™ã‚‹å­—å¥ãƒˆãƒ¼ã‚¯ãƒ³åˆ—
     std::forward_list<lex_token> tokens;
   };
 
@@ -48,7 +48,7 @@ namespace kusabira::PP
       auto se = end(pp_tokenizer);
 
       if (it == end) {
-        //‹ó‚Ìƒtƒ@ƒCƒ‹‚¾‚Á‚½
+        //ç©ºã®ãƒ•ã‚¡ã‚¤ãƒ«ã ã£ãŸ
         return;
       }
       

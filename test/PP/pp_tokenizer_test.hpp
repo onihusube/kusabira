@@ -15,14 +15,11 @@ namespace kusabira::test {
   * @return kusabiraのテストファイル群があるトップのディレクトリ
   */
   ifn get_testfiles_dir() -> std::filesystem::path {
+    using namespace std::string_view_literals;
     std::filesystem::path result = std::filesystem::current_path();
-    auto parentdir_name = result.parent_path().filename().string();
 
-
-    while (parentdir_name != "kusabira")
-    {
-        result = result.parent_path();
-        parentdir_name = result.filename().string();
+    while (result.filename().c_str() != "kusabira"sv) {
+      result = result.parent_path();
     }
 
     return result / "test/files";
@@ -34,8 +31,8 @@ namespace pp_tokenaizer_test
   TEST_CASE("filereader test") {
     auto testdir = kusabira::test::get_testfiles_dir() / "PP";
 
-    CHECK_UNARY(std::filesystem::is_directory(testdir));
-    CHECK_UNARY(std::filesystem::exists(testdir));
+    REQUIRE_UNARY(std::filesystem::is_directory(testdir));
+    REQUIRE_UNARY(std::filesystem::exists(testdir));
 
     //CRLF改行ファイルのテスト
     {
@@ -121,7 +118,7 @@ namespace pp_tokenaizer_test
     {
       kusabira::PP::filereader fr{testdir / "reader_lf.txt"};
 
-      CHECK_UNARY(bool(fr));
+      REQUIRE_UNARY(bool(fr));
 
       std::size_t now_line = 1;
 
@@ -197,8 +194,8 @@ namespace pp_tokenaizer_test
 
     auto testdir = kusabira::test::get_testfiles_dir() / "PP";
 
-    CHECK_UNARY(std::filesystem::is_directory(testdir));
-    CHECK_UNARY(std::filesystem::exists(testdir));
+    REQUIRE_UNARY(std::filesystem::is_directory(testdir));
+    REQUIRE_UNARY(std::filesystem::exists(testdir));
 
     kusabira::PP::tokenizer<kusabira::PP::filereader, kusabira::PP::pp_tokenizer_sm> tokenizer{testdir / "pp_test.cpp"};
 
