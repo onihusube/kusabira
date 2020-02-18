@@ -78,6 +78,7 @@ namespace kusabira::PP
     }
 
     fn module_file(iterator &iter, sentinel end) -> parse_status {
+      //モジュール宣言とかを生成する
       return {};
     }
 
@@ -130,6 +131,29 @@ namespace kusabira::PP
     }
 
     fn if_section(iterator& it, sentinel end) -> parse_status {
+      //ifを処理
+      this->if_group(it, end);
+
+      //elif,elseをチェック
+      if ((*it).token == u8"#") {
+        
+        while (it != end and (*it).kind == pp_tokenize_status::Whitespaces) ++it;
+
+        if ((*it).token == u8"elif") {
+          //#elif
+          this->elif_groups(it, end);
+        }
+        if ((*it).token == u8"else") {
+          //#else
+          this->else_group(it, end);
+        }
+        //elseじゃないならendifのはず
+      }
+
+      return this->endif_line(it, end);
+    }
+
+    fn if_group(iterator& it, sentinel end) -> parse_status {
       if (auto& token = *it; token.token.length() == 3) {
         //#if
       } else if (token.token == u8"ifdef")) {
@@ -137,13 +161,13 @@ namespace kusabira::PP
 
       } else if (token.token == u8"ifndef")) {
         //#ifndef
-        
+
       } else {
-        //エラー
-        return {false};
+        //エラー？
+        return { false };
       }
 
-      return {};
+      return this->group(it, end);
     }
 
     fn elif_groups(iterator& it, sentinel end) -> parse_status {
@@ -152,17 +176,17 @@ namespace kusabira::PP
     }
 
     fn elif_group(iterator& it, sentinel end) -> parse_status {
-
-      return {};
+      //#elifを処理
+      return this->group(it, end);
     }
 
     fn else_group(iterator& it, sentinel end) -> parse_status {
-
-      return {};
+      //#elseを処理
+      return  this->group(it, end);
     }
 
     fn endif_line(iterator& it, sentinel end) -> parse_status {
-      
+      //#endifを処理
       return {};
     }
 
