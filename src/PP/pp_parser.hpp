@@ -36,6 +36,9 @@ namespace kusabira::PP
     std::pmr::forward_list<lex_token> tokens;
   };
 
+  struct parse_status {
+    bool is_faile = false;
+  };
 
   template<typename T = void>
   struct ll_paser {
@@ -45,13 +48,13 @@ namespace kusabira::PP
 
     std::pmr::list<pp_token> m_token_list{};
 
-    fn start(Tokenizer &pp_tokenizer) -> void {
+    fn start(Tokenizer &pp_tokenizer) -> parse_status {
       auto it = begin(pp_tokenizer);
       auto se = end(pp_tokenizer);
 
       if (it == se) {
         //空のファイルだった
-        return;
+        return {};
       }
 
       //先頭ホワイトスペース列を読み飛ばす（トークナイズがちゃんとしてれば改行文字は入ってないはず）
@@ -66,7 +69,7 @@ namespace kusabira::PP
         if (auto str = top_token.token; str == u8"module" or str == u8"export") {
           this->module_file(it, se);
           //モジュールファイルとして読むため、終了後はそのまま終わり
-          return;
+          return {};
         }
       }
 
@@ -74,16 +77,18 @@ namespace kusabira::PP
       this->group(it, se);
     }
 
-    fn module_file(iterator &iter, sentinel end) -> void {
+    fn module_file(iterator &iter, sentinel end) -> parse_status {
+      return {};
     }
 
-    fn group(iterator& it, sentinel end) -> void {
+    fn group(iterator& it, sentinel end) -> parse_status {
       while (it != end) {
         group_part(it, end);
       }
+      return {};
     }
 
-    fn group_part(iterator& it, sentinel end) -> void {
+    fn group_part(iterator& it, sentinel end) -> parse_status {
       using namespace std::string_view_literals;
 
       //ホワイトスペース列を読み飛ばす
@@ -95,28 +100,75 @@ namespace kusabira::PP
           //ホワイトスペース列を読み飛ばす
           while (it != end and (*it).kind == pp_tokenize_status::Whitespaces) ++it;
 
-          if (auto& next_token = *it; next_token.kind == pp_tokenize_status::Identifier && next_token.token.starts_with(u8"if")) {
+          //なにかしらの識別子が来てるはず
+          if (auto& next_token = *it; next_token.kind != pp_tokenize_status::Identifier) {
+            if (ext_token.kind == pp_tokenize_status::NewLine) {
+              //空のプリプロセッシングディレクティブ
+              return {};
+            }
+            //エラーでは？？
+            return {false};
+          }
+          if (next_token.token.starts_with(u8"if")) {
             //if-sectionへ
+            return {};
           } else {
             //control-lineへ
-            this->control_line(it, end);
-            //conditionally-supported-directiveはどうしよう・・・
+            return this->control_line(it, end);
+            //conditionally-supported-directiveはどうしよう・・
           }
         } else {
           //text-line確定
           //改行が現れるまでトークンを読み出す
-          this->text_line(it, end);
+          return this->text_line(it, end);
         }
       }
     }
 
-    fn control_line(iterator& it, sentinel end) -> void {
-
+    fn control_line(iterator& it, sentinel end) -> parse_status {
+      return {};
     }
 
-    fn text_line(iterator& it, sentinel end) -> void {
-      //要するに普通のトークン列
+    fn if_section(iterator& it, sentinel end) -> parse_status {
+      if (auto& token = *it; token.token.length() == 3) {
+        //#if
+      } else if (token.token == u8"ifdef")) {
+        //#ifdef
 
+      } else if (token.token == u8"ifndef")) {
+        //#ifndef
+        
+      } else {
+        //エラー
+        return {false};
+      }
+
+      return {};
+    }
+
+    fn elif_groups(iterator& it, sentinel end) -> parse_status {
+      
+      return {};
+    }
+
+    fn elif_group(iterator& it, sentinel end) -> parse_status {
+
+      return {};
+    }
+
+    fn else_group(iterator& it, sentinel end) -> parse_status {
+
+      return {};
+    }
+
+    fn endif_line(iterator& it, sentinel end) -> parse_status {
+      
+      return {};
+    }
+
+    fn text_line(iterator& it, sentinel end) -> parse_status {
+      //要するに普通のトークン列
+      return {};
     }
   };
 
