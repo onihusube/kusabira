@@ -53,7 +53,28 @@ namespace kusabira::PP
     }
   };
 
-  template<typename T = void>
+  /**
+  * @brief 注目すべきトークンが現れるまでトークン列を読み飛ばす
+  * @detail /buildで実行された時と、/kusabiraで実行された時で同じディレクトリを取得できるようにするもの
+  * @detail その他変なところでやられると全くうまく動かない
+  * @return kusabiraのテストファイル群があるトップのディレクトリ
+  */
+  template <typename TokenIterator, typename Sentinel>
+  ifn skip_tokens(TokenIterator& it, Sentinel end) -> bool {
+
+    auto check_status = [](auto kind) -> bool {
+      //ホワイトスペース列とブロックコメントはスルー
+      return kind == pp_tokenize_status::Whitespaces or kind == pp_tokenize_status::BlockComment;
+    };
+
+    do {
+      ++it;
+    } while (*it and check_status((*it).kind));
+
+    return it != end;
+  }
+
+  template <typename T = void>
   struct ll_paser {
     using Tokenizer = kusabira::PP::tokenizer<kusabira::PP::filereader, kusabira::PP::pp_tokenizer_sm>;
     using iterator = decltype(begin(std::declval<Tokenizer &>()));
@@ -169,12 +190,12 @@ namespace kusabira::PP
     }
 
     fn if_group(iterator& it, sentinel end) -> parse_status {
-      if (auto& token = *it; token.token.length() == 3) {
+      if (auto token = (*it).token; token.length() == 3) {
         //#if
-      } else if (token.token == u8"ifdef")) {
+      } else if (token == u8"ifdef")) {
         //#ifdef
 
-      } else if (token.token == u8"ifndef")) {
+      } else if (token == u8"ifndef")) {
         //#ifndef
 
       } else {
