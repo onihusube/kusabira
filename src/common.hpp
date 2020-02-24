@@ -9,7 +9,11 @@
 #include <compare>
 #endif
 
-#include "tl/expected.hpp"
+#ifdef __EDG__
+  #include "../subprojects/tlexpected/include/tl/expected.hpp"
+#else
+  #include "tl/expected.hpp"
+#endif
 
 #define  fn [[nodiscard]] auto
 #define ifn [[nodiscard]] inline auto

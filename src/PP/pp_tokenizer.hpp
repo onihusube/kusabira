@@ -104,6 +104,7 @@ namespace kusabira::PP {
     char_iterator m_end{};
     //終了判定、ファイルを読み切ったらtrue
     bool m_is_terminate = false;
+    //行末に到達しているかどうか
     bool m_is_endline = false;
 
     /**

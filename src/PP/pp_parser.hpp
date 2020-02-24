@@ -36,11 +36,18 @@ namespace kusabira::PP
   };
 
   enum class pp_parse_status : std::int8_t {
+    UnknownTokens,
+    Complete,
     FollowingSharpToken,
-    UnknownTokens = 0,
-    Complete = 1,
   };
 
+  struct pp_err_info {
+    std::pmr::u8string message;
+  };
+
+  using parse_status = tl::expected<pp_parse_status, pp_err_info>;
+
+  /*
   struct parse_status {
     pp_parse_status status = pp_parse_status::Complete;
 
@@ -48,19 +55,17 @@ namespace kusabira::PP
       return status == pp_parse_status::Complete;
     }
 
-    ffn operator==(const pp_parse_status ext_status) const noexcept -> bool {
-      return this->status == ext_status;
+    ffn operator==(parse_status self, const pp_parse_status ext_status) noexcept -> bool {
+      return self.status == ext_status;
     }
-  };
+  };*/
 
   /**
-  * @brief 注目すべきトークンが現れるまでトークン列を読み飛ばす
-  * @detail /buildで実行された時と、/kusabiraで実行された時で同じディレクトリを取得できるようにするもの
-  * @detail その他変なところでやられると全くうまく動かない
-  * @return kusabiraのテストファイル群があるトップのディレクトリ
+  * @brief ホワイトスペース列とブロックコメントを読み飛ばす
+  * @return 有効なトークンを指していれば（終端に達していなければ）true
   */
   template <typename TokenIterator, typename Sentinel>
-  ifn skip_tokens(TokenIterator& it, Sentinel end) -> bool {
+  ifn skip_whitespaces(TokenIterator& it, Sentinel end) -> bool {
 
     auto check_status = [](auto kind) -> bool {
       //ホワイトスペース列とブロックコメントはスルー
@@ -69,11 +74,20 @@ namespace kusabira::PP
 
     do {
       ++it;
-    } while (*it and check_status((*it).kind));
+    } while (it != end and check_status((*it).kind));
 
     return it != end;
   }
 
+//ホワイトスペース読み飛ばしのテンプレ
+#define SKIP_WHITESPACE(iterator, sentinel) if (not skip_whitespaces(iterator, sentinel)) return {}
+
+
+  /**
+  * @brief トークン列をパースしてプリプロセッシングディレクティブの検出とCPPの実行を行う
+  * @detail 再帰下降構文解析によりパースする
+  * @detail パースしながらプリプロセスを実行し、成果物はプリプロセッシングトークン列
+  */
   template <typename T = void>
   struct ll_paser {
     using Tokenizer = kusabira::PP::tokenizer<kusabira::PP::filereader, kusabira::PP::pp_tokenizer_sm>;
@@ -86,14 +100,11 @@ namespace kusabira::PP
       auto it = begin(pp_tokenizer);
       auto se = end(pp_tokenizer);
 
-      if (it == se) {
-        //空のファイルだった
-        return {};
-      }
-
-      //先頭ホワイトスペース列を読み飛ばす（トークナイズがちゃんとしてれば改行文字は入ってないはず）
-      while ((*it).kind == pp_tokenize_status::Whitespaces) {
-        ++it;
+      //空のファイル判定
+      if (it == se) return {};
+      if (auto kind = (*it).kind; kind == pp_tokenize_status::Whitespaces or kind == pp_tokenize_status::BlockComment) {
+        //空に等しいファイルだった
+        SKIP_WHITESPACE(it, se);
       }
 
       //モジュールファイルを識別
@@ -129,13 +140,15 @@ namespace kusabira::PP
       using namespace std::string_view_literals;
 
       //ホワイトスペース列を読み飛ばす
-      while (it != end and (*it).kind == pp_tokenize_status::Whitespaces) ++it;
+      if (auto kind = (*it).kind; kind == pp_tokenize_status::Whitespaces or kind == pp_tokenize_status::BlockComment) {
+        SKIP_WHITESPACE(it, end);
+      }
 
       if (auto& token = *it; token.kind == pp_tokenize_status::OPorPunc) {
         //先頭#から始まればプリプロセッシングディレクティブ
         if (token.token == u8"#") {
           //ホワイトスペース列を読み飛ばす
-          while (it != end and (*it).kind == pp_tokenize_status::Whitespaces) ++it;
+          SKIP_WHITESPACE(it, end);
 
           //なにかしらの識別子が来てるはず
           if (auto& next_token = *it; next_token.kind != pp_tokenize_status::Identifier) {
@@ -166,10 +179,11 @@ namespace kusabira::PP
     }
 
     fn if_section(iterator& it, sentinel end) -> parse_status {
-      //ifを処理
-      auto status = this->if_group(it, end);
       //#を読んだ上でここに来ているかをチェック
       auto chack_status = [&status]() noexcept -> bool { return status == pp_parse_status::FollowingSharpToken; };
+
+      //ifを処理
+      auto status = this->if_group(it, end);
 
       //正常にここに戻った場合はすでに#を読んでいるはず
       if (chack_status() and token == u8"elif") {
@@ -192,15 +206,35 @@ namespace kusabira::PP
     fn if_group(iterator& it, sentinel end) -> parse_status {
       if (auto token = (*it).token; token.length() == 3) {
         //#if
-      } else if (token == u8"ifdef")) {
-        //#ifdef
 
-      } else if (token == u8"ifndef")) {
-        //#ifndef
+        //ホワイトスペース列を読み飛ばす
+        SKIP_WHITESPACE(it, end);
+
+        //定数式の処理
+
+      } else if (token == u8"ifdef" or token == u8"ifndef") {
+        //#ifdef #ifndef
+
+        //ホワイトスペース列を読み飛ばす
+        SKIP_WHITESPACE(it, end);
+
+        if (auto kind = (*it).kind; kind != pp_tokenize_status::Identifier) {
+          //識別子以外が出てきたらエラー
+          return { pp_parse_status::UnknownTokens };
+        }
+        //識別子を#define名としてチェックする
 
       } else {
         //エラー？
         return {pp_parse_status::UnknownTokens};
+      }
+
+      //ホワイトスペース列を読み飛ばす
+      SKIP_WHITESPACE(it, end);
+
+      if (auto kind = (*it).kind; kind != pp_tokenize_status::NewLine) {
+        //改行文字以外が出てきたらエラー
+        return { pp_parse_status::UnknownTokens };
       }
 
       return this->group(it, end);
