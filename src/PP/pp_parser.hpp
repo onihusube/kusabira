@@ -35,35 +35,30 @@ namespace kusabira::PP
     std::pmr::forward_list<lex_token> tokens;
   };
 
-  enum class pp_parse_status : std::int8_t {
+  enum class pp_parse_status : std::uint8_t {
     UnknownTokens,
     Complete,
     FollowingSharpToken,
   };
 
-  enum class pp_parse_context : std::int8_t {
-    GroupPart
+  enum class pp_parse_context : std::uint8_t {
+    GroupPart,  // #の後で有効なトークンが現れなかった
+    IfSection   // #ifセクションの途中で読み取り終了してしまった？
   };
 
   struct pp_err_info {
+
+    template<typename Token = lex_token>
+    pp_err_info(Token&& lextoken, pp_parse_context err_from)
+      : token(std::forward<Token>(lextoken))
+      , context(err_from)
+    {}
+
     lex_token token;
     pp_parse_context context;
   };
 
   using parse_status = tl::expected<pp_parse_status, pp_err_info>;
-
-  /*
-  struct parse_status {
-    pp_parse_status status = pp_parse_status::Complete;
-
-    explicit operator bool() const noexcept {
-      return status == pp_parse_status::Complete;
-    }
-
-    ffn operator==(parse_status self, const pp_parse_status ext_status) noexcept -> bool {
-      return self.status == ext_status;
-    }
-  };*/
 
   /**
   * @brief ホワイトスペース列とブロックコメントを読み飛ばす
@@ -84,8 +79,9 @@ namespace kusabira::PP
     return it != end;
   }
 
-//ホワイトスペース読み飛ばしのテンプレ
-#define SKIP_WHITESPACE(iterator, sentinel) if (not skip_whitespaces(iterator, sentinel)) return {}
+  //ホワイトスペース読み飛ばしのテンプレ
+  #define SKIP_WHITESPACE(iterator, sentinel) if (not skip_whitespaces(iterator, sentinel)) return { tl::in_place, pp_parse_status::Complete }
+
 
 
   /**
@@ -132,7 +128,7 @@ namespace kusabira::PP
     }
 
     fn group(iterator& it, sentinel end) -> parse_status {
-      parse_status status{true};
+      parse_status status{ tl::in_place, pp_parse_status::Complete };
 
       while (it != end and status) {
         status = group_part(it, end);
@@ -159,10 +155,10 @@ namespace kusabira::PP
           if (auto& next_token = *it; next_token.kind != pp_tokenize_status::Identifier) {
             if (next_token.kind == pp_tokenize_status::NewLine) {
               //空のプリプロセッシングディレクティブ
-              return {};
+              return { tl::in_place, pp_parse_status::Complete };
             }
             //エラーでは？？
-            return {pp_parse_status::UnknownTokens};
+            return {tl::unexpect, std::move(next_token), pp_parse_context::GroupPart };
           }
           if (next_token.token.starts_with(u8"if")) {
             //if-sectionへ
@@ -184,11 +180,12 @@ namespace kusabira::PP
     }
 
     fn if_section(iterator& it, sentinel end) -> parse_status {
-      //#を読んだ上でここに来ているかをチェック
-      auto chack_status = [&status]() noexcept -> bool { return status == pp_parse_status::FollowingSharpToken; };
-
       //ifを処理
       auto status = this->if_group(it, end);
+
+
+      //#を読んだ上でここに来ているかをチェックするもの
+      auto chack_status = [&status]() noexcept -> bool { return status == pp_parse_status::FollowingSharpToken; };
 
       //正常にここに戻った場合はすでに#を読んでいるはず
       if (chack_status() and token == u8"elif") {
@@ -203,8 +200,8 @@ namespace kusabira::PP
         //endif以外にありえない
         return this->endif_line(it, end);
       } else {
-        //対応するセクションが無い、あるいは普通にエラー
-        return status;
+        //各セクションパース中のエラー、status == trueとなるときはどんな時だろう？
+        return status ? parse_status{tl::unexpect, std::move(*it), pp_parse_context::IfSection} : status;
       }
     }
 
