@@ -41,8 +41,13 @@ namespace kusabira::PP
     FollowingSharpToken,
   };
 
+  enum class pp_parse_context : std::int8_t {
+    GroupPart
+  };
+
   struct pp_err_info {
-    std::pmr::u8string message;
+    lex_token token;
+    pp_parse_context context;
   };
 
   using parse_status = tl::expected<pp_parse_status, pp_err_info>;
