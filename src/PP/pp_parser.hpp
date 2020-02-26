@@ -39,11 +39,25 @@ namespace kusabira::PP
     UnknownTokens,
     Complete,
     FollowingSharpToken,
+    EndOfFile
   };
 
-  enum class pp_parse_context : std::uint8_t {
-    GroupPart,  // #の後で有効なトークンが現れなかった
-    IfSection   // #ifセクションの途中で読み取り終了してしまった？
+  enum class pp_parse_context : std::int8_t {
+    UnknownError = std::numeric_limits<std::int8_t>::min(),
+    FailedRawStrLiteralRead,            //生文字列リテラルの読み取りに失敗した、バグの可能性が高い
+    RawStrLiteralDelimiterOver16Chars,  //生文字列リテラルデリミタの長さが16文字を超えた
+    RawStrLiteralDelimiterInvalid,      //生文字列リテラルデリミタに現れてはいけない文字が現れた
+    UnexpectedNewLine,                  //予期しない改行入力があった
+
+    GroupPart = 0,      // #の後で有効なトークンが現れなかった
+    IfSection,          // #ifセクションの途中で読み取り終了してしまった？
+    IfGroup_Mistake,    // #ifから始まるifdef,ifndefではない間違ったトークン
+    IfGroup_Invalid,    // 1つの定数式・識別子の前後、改行までの間に不正なトークンが現れている
+
+    ElseGroup,          // 改行の前に不正なトークンが現れている
+    EndifLine_Mistake,  // #endifがくるべき所に別のものが来ている
+    EndifLine_Invalid,  // #endif ~ 改行までの間に不正なトークンが現れている
+    TextLine            // 改行が現れる前にファイル終端に達した？バグっぽい
   };
 
   struct pp_err_info {
@@ -59,6 +73,17 @@ namespace kusabira::PP
   };
 
   using parse_status = tl::expected<pp_parse_status, pp_err_info>;
+
+  /**
+  * @brief パース中のエラーオブジェクトを作成する
+  * @return エラー状態のparse_status
+  */
+  template<typename TokenIterator>
+  ifn make_error(TokenIterator& it, pp_parse_context context) -> parse_status {
+    return parse_status{tl::unexpect, std::move(*it), context};
+  }
+
+
 
   /**
   * @brief ホワイトスペース列とブロックコメントを読み飛ばす
@@ -80,7 +105,7 @@ namespace kusabira::PP
   }
 
   //ホワイトスペース読み飛ばしのテンプレ
-  #define SKIP_WHITESPACE(iterator, sentinel) if (not skip_whitespaces(iterator, sentinel)) return { tl::in_place, pp_parse_status::Complete }
+  #define SKIP_WHITESPACE(iterator, sentinel) if (not skip_whitespaces(iterator, sentinel)) return { tl::in_place, pp_parse_status::EndOfFile }
 
 
 
@@ -97,7 +122,7 @@ namespace kusabira::PP
 
     std::pmr::list<pp_token> m_token_list{};
 
-    fn start(Tokenizer &pp_tokenizer) -> parse_status {
+    fn start(Tokenizer& pp_tokenizer) -> parse_status {
       auto it = begin(pp_tokenizer);
       auto se = end(pp_tokenizer);
 
@@ -124,7 +149,7 @@ namespace kusabira::PP
 
     fn module_file(iterator &iter, sentinel end) -> parse_status {
       //モジュール宣言とかを生成する
-      return {};
+      return {pp_parse_status::Complete};
     }
 
     fn group(iterator& it, sentinel end) -> parse_status {
@@ -160,16 +185,29 @@ namespace kusabira::PP
             //エラーでは？？
             return {tl::unexpect, std::move(next_token), pp_parse_context::GroupPart };
           }
+
+          // #elif等の出現を調べるもの
+          auto check_elif_etc = [](auto token) -> bool {
+            return token == u8"elif" or token == u8"else" or token == u8"endif";
+          };
+
+          // #に続く識別子、何かしらのプリプロセッシングディレクティブ
           if (next_token.token.starts_with(u8"if")) {
-            //if-sectionへ
+            // if-sectionへ
             return this->if_section(it, end);
+          } else if (check_elif_etc(next_token.token) == true) {
+            // if-sectionの内部でif-group読取中のelif等の出現、group読取の終了
+            return {tl::in_place, pp_parse_status::FollowingSharpToken};
           } else {
-            //control-lineへ
+            // control-lineへ
             return this->control_line(it, end);
-            //conditionally-supported-directiveはどうしよう・・
+            // conditionally-supported-directiveはどうしよう・・
           }
+        } else if(next_token.token == u8"import" or next_token.token == u8"export") {
+          // モジュールのインポート宣言
+          return this->control_line(it, end);
         } else {
-          //text-lineへ
+          // text-lineへ
           return this->text_line(it, end);
         }
       }
@@ -222,13 +260,13 @@ namespace kusabira::PP
 
         if (auto kind = (*it).kind; kind != pp_tokenize_status::Identifier) {
           //識別子以外が出てきたらエラー
-          return { pp_parse_status::UnknownTokens };
+          return parse_status{tl::unexpect, std::move(*it), pp_parse_context::IfGroup_Invalid};
         }
         //識別子を#define名としてチェックする
 
       } else {
-        //エラー？
-        return {pp_parse_status::UnknownTokens};
+        // #ifから始まるがifdefでもifndefでもない何か
+        return parse_status{ tl::unexpect, std::move(*it), pp_parse_context::IfGroup_Mistake };
       }
 
       //ホワイトスペース列を読み飛ばす
@@ -236,14 +274,14 @@ namespace kusabira::PP
 
       if (auto kind = (*it).kind; kind != pp_tokenize_status::NewLine) {
         //改行文字以外が出てきたらエラー
-        return { pp_parse_status::UnknownTokens };
+        return parse_status{tl::unexpect, std::move(*it), pp_parse_context::IfGroup_Invalid};
       }
 
       return this->group(it, end);
     }
 
     fn elif_groups(iterator& it, sentinel end) -> parse_status {
-      parse_status status{};
+      parse_status status{ tl::in_place, pp_parse_status::Complete };
 
       while (it != end and status) {
         status = elif_group(it, end);
@@ -254,53 +292,83 @@ namespace kusabira::PP
 
     fn elif_group(iterator& it, sentinel end) -> parse_status {
       //#elifを処理
+
+      //定数式を処理
+
+      //改行文字まで読みとばし
+
+
       return this->group(it, end);
     }
 
     fn else_group(iterator& it, sentinel end) -> parse_status {
       //#elseを処理
+      
+      //ホワイトスペース列を読み飛ばす
+      SKIP_WHITESPACE(it, end);
+
+      if (auto kind = (*it).kind; kind != pp_tokenize_status::NewLine) {
+        //改行文字以外が出てきたらエラー
+        return make_error(it, pp_parse_context::ElseGroup);
+      }
+
       return this->group(it, end);
     }
 
     fn endif_line(iterator& it, sentinel end) -> parse_status {
       //#endifを処理
       if (auto token = (*it).token; token == u8"endif") {
+
         //ホワイトスペース列を読み飛ばす
-        do {
-          ++it;
-        } while ((*it).kind == pp_tokenize_status::Whitespaces);
+        SKIP_WHITESPACE(it, end);
+
         //改行が現れなければならない
         if (it != end and (*it).kind == pp_tokenize_status::NewLine) {
           //正常終了
-          return {};
+          return {pp_parse_status::Complete};
+        } else {
+          //他のトークンが出てきた
+          return make_error(it, pp_parse_context::EndifLine_Invalid);
         }
-        //先に終端に到達したか他のトークンが出てきた
       }
-      //endifじゃないなど、エラー
-      return {};
+      //endifじゃない
+      return make_error(it, pp_parse_context::EndifLine_Mistake);
     }
 
     fn text_line(iterator& it, sentinel end) -> parse_status {
-      //要するに普通のトークン列
-      auto status = this->pp_tokens(it, end);
-      if ((*it).kind != pp_tokenize_status::NewLine) {
-        //エラー
-        return {pp_parse_status::UnknownTokens};
-      }
       //1行分プリプロセッシングトークン列読み出し
-      status = this->pp_tokens(it, end);
+      auto status = this->pp_tokens(it, end);
+
+      if (status == false) return status;
+
       //改行されて終了
-      if (status and (*it).kind == pp_tokenize_status::NewLine) {
+      if ((*it).kind == pp_tokenize_status::NewLine) {
         //正常にtext-lineを読み込んだ
-        return {};
+        return {pp_parse_status::Complete};
       }
+
       //何かおかしい
-      return {};
+      return make_error(it, pp_parse_context::TextLine);
     }
 
     fn pp_tokens(iterator& it, sentinel end) -> parse_status {
       //プリプロセッシングトークン列を読み出す
-      return {};
+
+      while (auto kind = (*it).kind; kind != pp_tokenize_status::NewLine) {
+        //トークン読み出しとプリプロセッシングトークンの構成
+
+        ++it;
+      }
+
+      if (auto kind = (*it).kind; kind < pp_tokenize_status::Unaccepted) {
+        using enum_int = std::underlying_type_t<decltype(kind)>;
+
+        //トークナイザのエラー
+        return make_error(it, pp_parse_context{static_cast<enum_int>(kind)});
+      } else {
+        //改行で終了しているはず
+        return {pp_parse_status::Complete};
+      }
     }
   };
 
