@@ -93,6 +93,10 @@ namespace kusabira::PP
       return this->status == that.status;
     }
 
+    fn operator!=(const pp_tokenize_status ext_status) const noexcept -> bool {
+      return this->status != ext_status;
+    }
+
     fn operator<(const pp_tokenize_status ext_status) const noexcept -> bool {
       return this->status < ext_status;
     }

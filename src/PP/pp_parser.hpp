@@ -29,6 +29,20 @@ namespace kusabira::PP
   };
 
   struct pp_token {
+
+    pp_token(pp_token_category cat)
+      : category{cat}
+      , tokens{std::pmr::polymorphic_allocator(&kusabira::def_mr)}
+    {}
+
+
+    pp_token(pp_token_category cat, lex_token&& token)
+      : pp_token{cat}
+      , tokens{std::pmr::polymorphic_allocator(&kusabira::def_mr)}
+    {
+      tokens.emplace_front(std::move(token));
+    }
+
     //プリプロセッシングトークン種別
     pp_token_category category;
     //構成する字句トークン列
@@ -104,8 +118,16 @@ namespace kusabira::PP
     return it != end;
   }
 
-  //ホワイトスペース読み飛ばしのテンプレ
-  #define SKIP_WHITESPACE(iterator, sentinel) if (not skip_whitespaces(iterator, sentinel)) return { tl::in_place, pp_parse_status::EndOfFile }
+//ホワイトスペース読み飛ばしのテンプレ
+#define SKIP_WHITESPACE(iterator, sentinel)     \
+  if (not skip_whitespaces(iterator, sentinel)) \
+    return {tl::in_place, pp_parse_status::EndOfFile}
+
+//トークナイザのエラーチェック
+#define TOKNIZE_ERR_CHECK(iterator, sentinel)                               \
+  if (auto kind = (*it).kind.status; kind < pp_tokenize_status::Unaccepted) \
+  return make_error(it, pp_parse_context{static_cast<std::underlying_type_t<decltype(kind)>>(kind)})
+
 
 
 
@@ -120,7 +142,9 @@ namespace kusabira::PP
     using iterator = decltype(begin(std::declval<Tokenizer &>()));
     using sentinel = decltype(end(std::declval<Tokenizer &>()));
 
-    std::pmr::list<pp_token> m_token_list{};
+    using pptoken_conteiner = std::pmr::list<pp_token>;
+
+    std::pmr::list<pp_token> m_token_list{std::pmr::polymorphic_allocator(&kusabira::def_mr)};
 
     fn start(Tokenizer& pp_tokenizer) -> parse_status {
       auto it = begin(pp_tokenizer);
@@ -155,7 +179,7 @@ namespace kusabira::PP
     fn group(iterator& it, sentinel end) -> parse_status {
       parse_status status{ tl::in_place, pp_parse_status::Complete };
 
-      while (it != end and status) {
+      while (it != end and status == pp_parse_status::Complete) {
         status = group_part(it, end);
       }
 
@@ -183,7 +207,7 @@ namespace kusabira::PP
               return { tl::in_place, pp_parse_status::Complete };
             }
             //エラーでは？？
-            return {tl::unexpect, std::move(next_token), pp_parse_context::GroupPart };
+            return make_error(it, pp_parse_context::GroupPart);
           }
 
           // #elif等の出現を調べるもの
@@ -192,10 +216,10 @@ namespace kusabira::PP
           };
 
           // #に続く識別子、何かしらのプリプロセッシングディレクティブ
-          if (next_token.token.starts_with(u8"if")) {
+          if ((*it).token.starts_with(u8"if")) {
             // if-sectionへ
             return this->if_section(it, end);
-          } else if (check_elif_etc(next_token.token) == true) {
+          } else if (check_elif_etc((*it).token) == true) {
             // if-sectionの内部でif-group読取中のelif等の出現、group読取の終了
             return {tl::in_place, pp_parse_status::FollowingSharpToken};
           } else {
@@ -203,7 +227,7 @@ namespace kusabira::PP
             return this->control_line(it, end);
             // conditionally-supported-directiveはどうしよう・・
           }
-        } else if(next_token.token == u8"import" or next_token.token == u8"export") {
+        } else if((*it).token == u8"import" or (*it).token == u8"export") {
           // モジュールのインポート宣言
           return this->control_line(it, end);
         } else {
@@ -226,11 +250,11 @@ namespace kusabira::PP
       auto chack_status = [&status]() noexcept -> bool { return status == pp_parse_status::FollowingSharpToken; };
 
       //正常にここに戻った場合はすでに#を読んでいるはず
-      if (chack_status() and token == u8"elif") {
+      if (chack_status() and (*it).token == u8"elif") {
         //#elif
         status = this->elif_groups(it, end);
       }
-      if (chack_status() and token == u8"else") {
+      if (chack_status() and (*it).token == u8"else") {
         //#else
         status = this->else_group(it, end);
       } 
@@ -239,7 +263,7 @@ namespace kusabira::PP
         return this->endif_line(it, end);
       } else {
         //各セクションパース中のエラー、status == trueとなるときはどんな時だろう？
-        return status ? parse_status{tl::unexpect, std::move(*it), pp_parse_context::IfSection} : status;
+        return status ? make_error(it, pp_parse_context::IfSection) : status;
       }
     }
 
@@ -260,13 +284,13 @@ namespace kusabira::PP
 
         if (auto kind = (*it).kind; kind != pp_tokenize_status::Identifier) {
           //識別子以外が出てきたらエラー
-          return parse_status{tl::unexpect, std::move(*it), pp_parse_context::IfGroup_Invalid};
+          return make_error(it, pp_parse_context::IfGroup_Invalid);
         }
         //識別子を#define名としてチェックする
 
       } else {
         // #ifから始まるがifdefでもifndefでもない何か
-        return parse_status{ tl::unexpect, std::move(*it), pp_parse_context::IfGroup_Mistake };
+        return make_error(it, pp_parse_context::IfGroup_Mistake);
       }
 
       //ホワイトスペース列を読み飛ばす
@@ -274,7 +298,7 @@ namespace kusabira::PP
 
       if (auto kind = (*it).kind; kind != pp_tokenize_status::NewLine) {
         //改行文字以外が出てきたらエラー
-        return parse_status{tl::unexpect, std::move(*it), pp_parse_context::IfGroup_Invalid};
+        return make_error(it, pp_parse_context::IfGroup_Invalid);
       }
 
       return this->group(it, end);
@@ -283,7 +307,7 @@ namespace kusabira::PP
     fn elif_groups(iterator& it, sentinel end) -> parse_status {
       parse_status status{ tl::in_place, pp_parse_status::Complete };
 
-      while (it != end and status) {
+      while (it != end and status == pp_parse_status::Complete) {
         status = elif_group(it, end);
       }
 
@@ -337,7 +361,7 @@ namespace kusabira::PP
 
     fn text_line(iterator& it, sentinel end) -> parse_status {
       //1行分プリプロセッシングトークン列読み出し
-      auto status = this->pp_tokens(it, end);
+      auto status = this->pp_tokens(it, end, this->m_token_list);
 
       if (status == false) return status;
 
@@ -351,20 +375,39 @@ namespace kusabira::PP
       return make_error(it, pp_parse_context::TextLine);
     }
 
-    fn pp_tokens(iterator& it, sentinel end) -> parse_status {
+    fn pp_tokens(iterator& it, sentinel end, pptoken_conteiner& list) -> parse_status {
       //プリプロセッシングトークン列を読み出す
+      auto kind = (*it).kind;
+      while (kind != pp_tokenize_status::NewLine) {
+        //トークナイザのエラーならそこで終わる
+        if (kind < pp_tokenize_status::Unaccepted) break;
 
-      while (auto kind = (*it).kind; kind != pp_tokenize_status::NewLine) {
         //トークン読み出しとプリプロセッシングトークンの構成
+        switch ((*it).kind.status) {
+          case pp_tokenize_status::LineComment:  [[fallthrough]];
+          case pp_tokenize_status::BlockComment: [[fallthrough]];
+          case pp_tokenize_status::Empty:
+            //これらのトークンは無視する
+            break;
+          case pp_tokenize_status::DuringRawStr:
+            //生文字列リテラル全体を一つのトークンとして読み出す必要がある
 
+            break;
+          default:
+            //基本はトークン1つを読み込んでプリプロセッシングトークンを構成する
+            list.emplace_back(kind, std::move(*it));
+        }
+
+        //トークンを進める
         ++it;
+        if (it == end) return {pp_parse_status::EndOfFile};
+        kind = (*it).kind;
       }
 
       if (auto kind = (*it).kind; kind < pp_tokenize_status::Unaccepted) {
-        using enum_int = std::underlying_type_t<decltype(kind)>;
-
+        using enum_int = std::underlying_type_t<decltype(kind.status)>;
         //トークナイザのエラー
-        return make_error(it, pp_parse_context{static_cast<enum_int>(kind)});
+        return make_error(it, pp_parse_context{static_cast<enum_int>(kind.status)});
       } else {
         //改行で終了しているはず
         return {pp_parse_status::Complete};
