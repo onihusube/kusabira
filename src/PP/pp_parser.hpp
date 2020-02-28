@@ -32,13 +32,13 @@ namespace kusabira::PP
 
     pp_token(pp_token_category cat)
       : category{cat}
-      , tokens{std::pmr::polymorphic_allocator(&kusabira::def_mr)}
+      , tokens{std::pmr::polymorphic_allocator<lex_token>(&kusabira::def_mr)}
     {}
 
 
     pp_token(pp_token_category cat, lex_token&& token)
-      : pp_token{cat}
-      , tokens{std::pmr::polymorphic_allocator(&kusabira::def_mr)}
+      : category{cat}
+      , tokens{std::pmr::polymorphic_allocator<lex_token>(&kusabira::def_mr)}
     {
       tokens.emplace_front(std::move(token));
     }
@@ -124,12 +124,9 @@ namespace kusabira::PP
     return {tl::in_place, pp_parse_status::EndOfFile}
 
 //トークナイザのエラーチェック
-#define TOKNIZE_ERR_CHECK(iterator, sentinel)                               \
-  if (auto kind = (*it).kind.status; kind < pp_tokenize_status::Unaccepted) \
-  return make_error(it, pp_parse_context{static_cast<std::underlying_type_t<decltype(kind)>>(kind)})
-
-
-
+#define TOKNIZE_ERR_CHECK(iterator)                                               \
+  if (auto kind = (*iterator).kind.status; kind < pp_tokenize_status::Unaccepted) \
+  return make_error(iterator, pp_parse_context{static_cast<std::underlying_type_t<decltype(kind)>>(kind)})
 
   /**
   * @brief トークン列をパースしてプリプロセッシングディレクティブの検出とCPPの実行を行う
@@ -144,7 +141,7 @@ namespace kusabira::PP
 
     using pptoken_conteiner = std::pmr::list<pp_token>;
 
-    std::pmr::list<pp_token> m_token_list{std::pmr::polymorphic_allocator(&kusabira::def_mr)};
+    std::pmr::list<pp_token> m_token_list{std::pmr::polymorphic_allocator<pp_token>(&kusabira::def_mr)};
 
     fn start(Tokenizer& pp_tokenizer) -> parse_status {
       auto it = begin(pp_tokenizer);
@@ -386,16 +383,21 @@ namespace kusabira::PP
         switch ((*it).kind.status) {
           case pp_tokenize_status::LineComment:  [[fallthrough]];
           case pp_tokenize_status::BlockComment: [[fallthrough]];
+          case pp_tokenize_status::Whitespaces:  [[fallthrough]];
           case pp_tokenize_status::Empty:
             //これらのトークンは無視する
             break;
           case pp_tokenize_status::DuringRawStr:
             //生文字列リテラル全体を一つのトークンとして読み出す必要がある
+            auto&& tmp_pptoken = this->read_rawstring_tokens(it, end);
+            
+            TOKNIZE_ERR_CHECK(it);
 
+            list.emplace_back(std::move(tmp_pptoken));
             break;
           default:
             //基本はトークン1つを読み込んでプリプロセッシングトークンを構成する
-            list.emplace_back(kind, std::move(*it));
+            list.emplace_back(kind.status, std::move(*it));
         }
 
         //トークンを進める
@@ -404,14 +406,33 @@ namespace kusabira::PP
         kind = (*it).kind;
       }
 
-      if (auto kind = (*it).kind; kind < pp_tokenize_status::Unaccepted) {
-        using enum_int = std::underlying_type_t<decltype(kind.status)>;
-        //トークナイザのエラー
-        return make_error(it, pp_parse_context{static_cast<enum_int>(kind.status)});
-      } else {
-        //改行で終了しているはず
-        return {pp_parse_status::Complete};
-      }
+      TOKNIZE_ERR_CHECK(it);
+
+      //改行で終了しているはず
+      return {pp_parse_status::Complete};
+    }
+
+  private:
+
+    fn read_rawstring_tokens(iterator& it, sentinel end) -> pp_token {
+      pp_token token{pp_token_category::string_literal};
+      auto& list = token.tokens;
+
+      list.push_front((*it).token);
+      auto pos = token.tokens.begin();
+
+      do {
+        ++it;
+        if ((*it).kind < pp_tokenize_status::Unaccepted) {
+          //エラーかな
+          return token;
+        } else {
+          //トークンをまとめて1つのPPトークンにする
+          pos = list.emplace_after(pos, (*it).token);
+        }
+      } while ((*it).kind != pp_tokenize_status::RawStrLiteral);
+
+      return token;
     }
   };
 
