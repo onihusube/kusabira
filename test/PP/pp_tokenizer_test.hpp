@@ -262,7 +262,7 @@ CHECK_UNARY(token->token == str);}
     check(pp_tokenize_status::OPorPunc, u8"{");
     check(pp_tokenize_status::NewLine, u8"");
 
-    //  int n = 0;
+    //int n = 0;
     check(pp_tokenize_status::Whitespaces, u8"  ");
     check(pp_tokenize_status::Identifier, u8"int");
     check(pp_tokenize_status::Whitespaces, u8" ");

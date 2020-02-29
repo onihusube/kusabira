@@ -2,6 +2,8 @@
 
 #include <list>
 #include <forward_list>
+#include <utility>
+#include <cassert>
 
 #include "../common.hpp"
 #include "file_reader.hpp"
@@ -25,7 +27,11 @@ namespace kusabira::PP
     string_literal,
     user_defined_string_literal,
     op_or_punc,
-    other_character
+    other_character,
+    
+    //生文字列リテラル識別のため・・・
+    raw_string_literal,
+    user_defined_raw_string_literal,
   };
 
   struct pp_token {
@@ -127,6 +133,9 @@ namespace kusabira::PP
 #define TOKNIZE_ERR_CHECK(iterator)                                               \
   if (auto kind = (*iterator).kind.status; kind < pp_tokenize_status::Unaccepted) \
   return make_error(iterator, pp_parse_context{static_cast<std::underlying_type_t<decltype(kind)>>(kind)})
+
+//イテレータを一つ進めるとともに終端チェック
+#define EOF_CHECK(iterator, sentinel) ++it; if (iterator == sentinel) return {pp_parse_status::EndOfFile}
 
   /**
   * @brief トークン列をパースしてプリプロセッシングディレクティブの検出とCPPの実行を行う
@@ -389,20 +398,50 @@ namespace kusabira::PP
             break;
           case pp_tokenize_status::DuringRawStr:
             //生文字列リテラル全体を一つのトークンとして読み出す必要がある
-            auto&& tmp_pptoken = this->read_rawstring_tokens(it, end);
+            auto&& [tmp_pptoken, prev_token] = this->read_rawstring_tokens(it, end);
             
             TOKNIZE_ERR_CHECK(it);
 
             list.emplace_back(std::move(tmp_pptoken));
+
+            EOF_CHECK(it, end);
+
+            //次のトークンを調べてユーザー定義リテラルの有無を判断
+            if (this->strliteral_classify(it, prev_token, list) == true) {
+              //そのままおわる
+              break;
+            } else {
+              //falseの時は次のトークンを通常の手順で処理して頂く
+              kind = (*it).kind;
+              continue;
+            }
             break;
+          case pp_tokenize_status::RawStrLiteral: [[fallthrough]];
+          case pp_tokenize_status::StringLiteral:
+            auto category = (kind == pp_tokenize_status::RawStrLiteral) ? pp_token_category::raw_string_literal : pp_token_category::string_literal;
+            auto& prev = list.emplace_back(category, std::move(*it));
+
+            EOF_CHECK(it, end);
+            
+            //次のトークンを調べてユーザー定義リテラルの有無を判断
+            if (this->strliteral_classify(it, (*prev.tokens.begin()).token, list) == true) {
+              //そのままおわる
+              break;
+            } else {
+              //falseの時は次のトークンを通常の手順で処理して頂く
+              kind = (*it).kind;
+              continue;
+            }
           default:
+          {
             //基本はトークン1つを読み込んでプリプロセッシングトークンを構成する
-            list.emplace_back(kind.status, std::move(*it));
+            auto category = this->tokenize_status_to_category(kind.status);
+            list.emplace_back(category, std::move(*it));
+          }
         }
 
         //トークンを進める
-        ++it;
-        if (it == end) return {pp_parse_status::EndOfFile};
+        EOF_CHECK(it, end);
         kind = (*it).kind;
       }
 
@@ -414,8 +453,50 @@ namespace kusabira::PP
 
   private:
 
-    fn read_rawstring_tokens(iterator& it, sentinel end) -> pp_token {
-      pp_token token{pp_token_category::string_literal};
+    fn tokenize_status_to_category(pp_tokenize_status status) -> pp_token_category {
+      switch (status)
+      {
+      case kusabira::PP::pp_tokenize_status::Identifier:
+        return pp_token_category::identifier;
+      case kusabira::PP::pp_tokenize_status::NumberLiteral:
+        return pp_token_category::pp_number;
+      case kusabira::PP::pp_tokenize_status::OPorPunc:
+        return pp_token_category::op_or_punc;
+      case kusabira::PP::pp_tokenize_status::OtherChar:
+        return pp_token_category::other_character;
+      default:
+        //ここに来たら上でバグってる
+        assert(false);
+        return pp_token_category{};
+        break;
+      }
+    }
+
+    fn strliteral_classify(iterator& it, std::u8string_view prevtoken , pptoken_conteiner& list) -> bool {
+      //以前のトークンが文字列リテラルなのか文字リテラルなのか判断
+      auto& prev_strtoken = list.back();
+      
+      //一つ前のトークンの最後の文字が'なら文字リテラル
+      if (prevtoken.ends_with(u8'\'')) {
+        prev_strtoken.category = pp_token_category::charcter_literal;
+      }
+
+      //イテレータは既に一つ進められているものとして扱う
+      if ((*it).kind == pp_tokenize_status::Identifier) {
+        using enum_int = std::underlying_type_t<decltype(prev_strtoken.category)>;
+
+        //文字列のすぐあとが識別子ならユーザー定義リテラル
+        //どちらにせよ1つ進めれば適切なカテゴリになる
+        prev_strtoken.category = pp_token_category{ static_cast<enum_int>(prev_strtoken.category) + 1 };
+        return true;
+      } else {
+        //そのほかのトークンはそのまま処理してもらう
+        return false;
+      }
+    }
+
+    fn read_rawstring_tokens(iterator& it, sentinel end) -> std::pair<pp_token, std::u8string_view> {
+      pp_token token{pp_token_category::raw_string_literal};
       auto& list = token.tokens;
 
       list.push_front((*it).token);
@@ -425,14 +506,14 @@ namespace kusabira::PP
         ++it;
         if ((*it).kind < pp_tokenize_status::Unaccepted) {
           //エラーかな
-          return token;
+          return { std::move(token), u8"" };
         } else {
           //トークンをまとめて1つのPPトークンにする
           pos = list.emplace_after(pos, (*it).token);
         }
       } while ((*it).kind != pp_tokenize_status::RawStrLiteral);
 
-      return token;
+      return { std::move(token), (*pos).token };
     }
   };
 
