@@ -425,7 +425,7 @@ namespace kusabira::PP {
             EOF_CHECK(it, end);
             
             //次のトークンを調べてユーザー定義リテラルの有無を判断
-            if (this->strliteral_classify(it, (*prev.tokens.begin()).token, list) == true) {
+            if (this->strliteral_classify(it, (*prev.lextokens.begin()).token, list) == true) {
               //そのままおわる
               break;
             } else {
@@ -498,10 +498,10 @@ namespace kusabira::PP {
 
     fn read_rawstring_tokens(iterator& it, sentinel end) -> std::pair<pp_token, std::u8string_view> {
       pp_token token{pp_token_category::raw_string_literal};
-      auto& list = token.tokens;
+      auto& list = token.lextokens;
 
       list.push_front((*it).token);
-      auto pos = token.tokens.begin();
+      auto pos = token.lextokens.begin();
 
       do {
         ++it;
