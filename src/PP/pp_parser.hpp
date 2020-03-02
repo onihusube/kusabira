@@ -10,8 +10,7 @@
 #include "pp_automaton.hpp"
 #include "pp_tokenizer.hpp"
 
-namespace kusabira::PP
-{
+namespace kusabira::PP {
   enum class pp_token_category : std::uint8_t {
     comment,
     whitespaces,
@@ -37,22 +36,22 @@ namespace kusabira::PP
   struct pp_token {
 
     pp_token(pp_token_category cat)
-      : category{cat}
-      , tokens{std::pmr::polymorphic_allocator<lex_token>(&kusabira::def_mr)}
+        : category{cat}, lextokens{std::pmr::polymorphic_allocator<lex_token>(&kusabira::def_mr)}
     {}
 
-
-    pp_token(pp_token_category cat, lex_token&& token)
-      : category{cat}
-      , tokens{std::pmr::polymorphic_allocator<lex_token>(&kusabira::def_mr)}
+    pp_token(pp_token_category cat, lex_token &&ltoken)
+        : token{ltoken.token}
+        , category{cat}
+        , lextokens{std::pmr::polymorphic_allocator<lex_token>(&kusabira::def_mr)}
     {
-      tokens.emplace_front(std::move(token));
+      lextokens.emplace_front(std::move(ltoken));
     }
 
+    std::u8string_view token;
     //プリプロセッシングトークン種別
     pp_token_category category;
     //構成する字句トークン列
-    std::pmr::forward_list<lex_token> tokens;
+    std::pmr::forward_list<lex_token> lextokens;
   };
 
   enum class pp_parse_status : std::uint8_t {
@@ -124,6 +123,7 @@ namespace kusabira::PP
     return it != end;
   }
 
+
 //ホワイトスペース読み飛ばしのテンプレ
 #define SKIP_WHITESPACE(iterator, sentinel)     \
   if (not skip_whitespaces(iterator, sentinel)) \
@@ -136,6 +136,7 @@ namespace kusabira::PP
 
 //イテレータを一つ進めるとともに終端チェック
 #define EOF_CHECK(iterator, sentinel) ++it; if (iterator == sentinel) return {pp_parse_status::EndOfFile}
+
 
   /**
   * @brief トークン列をパースしてプリプロセッシングディレクティブの検出とCPPの実行を行う
