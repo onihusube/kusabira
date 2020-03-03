@@ -26,7 +26,7 @@ namespace kusabira::vocabulary {
     * @brief コピー/ムーブコンストラクタ処理の共通化、最初はデフォルト構築されているものとする
     */
     template<typename Self>
-    void adaptive_construct(Self&& other) {
+    void adaptive_construct(Self&& other) noexcept(std::is_rvalue_reference_v<decltype(other)> || std::is_nothrow_copy_constructible_v<string_t>) {
       if (other.m_is_view == true) {
         //両方ともview
         m_strview = other.m_strview;
@@ -37,10 +37,10 @@ namespace kusabira::vocabulary {
         if constexpr (std::is_rvalue_reference_v<decltype(other)>) {
           new (&m_string) string_t(std::move(other.m_string)); //ムーブする
         } else {
-          new (&m_string) string_t(other.m_string);
+          new (&m_string) string_t(other.m_string); //例外を投げるとしたらここ
         }
+        m_is_view = other.m_is_view;
       }
-      m_is_view = other.m_is_view;
     }
 
   public:
@@ -48,8 +48,8 @@ namespace kusabira::vocabulary {
     using pointer = value_type*;
     using const_pointer = const value_type*;
     using size_type = std::size_t;
-    using iterator = strview_t::iterator;
-    using const_iterator = strview_t::const_iterator;
+    using iterator = typename strview_t::iterator;
+    using const_iterator = typename strview_t::const_iterator;
     using difference_type = std::ptrdiff_t;
 
   public:
@@ -90,6 +90,29 @@ namespace kusabira::vocabulary {
       : whimsy_str_view{}
     {
       this->adaptive_construct(std::move(other));
+    }
+
+    /**
+    * @brief コピー代入演算子
+    */
+    whimsy_str_view& operator=(const whimsy_str_view& other) & noexcept(std::is_nothrow_copy_constructible_v<whimsy_str_view> && std::is_nothrow_swappable_v<whimsy_str_view>) {
+      if (this != &other) {
+        auto copy = other;
+        swap(*this, copy);
+      }
+
+      return *this;
+    }
+
+    /**
+    * @brief ムーブ代入演算子
+    */
+    whimsy_str_view& operator=(whimsy_str_view&& other) & noexcept(std::is_nothrow_swappable_v<whimsy_str_view>) {
+      if (this != &other) {
+        swap(*this, other);
+      }
+
+      return *this;
     }
 
     /**
@@ -141,6 +164,11 @@ namespace kusabira::vocabulary {
     }
 
     /**
+    * @brief 右辺値からの変換は危険
+    */
+    auto to_view() && -> strview_t = delete;
+
+    /**
     * @brief stringへの明示的変換
     * @return 参照/保有する文字列をコピーしたstring
     */
@@ -164,11 +192,15 @@ namespace kusabira::vocabulary {
       }
     }
 
-    friend void swap(whimsy_str_view& lhs, whimsy_str_view& rhs) {
+    /**
+    * @brief 2つのwhimsy_str_viewを入れ替える
+    * @detail std::stringのコピー操作が入らないので例外は投げないはず・・・
+    */
+    friend void swap(whimsy_str_view& lhs, whimsy_str_view& rhs) noexcept {
       if (lhs.m_is_view) {
         if (rhs.m_is_view) {
           //両方ともview
-          std::swap(lhs.m_strview, rhs.other.m_strview);
+          std::swap(lhs.m_strview, rhs.m_strview);
           return;
         } else {
           //右辺はviewじゃない
