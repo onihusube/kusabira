@@ -500,7 +500,7 @@ namespace kusabira::PP {
       pp_token token{pp_token_category::raw_string_literal};
       auto& list = token.lextokens;
 
-      list.push_front((*it).token);
+      list.push_front(*it);
       auto pos = token.lextokens.begin();
 
       do {
@@ -510,7 +510,7 @@ namespace kusabira::PP {
           return { std::move(token), u8"" };
         } else {
           //トークンをまとめて1つのPPトークンにする
-          pos = list.emplace_after(pos, (*it).token);
+          pos = list.emplace_after(pos, *it);
         }
       } while ((*it).kind != pp_tokenize_status::RawStrLiteral);
 

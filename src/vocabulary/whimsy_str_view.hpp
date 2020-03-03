@@ -1,3 +1,5 @@
+#pragma once
+
 #include <string>
 #include <string_view>
 #include <memory_resource>
@@ -20,31 +22,22 @@ namespace kusabira::vocabulary {
     };
     bool m_is_view = true;
 
+    /**
+    * @brief コピー/ムーブコンストラクタ処理の共通化、最初はデフォルト構築されているものとする
+    */
     template<typename Self>
     void adaptive_construct(Self&& other) {
-      if (m_is_view) {
-        if (other.m_is_view) {
-          //両方ともview
-          m_strview = other.m_strview;
-          return;
-        } else {
-          //相手はviewじゃない
-          std::destroy_at(m_strview);
-          new (&m_string) string_t(other.m_string);
-        }
+      if (other.m_is_view == true) {
+        //両方ともview
+        m_strview = other.m_strview;
+        return;
       } else {
-        if (other.m_is_view) {
-          //相手はview
-          std::destroy_at(m_string);
-          new (&m_strview) string_t(other.m_strview);
+        //相手はviewじゃない
+        std::destroy_at(&m_strview);
+        if constexpr (std::is_rvalue_reference_v<decltype(other)>) {
+          new (&m_string) string_t(std::move(other.m_string)); //ムーブする
         } else {
-          //両方ともstring
-          if constexpr (std::is_rvalue_reference_v<decltype(other)>) {
-            m_string = std::move(other.m_string); //違うのここだけ・・・・
-          } else {
-            m_string = other.m_string;
-          }
-          return;
+          new (&m_string) string_t(other.m_string);
         }
       }
       m_is_view = other.m_is_view;
@@ -69,7 +62,7 @@ namespace kusabira::vocabulary {
     /**
     * @brief string_viewからの変換コンストラクタ
     */
-    explicit constexpr whimsy_str_view(std::basic_string_view<CharT> view) noexcept : m_strview(view) {}
+    constexpr explicit whimsy_str_view(strview_t view) noexcept : m_strview(view) {}
 
     /**
     * @brief stringからのコピーコンストラクタ
@@ -84,15 +77,30 @@ namespace kusabira::vocabulary {
     /**
     * @brief コピーコンストラクタ
     */
-    whimsy_str_view(const whimsy_str_view& other) noexcept(noexcept(adaptive_construct(other))) {
+    whimsy_str_view(const whimsy_str_view& other) noexcept(noexcept(adaptive_construct(other)))
+      : whimsy_str_view{}
+    {
       this->adaptive_construct(other);
     }
 
     /**
     * @brief ムーブコンストラクタ
     */
-    whimsy_str_view(whimsy_str_view&& other) noexcept(noexcept(adaptive_construct(std::move(other)))) {
+    whimsy_str_view(whimsy_str_view &&other) noexcept(noexcept(adaptive_construct(std::move(other))))
+      : whimsy_str_view{}
+    {
       this->adaptive_construct(std::move(other));
+    }
+
+    /**
+    * @brief デストラクタ
+    */
+    ~whimsy_str_view() noexcept {
+      if (m_is_view) {
+        std::destroy_at(&m_strview);
+      } else {
+        std::destroy_at(&m_string);
+      }
     }
 
     /**
@@ -100,7 +108,7 @@ namespace kusabira::vocabulary {
     * @detail 基本的にはこれを通して利用する
     * @return 参照/保有する文字列を参照するstring_view
     */
-    operator strview_t() const & noexcept {
+    [[nodiscard]] operator strview_t() const & noexcept {
       if (m_is_view) {
         return m_strview;
       } else {
@@ -109,10 +117,26 @@ namespace kusabira::vocabulary {
     }
 
     /**
+    * @brief 文字列を所有しているか（viewなのかどうか）を取得
+    * @return trueなら文字列を保持している、falseならviewである
+    */
+    [[nodiscard]] auto has_own_string() const noexcept -> bool {
+      return !m_is_view;
+    }
+
+    /**
+    * @brief 文字列を所有しているか（viewなのかどうか）を取得
+    * @return trueなら文字列を保持している、falseならviewである
+    */
+    [[nodiscard]] explicit operator bool() const noexcept {
+      return this->has_own_string();
+    }
+
+    /**
     * @brief string_viewへの明示的変換
     * @return 参照/保有する文字列を参照するstring_view
     */
-    auto to_string_view() const & noexcept -> strview_t {
+    [[nodiscard]] auto to_view() const & noexcept -> strview_t {
       return *this;
     }
 
@@ -120,12 +144,23 @@ namespace kusabira::vocabulary {
     * @brief stringへの明示的変換
     * @return 参照/保有する文字列をコピーしたstring
     */
-    auto to_string() const noexcept -> string_t {
+    [[nodiscard]] auto to_string() const & noexcept -> string_t {
       if (m_is_view) {
         return string_t{ m_strview };
-      }
-      else {
+      } else {
         return m_string;
+      }
+    }
+
+    /**
+    * @brief stringへの明示的変換
+    * @return 参照/保有する文字列をムーブしたstring
+    */
+    [[nodiscard]] auto to_string() && noexcept -> string_t {
+      if (m_is_view) {
+        return string_t{ m_strview };
+      } else {
+        return std::move(m_string);
       }
     }
 
@@ -140,11 +175,11 @@ namespace kusabira::vocabulary {
           //コピーしとく
           auto copy = lhs.m_strview;
           //左辺(lhs)から処理
-          std::destroy_at(lhs.m_strview);
+          std::destroy_at(&lhs.m_strview);
           new (&lhs.m_string) string_t(std::move(rhs.m_string));
           //右辺(rhs)を処理
-          std::destroy_at(rhs.m_string);
-          new (&rhs.m_strview) string_t(copy);
+          std::destroy_at(&rhs.m_string);
+          new (&rhs.m_strview) strview_t(copy);
         }
       } else {
         if (rhs.m_is_view) {
@@ -152,11 +187,11 @@ namespace kusabira::vocabulary {
           //コピーしとく
           auto copy = rhs.m_strview;
           //右辺(rhs)から処理
-          std::destroy_at(rhs.m_strview);
+          std::destroy_at(&rhs.m_strview);
           new (&rhs.m_string) string_t(std::move(lhs.m_string));
           //左辺(lhs)を処理
-          std::destroy_at(lhs.m_string);
-          new (&lhs.m_strview) string_t(copy);
+          std::destroy_at(&lhs.m_string);
+          new (&lhs.m_strview) strview_t(copy);
         } else {
           //両方ともstring
           std::swap(lhs.m_string, rhs.m_string);
@@ -171,7 +206,7 @@ namespace kusabira::vocabulary {
     * @brief 先頭イテレータを得る
     * @return 参照/保有する文字列の先頭ポインタ
     */
-    friend auto begin(const whimsy_str_view& self) noexcept -> iterator {
+    [[nodiscard]] friend auto begin(const whimsy_str_view& self) noexcept -> iterator {
       if (self.m_is_view) {
         return self.m_strview.begin();
       }
@@ -184,7 +219,7 @@ namespace kusabira::vocabulary {
     * @brief 終端イテレータを得る
     * @return 参照/保有する文字列の終端ポインタ
     */
-    friend auto end(const whimsy_str_view& self) noexcept -> iterator {
+    [[nodiscard]] friend auto end(const whimsy_str_view& self) noexcept -> iterator {
       if (self.m_is_view) {
         return self.m_strview.end();
       } else {
@@ -197,7 +232,7 @@ namespace kusabira::vocabulary {
     * @detail spanのために用意
     * @return 参照/保有する文字列の先頭ポインタ
     */
-    friend auto data(const whimsy_str_view& self) noexcept -> pointer {
+    [[nodiscard]] friend auto data(const whimsy_str_view& self) noexcept -> pointer {
       if (self.m_is_view) {
         return self.m_strview.data();
       } else {
@@ -210,7 +245,7 @@ namespace kusabira::vocabulary {
     * @detail spanのために用意
     * @return 参照/保有する文字列のサイズ
     */
-    friend auto size(const whimsy_str_view& self) noexcept -> size_type {
+    [[nodiscard]] friend auto size(const whimsy_str_view& self) noexcept -> size_type {
       if (self.m_is_view) {
         return self.m_strview.size();
       }
