@@ -180,4 +180,63 @@ namespace kusabira::whimsy_str_view_test {
     }
   }
 
+  TEST_CASE("iterator interface test") {
+    {
+      std::pmr::u8string expect = u8"test iterator interface";
+      u8whimsy_str_view string{expect};
+
+      CHECK_UNARY(string.has_own_string());
+
+      int i = 0;
+      for (auto c : string) {
+        CHECK_UNARY(c == expect[i]);
+        ++i;
+      }
+    }
+
+    {
+      auto expect = u8"test iterator interface"sv;
+      u8whimsy_str_view string{expect};
+
+      CHECK_UNARY_FALSE(string.has_own_string());
+
+      int i = 0;
+      for (auto c : string) {
+        CHECK_UNARY(c == expect[i]);
+        ++i;
+      }
+    }
+  }
+
+  TEST_CASE("span interface test") {
+    {
+      std::pmr::u8string expect = u8"test iterator interface";
+      u8whimsy_str_view string{expect};
+
+      CHECK_UNARY(string.has_own_string());
+
+      auto ptr = data(string);
+      auto len = size(string);
+
+      for (auto i = 0u; i < len; ++i) {
+        CHECK_UNARY(ptr[i] == expect[i]);
+      }
+    }
+
+    {
+      auto expect = u8"test iterator interface"sv;
+      u8whimsy_str_view string{expect};
+
+      CHECK_UNARY_FALSE(string.has_own_string());
+
+      auto ptr = data(string);
+      auto len = size(string);
+
+      for (auto i = 0u; i < len; ++i) {
+        CHECK_UNARY(ptr[i] == expect[i]);
+      }
+
+    }
+  }
+
 }

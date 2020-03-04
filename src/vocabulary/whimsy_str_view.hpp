@@ -52,8 +52,6 @@ namespace kusabira::vocabulary {
     using const_iterator = typename strview_t::const_iterator;
     using difference_type = std::ptrdiff_t;
 
-  public:
-
     /**
     * @brief デフォルトコンストラクタ、空文字列を参照するviewとして初期化
     */
@@ -86,7 +84,7 @@ namespace kusabira::vocabulary {
     /**
     * @brief ムーブコンストラクタ
     */
-    whimsy_str_view(whimsy_str_view &&other) noexcept(noexcept(adaptive_construct(std::move(other))))
+    whimsy_str_view(whimsy_str_view&& other) noexcept(noexcept(adaptive_construct(std::move(other))))
       : whimsy_str_view{}
     {
       this->adaptive_construct(std::move(other));
@@ -264,7 +262,7 @@ namespace kusabira::vocabulary {
     * @detail spanのために用意
     * @return 参照/保有する文字列の先頭ポインタ
     */
-    [[nodiscard]] friend auto data(const whimsy_str_view& self) noexcept -> pointer {
+    [[nodiscard]] friend auto data(const whimsy_str_view& self) noexcept -> const_pointer {
       if (self.m_is_view) {
         return self.m_strview.data();
       } else {
@@ -280,8 +278,7 @@ namespace kusabira::vocabulary {
     [[nodiscard]] friend auto size(const whimsy_str_view& self) noexcept -> size_type {
       if (self.m_is_view) {
         return self.m_strview.size();
-      }
-      else {
+      } else {
         return self.m_string.size();
       }
     }
