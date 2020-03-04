@@ -236,9 +236,9 @@ namespace kusabira::vocabulary {
     * @brief 先頭イテレータを得る
     * @return 参照/保有する文字列の先頭ポインタ
     */
-    [[nodiscard]] friend auto begin(const whimsy_str_view& self) noexcept -> iterator {
+    [[nodiscard]] friend auto begin(const whimsy_str_view& self) noexcept -> const_pointer {
       if (self.m_is_view) {
-        return self.m_strview.begin();
+        return self.m_strview.data();
       }
       else {
         return self.m_string.data();
@@ -249,9 +249,9 @@ namespace kusabira::vocabulary {
     * @brief 終端イテレータを得る
     * @return 参照/保有する文字列の終端ポインタ
     */
-    [[nodiscard]] friend auto end(const whimsy_str_view& self) noexcept -> iterator {
+    [[nodiscard]] friend auto end(const whimsy_str_view& self) noexcept -> const_pointer {
       if (self.m_is_view) {
-        return self.m_strview.end();
+        return self.m_strview.data() + self.m_strview.size();
       } else {
         return self.m_string.data() + self.m_string.size();
       }
