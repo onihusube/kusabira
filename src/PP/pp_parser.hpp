@@ -9,6 +9,7 @@
 #include "file_reader.hpp"
 #include "pp_automaton.hpp"
 #include "pp_tokenizer.hpp"
+#include "vocabulary/whimsy_str_view.hpp"
 
 namespace kusabira::PP {
   enum class pp_token_category : std::uint8_t {
@@ -36,20 +37,22 @@ namespace kusabira::PP {
   struct pp_token {
 
     pp_token(pp_token_category cat)
-        : category{cat}, lextokens{std::pmr::polymorphic_allocator<lex_token>(&kusabira::def_mr)}
+        : category{cat}
+        , lextokens{std::pmr::polymorphic_allocator<lex_token>(&kusabira::def_mr)}
     {}
 
     pp_token(pp_token_category cat, lex_token &&ltoken)
-        : token{ltoken.token}
-        , category{cat}
+        : category{cat}
+        , token{ltoken.token}
         , lextokens{std::pmr::polymorphic_allocator<lex_token>(&kusabira::def_mr)}
     {
       lextokens.emplace_front(std::move(ltoken));
     }
 
-    std::u8string_view token;
     //プリプロセッシングトークン種別
     pp_token_category category;
+    //プリプロセッシングトークン文字列
+    kusabira::vocabulary::whimsy_str_view<> token;
     //構成する字句トークン列
     std::pmr::forward_list<lex_token> lextokens;
   };

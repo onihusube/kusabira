@@ -93,7 +93,7 @@ namespace kusabira::vocabulary {
     /**
     * @brief コピー代入演算子
     */
-    whimsy_str_view& operator=(const whimsy_str_view& other) & noexcept(std::is_nothrow_copy_constructible_v<whimsy_str_view> && std::is_nothrow_swappable_v<whimsy_str_view>) {
+    whimsy_str_view& operator=(const whimsy_str_view& other) & noexcept(std::is_nothrow_copy_constructible_v<whimsy_str_view<CharT>> && std::is_nothrow_swappable_v<whimsy_str_view<CharT>>) {
       if (this != &other) {
         auto copy = other;
         swap(*this, copy);
@@ -105,7 +105,7 @@ namespace kusabira::vocabulary {
     /**
     * @brief ムーブ代入演算子
     */
-    whimsy_str_view& operator=(whimsy_str_view&& other) & noexcept(std::is_nothrow_swappable_v<whimsy_str_view>) {
+    whimsy_str_view& operator=(whimsy_str_view&& other) & noexcept {
       if (this != &other) {
         swap(*this, other);
       }
