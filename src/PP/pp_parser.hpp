@@ -146,7 +146,7 @@ namespace kusabira::PP {
   * @detail 再帰下降構文解析によりパースする
   * @detail パースしながらプリプロセスを実行し、成果物はプリプロセッシングトークン列
   */
-  template <typename T = void>
+  //template <typename T = void>
   struct ll_paser {
     using Tokenizer = kusabira::PP::tokenizer<kusabira::PP::filereader, kusabira::PP::pp_tokenizer_sm>;
     using iterator = decltype(begin(std::declval<Tokenizer &>()));
@@ -373,7 +373,7 @@ namespace kusabira::PP {
       //1行分プリプロセッシングトークン列読み出し
       auto status = this->pp_tokens(it, end, this->m_token_list);
 
-      if (status == false) return status;
+      if (!status) return status;
 
       //改行されて終了
       if ((*it).kind == pp_tokenize_status::NewLine) {
@@ -401,9 +401,10 @@ namespace kusabira::PP {
             //これらのトークンは無視する
             break;
           case pp_tokenize_status::DuringRawStr:
+          {
             //生文字列リテラル全体を一つのトークンとして読み出す必要がある
             auto&& [tmp_pptoken, prev_token] = this->read_rawstring_tokens(it, end);
-            
+
             TOKNIZE_ERR_CHECK(it);
 
             list.emplace_back(std::move(tmp_pptoken));
@@ -414,28 +415,33 @@ namespace kusabira::PP {
             if (this->strliteral_classify(it, prev_token, list) == true) {
               //そのままおわる
               break;
-            } else {
+            }
+            else {
               //falseの時は次のトークンを通常の手順で処理して頂く
               kind = (*it).kind;
               continue;
             }
             break;
+          }
           case pp_tokenize_status::RawStrLiteral: [[fallthrough]];
           case pp_tokenize_status::StringLiteral:
+          {
             auto category = (kind == pp_tokenize_status::RawStrLiteral) ? pp_token_category::raw_string_literal : pp_token_category::string_literal;
             auto& prev = list.emplace_back(category, std::move(*it));
 
             EOF_CHECK(it, end);
-            
+
             //次のトークンを調べてユーザー定義リテラルの有無を判断
             if (this->strliteral_classify(it, (*prev.lextokens.begin()).token, list) == true) {
               //そのままおわる
               break;
-            } else {
+            }
+            else {
               //falseの時は次のトークンを通常の手順で処理して頂く
               kind = (*it).kind;
               continue;
             }
+          }
           default:
           {
             //基本はトークン1つを読み込んでプリプロセッシングトークンを構成する
@@ -529,7 +535,7 @@ namespace kusabira::PP {
       auto pos = token.lextokens.begin();
 
       //生文字列リテラルを構成する
-      std::u8string rawstr{(*it).token, std::pmr::polymorphic_allocator<char8_t>{&kusabira::def_mr}};
+      std::pmr::u8string rawstr{(*it).token, std::pmr::polymorphic_allocator<char8_t>{&kusabira::def_mr}};
       //1行目を戻す
       undo_rawstr(it, rawstr);
 
