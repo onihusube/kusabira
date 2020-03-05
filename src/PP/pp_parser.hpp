@@ -500,20 +500,54 @@ namespace kusabira::PP {
     }
 
     fn read_rawstring_tokens(iterator& it, sentinel end) -> std::pair<pp_token, std::u8string_view> {
+
+      //生文字列リテラルの行継続を元に戻す
+      auto undo_rawstr = [](auto &it, auto &string, std::size_t bias = 0) {
+        if ((*it).is_multiple_phlines()) {
+          //バックスラッシュによる行継続が行われている
+          auto &line = *(*it).srcline_ref;
+
+          auto pos = line.line.find_first_of((*it).token);
+          //これは起こりえないはず・・・
+          assert(pos != std::u8string_view::npos);
+
+          //バックスラッシュ+改行を復元する
+          for (auto newline_pos : line.line_offset) {
+            if (pos <= newline_pos) {
+              string.insert(bias + newline_pos, u8"\\\n", 2);
+              pos = newline_pos;
+            }
+          }
+        }
+      };
+
+      //プリプロセッシングトークン型を用意
       pp_token token{pp_token_category::raw_string_literal};
       auto& list = token.lextokens;
 
       list.push_front(*it);
       auto pos = token.lextokens.begin();
 
+      //生文字列リテラルを構成する
+      std::u8string rawstr{(*it).token, std::pmr::polymorphic_allocator<char8_t>{&kusabira::def_mr}};
+      //1行目を戻す
+      undo_rawstr(it, rawstr);
+
       do {
+        //生文字列リテラルを改行する
+        rawstr.push_back(u8'\n');
+        std::size_t length = rawstr.length();
+
         ++it;
         if ((*it).kind < pp_tokenize_status::Unaccepted) {
           //エラーかな
           return { std::move(token), u8"" };
         } else {
           //トークンをまとめて1つのPPトークンにする
+          rawstr.append((*it).token);
           pos = list.emplace_after(pos, *it);
+
+          undo_rawstr(it, rawstr, length);
         }
       } while ((*it).kind != pp_tokenize_status::RawStrLiteral);
 

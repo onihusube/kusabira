@@ -157,6 +157,15 @@ namespace kusabira::PP
 
     //対応する論理行オブジェクトへのイテレータ
     line_iterator srcline_ref;
+
+    /**
+    * @brief バックスラッシュによる行継続が行われているかを判定する
+    * @detail 現在の行は複数の物理行から構成されているかどうか？を取得
+    * @return trueなら論理行は複数の物理行で構成される
+    */
+    fn is_multiple_phlines() const -> bool {
+      return 0u < (*srcline_ref).line_offset.size();
+    }
   };
 
 } // namespace kusabira::PP
