@@ -102,7 +102,7 @@ namespace kusabira::PP {
   */
   template<typename TokenIterator>
   ifn make_error(TokenIterator& it, pp_parse_context context) -> parse_status {
-    return parse_status{tl::unexpect, std::move(*it), context};
+    return parse_status{tl::unexpect, pp_err_info{std::move(*it), context}};
   }
 
 
@@ -497,7 +497,7 @@ namespace kusabira::PP {
 
         //文字列のすぐあとが識別子ならユーザー定義リテラル
         //どちらにせよ1つ進めれば適切なカテゴリになる
-        prev_strtoken.category = pp_token_category{ static_cast<enum_int>(prev_strtoken.category) + 1 };
+        prev_strtoken.category = pp_token_category{ static_cast<enum_int>(prev_strtoken.category) + enum_int(1u) };
         return true;
       } else {
         //そのほかのトークンはそのまま処理してもらう
