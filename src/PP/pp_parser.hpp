@@ -146,9 +146,9 @@ namespace kusabira::PP {
   * @detail 再帰下降構文解析によりパースする
   * @detail パースしながらプリプロセスを実行し、成果物はプリプロセッシングトークン列
   */
-  //template <typename T = void>
+  template <typename Tokenizer = kusabira::PP::tokenizer<kusabira::PP::filereader, kusabira::PP::pp_tokenizer_sm>>
   struct ll_paser {
-    using Tokenizer = kusabira::PP::tokenizer<kusabira::PP::filereader, kusabira::PP::pp_tokenizer_sm>;
+    //using Tokenizer = kusabira::PP::tokenizer<kusabira::PP::filereader, kusabira::PP::pp_tokenizer_sm>;
     using iterator = decltype(begin(std::declval<Tokenizer &>()));
     using sentinel = decltype(end(std::declval<Tokenizer &>()));
 
@@ -445,7 +445,7 @@ namespace kusabira::PP {
           default:
           {
             //基本はトークン1つを読み込んでプリプロセッシングトークンを構成する
-            auto category = this->tokenize_status_to_category(kind.status);
+            auto category = tokenize_status_to_category(kind.status);
             list.emplace_back(category, std::move(*it));
           }
         }
@@ -461,9 +461,7 @@ namespace kusabira::PP {
       return {pp_parse_status::Complete};
     }
 
-  private:
-
-    fn tokenize_status_to_category(pp_tokenize_status status) -> pp_token_category {
+    sfn tokenize_status_to_category(pp_tokenize_status status) -> pp_token_category {
       switch (status)
       {
       case kusabira::PP::pp_tokenize_status::Identifier:

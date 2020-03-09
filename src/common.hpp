@@ -16,6 +16,7 @@
 #endif
 
 #define  fn [[nodiscard]] auto
+#define sfn [[nodiscard]] static auto
 #define ifn [[nodiscard]] inline auto
 #define cfn [[nodiscard]] constexpr auto
 #define ffn [[nodiscard]] friend auto
