@@ -92,4 +92,10 @@ namespace pp_paser_test {
     CHECK_EQ(ll_paser::tokenize_status_to_category(pp_tokenize_status::OPorPunc), pp_token_category::op_or_punc);
     CHECK_EQ(ll_paser::tokenize_status_to_category(pp_tokenize_status::OtherChar), pp_token_category::other_character);
   }
+
+  TEST_CASE("string literal calssify test") {
+    using ll_paser = kusabira::PP::ll_paser<kusabira::PP::tokenizer<kusabira::PP::filereader, kusabira::PP::pp_tokenizer_sm>>;
+    using kusabira::PP::pp_tokenize_status;
+    using kusabira::PP::pp_token_category;
+  }
 }

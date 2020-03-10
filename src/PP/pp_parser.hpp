@@ -412,11 +412,10 @@ namespace kusabira::PP {
             EOF_CHECK(it, end);
 
             //次のトークンを調べてユーザー定義リテラルの有無を判断
-            if (this->strliteral_classify(it, prev_token, list) == true) {
+            if (strliteral_classify(it, prev_token, list) == true) {
               //そのままおわる
               break;
-            }
-            else {
+            } else {
               //falseの時は次のトークンを通常の手順で処理して頂く
               kind = (*it).kind;
               continue;
@@ -432,11 +431,10 @@ namespace kusabira::PP {
             EOF_CHECK(it, end);
 
             //次のトークンを調べてユーザー定義リテラルの有無を判断
-            if (this->strliteral_classify(it, (*prev.lextokens.begin()).token, list) == true) {
+            if (strliteral_classify(it, (*prev.lextokens.begin()).token, list) == true) {
               //そのままおわる
               break;
-            }
-            else {
+            } else {
               //falseの時は次のトークンを通常の手順で処理して頂く
               kind = (*it).kind;
               continue;
@@ -480,7 +478,7 @@ namespace kusabira::PP {
       }
     }
 
-    fn strliteral_classify(iterator& it, std::u8string_view prevtoken , pptoken_conteiner& list) -> bool {
+    sfn strliteral_classify(iterator& it, std::u8string_view prevtoken , pptoken_conteiner& list) -> bool {
       //以前のトークンが文字列リテラルなのか文字リテラルなのか判断
       auto& prev_strtoken = list.back();
       
