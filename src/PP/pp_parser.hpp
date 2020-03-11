@@ -412,7 +412,7 @@ namespace kusabira::PP {
             EOF_CHECK(it, end);
 
             //次のトークンを調べてユーザー定義リテラルの有無を判断
-            if (strliteral_classify(it, prev_token, list) == true) {
+            if (strliteral_classify(it, prev_token, list.back()) == true) {
               //そのままおわる
               break;
             } else {
@@ -431,7 +431,7 @@ namespace kusabira::PP {
             EOF_CHECK(it, end);
 
             //次のトークンを調べてユーザー定義リテラルの有無を判断
-            if (strliteral_classify(it, (*prev.lextokens.begin()).token, list) == true) {
+            if (strliteral_classify(it, (*prev.lextokens.begin()).token, list.back()) == true) {
               //そのままおわる
               break;
             } else {
@@ -478,22 +478,23 @@ namespace kusabira::PP {
       }
     }
 
-    sfn strliteral_classify(iterator& it, std::u8string_view prevtoken , pptoken_conteiner& list) -> bool {
+    template<typename Iterator = iterator>
+    sfn strliteral_classify(Iterator& it, std::u8string_view prev_tokenstr , pp_token& last_pptoken) -> bool {
       //以前のトークンが文字列リテラルなのか文字リテラルなのか判断
-      auto& prev_strtoken = list.back();
+      //auto& last_pptoken = list.back();
       
       //一つ前のトークンの最後の文字が'なら文字リテラル
-      if (prevtoken.ends_with(u8'\'')) {
-        prev_strtoken.category = pp_token_category::charcter_literal;
+      if (prev_tokenstr.ends_with(u8'\'')) {
+       last_pptoken.category = pp_token_category::charcter_literal;
       }
 
       //イテレータは既に一つ進められているものとして扱う
       if ((*it).kind == pp_tokenize_status::Identifier) {
-        using enum_int = std::underlying_type_t<decltype(prev_strtoken.category)>;
+        using enum_int = std::underlying_type_t<decltype(last_pptoken.category)>;
 
         //文字列のすぐあとが識別子ならユーザー定義リテラル
         //どちらにせよ1つ進めれば適切なカテゴリになる
-        prev_strtoken.category = pp_token_category{ static_cast<enum_int>(prev_strtoken.category) + enum_int(1u) };
+       last_pptoken.category = static_cast<pp_token_category>(static_cast<enum_int>(last_pptoken.category) + enum_int(1u));
         return true;
       } else {
         //そのほかのトークンはそのまま処理してもらう

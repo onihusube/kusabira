@@ -30,14 +30,14 @@ namespace pp_paser_test {
     CHECK_UNARY(err.error().token.token == u8"test"sv);
   }
 
+  //テストのためのトークン型
+  struct test_token {
+    kusabira::PP::pp_tokenize_status kind;
+  };
+
   TEST_CASE("skip whitespace token test") {
 
     using kusabira::PP::pp_tokenize_status;
-
-    //テストのためのトークン型
-    struct test_token {
-      kusabira::PP::pp_tokenize_status kind;
-    };
 
     //トークン列を準備
     std::vector<test_token> test_tokens{};
@@ -81,7 +81,7 @@ namespace pp_paser_test {
     CHECK_UNARY_FALSE(skip_whitespaces(it, end));
   }
 
-  TEST_CASE("status to category test"){
+  TEST_CASE("status to category test") {
     
     using ll_paser = kusabira::PP::ll_paser<kusabira::PP::tokenizer<kusabira::PP::filereader, kusabira::PP::pp_tokenizer_sm>>;
     using kusabira::PP::pp_tokenize_status;
@@ -94,8 +94,40 @@ namespace pp_paser_test {
   }
 
   TEST_CASE("string literal calssify test") {
+    
     using ll_paser = kusabira::PP::ll_paser<kusabira::PP::tokenizer<kusabira::PP::filereader, kusabira::PP::pp_tokenizer_sm>>;
     using kusabira::PP::pp_tokenize_status;
     using kusabira::PP::pp_token_category;
+    using namespace std::literals;
+
+    //トークン列を準備
+    std::vector<test_token> test_tokens{};
+    test_tokens.emplace_back(test_token{.kind = pp_tokenize_status::Identifier});
+
+    //一つ前に出現したトークン
+    kusabira::PP::pp_token pptoken{pp_token_category::string_literal};
+
+    auto it = std::begin(test_tokens);
+
+    //文字リテラル -> ユーザー定義文字リテラル
+    CHECK_UNARY(ll_paser::strliteral_classify(it, u8R"**('c')**"sv, pptoken));
+    CHECK_EQ(pptoken.category, pp_token_category::user_defined_charcter_literal);
+
+    pptoken.category = pp_token_category::string_literal;
+
+    //文字列リテラル -> ユーザー定義文字列リテラル
+    CHECK_UNARY(ll_paser::strliteral_classify(it, u8R"**("string")**"sv, pptoken));
+    CHECK_EQ(pptoken.category, pp_token_category::user_defined_string_literal);
+
+    pptoken.category = pp_token_category::raw_string_literal;
+
+    //生文字列リテラル -> ユーザー定義生文字列リテラル
+    CHECK_UNARY(ll_paser::strliteral_classify(it, u8R"**(R"raw string")**"sv, pptoken));
+    CHECK_EQ(pptoken.category, pp_token_category::user_defined_raw_string_literal);
+
+    // test_tokens.emplace_back(test_token{.kind = pp_tokenize_status::Whitespaces});
+    // test_tokens.emplace_back(test_token{.kind = pp_tokenize_status::LineComment});
+    // test_tokens.emplace_back(test_token{.kind = pp_tokenize_status::BlockComment});
+    // test_tokens.emplace_back(test_token{.kind = pp_tokenize_status::NumberLiteral});
   }
 }
