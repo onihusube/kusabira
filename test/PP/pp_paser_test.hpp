@@ -102,6 +102,7 @@ namespace pp_paser_test {
 
     //トークン列を準備
     std::vector<test_token> test_tokens{};
+    test_tokens.reserve(12);
     test_tokens.emplace_back(test_token{.kind = pp_tokenize_status::Identifier});
 
     //一つ前に出現したトークン
@@ -125,9 +126,29 @@ namespace pp_paser_test {
     CHECK_UNARY(ll_paser::strliteral_classify(it, u8R"**(R"raw string")**"sv, pptoken));
     CHECK_EQ(pptoken.category, pp_token_category::user_defined_raw_string_literal);
 
-    // test_tokens.emplace_back(test_token{.kind = pp_tokenize_status::Whitespaces});
-    // test_tokens.emplace_back(test_token{.kind = pp_tokenize_status::LineComment});
-    // test_tokens.emplace_back(test_token{.kind = pp_tokenize_status::BlockComment});
-    // test_tokens.emplace_back(test_token{.kind = pp_tokenize_status::NumberLiteral});
+    //何もしないはずのトークン種別の入力
+    test_tokens.clear();
+    test_tokens.emplace_back(test_token{ .kind = pp_tokenize_status::Whitespaces });
+    test_tokens.emplace_back(test_token{ .kind = pp_tokenize_status::LineComment });
+    test_tokens.emplace_back(test_token{ .kind = pp_tokenize_status::BlockComment });
+    test_tokens.emplace_back(test_token{ .kind = pp_tokenize_status::NumberLiteral });
+    test_tokens.emplace_back(test_token{ .kind = pp_tokenize_status::StringLiteral });
+    test_tokens.emplace_back(test_token{ .kind = pp_tokenize_status::RawStrLiteral });
+    test_tokens.emplace_back(test_token{ .kind = pp_tokenize_status::DuringRawStr });
+    test_tokens.emplace_back(test_token{ .kind = pp_tokenize_status::OPorPunc });
+    test_tokens.emplace_back(test_token{ .kind = pp_tokenize_status::OtherChar });
+    test_tokens.emplace_back(test_token{ .kind = pp_tokenize_status::NewLine });
+    test_tokens.emplace_back(test_token{ .kind = pp_tokenize_status::Empty });
+
+    it = std::begin(test_tokens);
+    auto end = std::end(test_tokens);
+
+    pptoken.category = pp_token_category::op_or_punc;
+
+    for (; it != end; ++it) {
+      CHECK_UNARY_FALSE(ll_paser::strliteral_classify(it, u8R"**(')**"sv, pptoken));
+      //CHECK_EQ(pptoken.category, pp_token_category::op_or_punc);
+    }
+
   }
 }

@@ -386,6 +386,8 @@ namespace kusabira::PP {
     }
 
     fn pp_tokens(iterator& it, sentinel end, pptoken_conteiner& list) -> parse_status {
+      using namespace std::string_view_literals;
+
       //プリプロセッシングトークン列を読み出す
       auto kind = (*it).kind;
       while (kind != pp_tokenize_status::NewLine) {
@@ -403,7 +405,7 @@ namespace kusabira::PP {
           case pp_tokenize_status::DuringRawStr:
           {
             //生文字列リテラル全体を一つのトークンとして読み出す必要がある
-            auto&& [tmp_pptoken, prev_token] = this->read_rawstring_tokens(it, end);
+            auto&& tmp_pptoken = this->read_rawstring_tokens(it, end);
 
             TOKNIZE_ERR_CHECK(it);
 
@@ -412,7 +414,7 @@ namespace kusabira::PP {
             EOF_CHECK(it, end);
 
             //次のトークンを調べてユーザー定義リテラルの有無を判断
-            if (strliteral_classify(it, prev_token, list.back()) == true) {
+            if (strliteral_classify(it, u8" "sv, list.back()) == true) {
               //そのままおわる
               break;
             } else {
@@ -459,6 +461,12 @@ namespace kusabira::PP {
       return {pp_parse_status::Complete};
     }
 
+
+    /**
+    * @brief トークナイザの出力分類をプリプセッシングトークン分類に変換する
+    * @param status トークナイザの出力分類
+    * @return プリプセッシングトークン分類
+    */
     sfn tokenize_status_to_category(pp_tokenize_status status) -> pp_token_category {
       switch (status)
       {
@@ -478,6 +486,15 @@ namespace kusabira::PP {
       }
     }
 
+
+    /**
+    * @brief 文字・文字列リテラル直後のユーザー定義リテラルを検出する
+    * @param it トークン列のイテレータ
+    * @param prev_tokenstr 直前のトークン文字列
+    * @param last_pptoken 直前のプリプセッシングトークン
+    * @detail 直前が文字・文字列リテラルであることを前提に動作する、呼び出す場所に注意
+    * @return ユーザー定義リテラルの有無
+    */
     template<typename Iterator = iterator>
     sfn strliteral_classify(Iterator& it, std::u8string_view prev_tokenstr , pp_token& last_pptoken) -> bool {
       //以前のトークンが文字列リテラルなのか文字リテラルなのか判断
@@ -502,7 +519,14 @@ namespace kusabira::PP {
       }
     }
 
-    fn read_rawstring_tokens(iterator& it, sentinel end) -> std::pair<pp_token, std::u8string_view> {
+
+    /**
+    * @brief 生文字列リテラルを読み出し、改行継続を元に戻した上で連結する
+    * @param it トークン列のイテレータ
+    * @param end トークン列の終端イテレータ
+    * @return 構成した生文字列リテラルトークン
+    */
+    fn read_rawstring_tokens(iterator& it, sentinel end) -> pp_token {
 
       //生文字列リテラルの行継続を元に戻す
       auto undo_rawstr = [](auto &it, auto &string, std::size_t bias = 0) {
@@ -544,7 +568,7 @@ namespace kusabira::PP {
         ++it;
         if ((*it).kind < pp_tokenize_status::Unaccepted) {
           //エラーかな
-          return { std::move(token), u8"" };
+          return token;
         } else {
           //トークンをまとめて1つのPPトークンにする
           rawstr.append((*it).token);
@@ -554,7 +578,7 @@ namespace kusabira::PP {
         }
       } while ((*it).kind != pp_tokenize_status::RawStrLiteral);
 
-      return { std::move(token), (*pos).token };
+      return token;
     }
   };
 
