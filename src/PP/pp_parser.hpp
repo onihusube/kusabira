@@ -405,7 +405,7 @@ namespace kusabira::PP {
           case pp_tokenize_status::DuringRawStr:
           {
             //生文字列リテラル全体を一つのトークンとして読み出す必要がある
-            auto&& tmp_pptoken = this->read_rawstring_tokens(it, end);
+            auto&& tmp_pptoken = read_rawstring_tokens(it, end);
 
             TOKNIZE_ERR_CHECK(it);
 
@@ -526,21 +526,24 @@ namespace kusabira::PP {
     * @param end トークン列の終端イテレータ
     * @return 構成した生文字列リテラルトークン
     */
-    fn read_rawstring_tokens(iterator& it, sentinel end) -> pp_token {
+    template<typename Iterator = iterator, typename Sentinel = sentinel>
+    sfn read_rawstring_tokens(iterator& it, sentinel end) -> pp_token {
 
       //生文字列リテラルの行継続を元に戻す
-      auto undo_rawstr = [](auto &it, auto &string, std::size_t bias = 0) {
-        if ((*it).is_multiple_phlines()) {
+      auto undo_rawstr = [](auto& iter, auto& string, std::size_t bias = 0) {
+        if ((*iter).is_multiple_phlines()) {
           //バックスラッシュによる行継続が行われている
-          auto &line = *(*it).srcline_ref;
+          auto &line = *(*iter).srcline_ref;
 
-          auto pos = line.line.find_first_of((*it).token);
+          auto pos = line.line.find_first_of((*iter).token);
           //これは起こりえないはず・・・
           assert(pos != std::u8string_view::npos);
 
           //バックスラッシュ+改行を復元する
           for (auto newline_pos : line.line_offset) {
+            //newline_posは複数存在する場合は常にその論理行頭からの長さになっている
             if (pos <= newline_pos) {
+              //すでに構成済みの生文字列リテラルの長さ+改行継続された論理行での位置
               string.insert(bias + newline_pos, u8"\\\n", 2);
               pos = newline_pos;
             }
@@ -576,6 +579,10 @@ namespace kusabira::PP {
 
           undo_rawstr(it, rawstr, length);
         }
+
+        //エラーを除いて、この2つ以外のトークン種別が出てくることはないはず
+        assert((*it).kind == pp_tokenize_status::RawStrLiteral or (*it).kind == pp_tokenize_status::DuringRawStr);
+
       } while ((*it).kind != pp_tokenize_status::RawStrLiteral);
 
       return token;

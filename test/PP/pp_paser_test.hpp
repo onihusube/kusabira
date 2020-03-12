@@ -151,4 +151,27 @@ namespace pp_paser_test {
     }
 
   }
+
+
+  TEST_CASE("build raw string test") {
+    using kusabira::PP::lex_token;
+    using kusabira::PP::logical_line;
+    using kusabira::PP::pp_tokenize_status;
+    using namespace std::literals;
+
+    //論理行保持コンテナ
+    std::pmr::forward_list<logical_line> ll{};
+    auto pos = ll.before_begin();
+
+    //pos = ll.emplace_after(pos, )
+
+
+    //トークン列
+    std::vector<lex_token> tokens{};
+
+    //tokens.empalce_back(pp_tokenize_status::DuringRawStr, u8""sv, );
+
+    auto it = std::begin(tokens);
+    auto end = std::end(tokens);
+  }
 }
