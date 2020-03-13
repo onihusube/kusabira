@@ -527,7 +527,7 @@ namespace kusabira::PP {
     * @return 構成した生文字列リテラルトークン
     */
     template<typename Iterator = iterator, typename Sentinel = sentinel>
-    sfn read_rawstring_tokens(iterator& it, sentinel end) -> pp_token {
+    sfn read_rawstring_tokens(Iterator& it, Sentinel end) -> pp_token {
 
       //生文字列リテラルの行継続を元に戻す
       auto undo_rawstr = [](auto& iter, auto& string, std::size_t bias = 0) {
@@ -536,16 +536,18 @@ namespace kusabira::PP {
           auto &line = *(*iter).srcline_ref;
 
           auto pos = line.line.find_first_of((*iter).token);
+          auto acc = 0u;
           //これは起こりえないはず・・・
           assert(pos != std::u8string_view::npos);
 
           //バックスラッシュ+改行を復元する
           for (auto newline_pos : line.line_offset) {
             //newline_posは複数存在する場合は常にその論理行頭からの長さになっている
-            if (pos <= newline_pos) {
-              //すでに構成済みの生文字列リテラルの長さ+改行継続された論理行での位置
-              string.insert(bias + newline_pos, u8"\\\n", 2);
-              pos = newline_pos;
+            if (pos <= newline_pos + acc) {
+              //すでに構成済みの生文字列リテラルの長さ+改行継続された論理行での位置+それまで挿入したバックスラッシュと改行の長さ
+              string.insert(bias + newline_pos + acc, u8"\\\n", 2);
+              acc += 2;
+              pos = newline_pos + acc;
             }
           }
         }
@@ -569,7 +571,7 @@ namespace kusabira::PP {
         std::size_t length = rawstr.length();
 
         ++it;
-        if ((*it).kind < pp_tokenize_status::Unaccepted) {
+        if (it == end or (*it).kind < pp_tokenize_status::Unaccepted) {
           //エラーかな
           return token;
         } else {
@@ -584,6 +586,8 @@ namespace kusabira::PP {
         assert((*it).kind == pp_tokenize_status::RawStrLiteral or (*it).kind == pp_tokenize_status::DuringRawStr);
 
       } while ((*it).kind != pp_tokenize_status::RawStrLiteral);
+
+      token.token = std::move(rawstr);
 
       return token;
     }

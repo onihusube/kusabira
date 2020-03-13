@@ -154,24 +154,68 @@ namespace pp_paser_test {
 
 
   TEST_CASE("build raw string test") {
+
+    using ll_paser = kusabira::PP::ll_paser<kusabira::PP::tokenizer<kusabira::PP::filereader, kusabira::PP::pp_tokenizer_sm>>;
     using kusabira::PP::lex_token;
     using kusabira::PP::logical_line;
+    using kusabira::PP::pp_token_category;
+    using kusabira::PP::pp_tokenize_result;
     using kusabira::PP::pp_tokenize_status;
     using namespace std::literals;
 
     //論理行保持コンテナ
     std::pmr::forward_list<logical_line> ll{};
-    auto pos = ll.before_begin();
-
-    //pos = ll.emplace_after(pos, )
-
-
     //トークン列
     std::vector<lex_token> tokens{};
+    tokens.reserve(5);
 
-    //tokens.empalce_back(pp_tokenize_status::DuringRawStr, u8""sv, );
+    auto pos = ll.before_begin();
+
+    //論理行オブジェクト1
+    pos = ll.emplace_after(pos, 0);
+    (*pos).line = u8"R\"(testrawstringriteral";
+    (*pos).line_offset.emplace_back(7);
+    (*pos).line_offset.emplace_back(7 + 3);
+    (*pos).line_offset.emplace_back(7 + 3 + 6);
+    {
+      auto& r = tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::DuringRawStr}, u8"R\"(testrawstringriteral"sv, pos);
+      CHECK_UNARY(r.is_multiple_phlines());
+    }
+
+    //論理行オブジェクト2
+    pos = ll.emplace_after(pos, 4);
+    (*pos).line = u8"testline1";
+    (*pos).line_offset.emplace_back(4);
+    {
+      auto& r = tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::DuringRawStr}, u8"testline1"sv, pos);
+      CHECK_UNARY(r.is_multiple_phlines());
+    }
+
+    //論理行オブジェクト３
+    pos = ll.emplace_after(pos, 6);
+    (*pos).line = u8"testline2)\"";
+    (*pos).line_offset.emplace_back(4);
+    {
+      auto& r = tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::RawStrLiteral}, u8"testline2)\""sv, pos);
+      CHECK_UNARY(r.is_multiple_phlines());
+    }
 
     auto it = std::begin(tokens);
     auto end = std::end(tokens);
+
+    auto pptoken = ll_paser::read_rawstring_tokens(it, end);
+
+    auto expect = u8R"**(R"(test\
+raw\
+string\
+riteral
+test\
+line1
+test\
+line2)")**"sv;
+
+    CHECK_UNARY(pptoken.token == expect);
+    CHECK_EQ(pptoken.category, pp_token_category::raw_string_literal);
+    CHECK_EQ(std::distance(pptoken.lextokens.begin(), pptoken.lextokens.end()), 3u);
   }
 }

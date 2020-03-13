@@ -126,6 +126,12 @@ namespace kusabira::PP
         , line_offset{alloc}
     {}
 
+    logical_line(std::size_t line_num)
+        : line{u8_pmralloc{&kusabira::def_mr}}
+        , phisic_line{line_num}
+        , line_offset{u8_pmralloc{&kusabira::def_mr}}
+    {}
+
     //論理1行の文字列
     std::pmr::u8string line;
 
