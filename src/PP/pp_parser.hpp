@@ -544,9 +544,12 @@ namespace kusabira::PP {
           for (auto newline_pos : line.line_offset) {
             //newline_posは複数存在する場合は常にその論理行頭からの長さになっている
             if (pos <= newline_pos + acc) {
+              //挿入する行継続マーカとその長さ
+              constexpr char8_t insert_str[] = u8"\\\n";
+              constexpr auto insert_len = sizeof(insert_str) - 1;
               //すでに構成済みの生文字列リテラルの長さ+改行継続された論理行での位置+それまで挿入したバックスラッシュと改行の長さ
-              string.insert(bias + newline_pos + acc, u8"\\\n", 2);
-              acc += 2;
+              string.insert(bias + newline_pos + acc, insert_str, insert_len);
+              acc += insert_len;
               pos = newline_pos + acc;
             }
           }
