@@ -167,7 +167,7 @@ namespace pp_paser_test {
     std::pmr::forward_list<logical_line> ll{};
     //トークン列
     std::vector<lex_token> tokens{};
-    tokens.reserve(5);
+    tokens.reserve(10);
 
     auto pos = ll.before_begin();
 
@@ -206,6 +206,7 @@ namespace pp_paser_test {
 
     auto pptoken = ll_paser::read_rawstring_tokens(it, end);
 
+    //生文字列リテラル中の行継続は無視してそのままにしなければならない
     auto expect = u8R"**(R"(test\
 raw\
 string\
@@ -219,5 +220,57 @@ line2)")**"sv;
     CHECK_UNARY(pptoken.token == expect);
     CHECK_EQ(pptoken.category, pp_token_category::raw_string_literal);
     CHECK_EQ(std::distance(pptoken.lextokens.begin(), pptoken.lextokens.end()), 3u);
+
+    //途中で切れてるやつ
+    tokens.clear();
+    pos = ll.emplace_after(pos, 9);
+    (*pos).line = u8"R\"(testrawstri";
+    tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::DuringRawStr}, (*pos).line, pos);
+
+    it = std::begin(tokens);
+    end = std::end(tokens);
+
+    pptoken = ll_paser::read_rawstring_tokens(it, end);
+    CHECK_UNARY(it == end);
+    CHECK_UNARY(pptoken.token.to_view().empty());
+    CHECK_UNARY_FALSE(pptoken.lextokens.empty());
+
+    //途中でトークナイズエラーが出る
+    tokens.clear();
+    pos = ll.emplace_after(pos, 10);
+    (*pos).line = u8"R\"(rwastring read error";
+    tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::DuringRawStr}, (*pos).line, pos);
+  
+    pos = ll.emplace_after(pos, 11);
+    (*pos).line = u8"";
+    tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::FailedRawStrLiteralRead}, (*pos).line, pos);
+
+    it = std::begin(tokens);
+    end = std::end(tokens);
+
+    pptoken = ll_paser::read_rawstring_tokens(it, end);
+    CHECK_UNARY_FALSE(it == end);
+    CHECK_UNARY(pptoken.token.to_view().empty());
+    CHECK_UNARY_FALSE(pptoken.lextokens.empty());
+  }
+
+  TEST_CASE("text-line test") {
+    using kusabira::PP::lex_token;
+    using kusabira::PP::logical_line;
+    using kusabira::PP::pp_token_category;
+    using kusabira::PP::pp_tokenize_result;
+    using kusabira::PP::pp_tokenize_status;
+    using namespace std::literals;
+    using test_tokenizer = std::vector<lex_token>;
+    using ll_paser = kusabira::PP::ll_paser<test_tokenizer>;
+
+    //論理行保持コンテナ
+    std::pmr::forward_list<logical_line> ll{};
+    //トークン列
+    test_tokenizer tokens{};
+    tokens.reserve(5);
+    auto pos = ll.before_begin();
+
+    //text-lineトークン列（プリプロセッシングトークンを含まない）を構成
   }
 }

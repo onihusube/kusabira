@@ -140,6 +140,8 @@ namespace kusabira::PP {
 //イテレータを一つ進めるとともに終端チェック
 #define EOF_CHECK(iterator, sentinel) ++it; if (iterator == sentinel) return {pp_parse_status::EndOfFile}
 
+  using std::begin;
+  using std::end;
 
   /**
   * @brief トークン列をパースしてプリプロセッシングディレクティブの検出とCPPの実行を行う
@@ -528,6 +530,10 @@ namespace kusabira::PP {
     */
     template<typename Iterator = iterator, typename Sentinel = sentinel>
     sfn read_rawstring_tokens(Iterator& it, Sentinel end) -> pp_token {
+
+      //事前条件
+      assert(it != end);
+      assert((*it).kind == pp_tokenize_status::DuringRawStr or (*it).kind < pp_tokenize_status::Unaccepted);
 
       //生文字列リテラルの行継続を元に戻す
       auto undo_rawstr = [](auto& iter, auto& string, std::size_t bias = 0) {
