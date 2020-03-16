@@ -183,7 +183,9 @@ namespace kusabira::PP {
       return this->group(it, se);
     }
 
-    fn module_file(iterator &iter, sentinel end) -> parse_status {
+    fn module_file([[maybe_unused]] iterator &iter, [[maybe_unused]] sentinel end) -> parse_status {
+      //未実装
+      assert(false);
       //モジュール宣言とかを生成する
       return {pp_parse_status::Complete};
     }
@@ -242,14 +244,15 @@ namespace kusabira::PP {
         } else if((*it).token == u8"import" or (*it).token == u8"export") {
           // モジュールのインポート宣言
           return this->control_line(it, end);
-        } else {
-          // text-lineへ
-          return this->text_line(it, end);
         }
       }
+      // text-lineへ
+      return this->text_line(it, end);
     }
 
-    fn control_line(iterator& it, sentinel end) -> parse_status {
+    fn control_line([[maybe_unused]] iterator& it, [[maybe_unused]] sentinel end) -> parse_status {
+      //未実装
+      assert(false);
       return {};
     }
 
@@ -380,6 +383,7 @@ namespace kusabira::PP {
       //改行されて終了
       if ((*it).kind == pp_tokenize_status::NewLine) {
         //正常にtext-lineを読み込んだ
+        ++it;
         return {pp_parse_status::Complete};
       }
 

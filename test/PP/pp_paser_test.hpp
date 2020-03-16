@@ -254,23 +254,30 @@ line2)")**"sv;
     CHECK_UNARY_FALSE(pptoken.lextokens.empty());
   }
 
-  TEST_CASE("text-line test") {
-    using kusabira::PP::lex_token;
-    using kusabira::PP::logical_line;
-    using kusabira::PP::pp_token_category;
-    using kusabira::PP::pp_tokenize_result;
-    using kusabira::PP::pp_tokenize_status;
-    using namespace std::literals;
-    using test_tokenizer = std::vector<lex_token>;
-    using ll_paser = kusabira::PP::ll_paser<test_tokenizer>;
-
-    //論理行保持コンテナ
-    std::pmr::forward_list<logical_line> ll{};
-    //トークン列
-    test_tokenizer tokens{};
-    tokens.reserve(5);
-    auto pos = ll.before_begin();
-
-    //text-lineトークン列（プリプロセッシングトークンを含まない）を構成
-  }
 }
+
+#include "pp_tokenizer_test.hpp"
+
+namespace pp_parsing_test
+{
+
+  TEST_CASE("text-line test") {
+    using kusabira::PP::pp_token_category;
+    using namespace std::literals;
+    using pp_tokenizer = kusabira::PP::tokenizer<kusabira::PP::filereader, kusabira::PP::pp_tokenizer_sm>;
+    using ll_paser = kusabira::PP::ll_paser<pp_tokenizer>;
+
+    auto testdir = kusabira::test::get_testfiles_dir() / "PP";
+
+    REQUIRE_UNARY(std::filesystem::is_directory(testdir));
+    REQUIRE_UNARY(std::filesystem::exists(testdir));
+
+    pp_tokenizer tokenizer{testdir / "parse_text-line.cpp"};
+    ll_paser parser{};
+
+    auto status = parser.start(tokenizer);
+
+    CHECK_UNARY(bool(status));
+  }
+
+} // namespace pp_parsing_test
