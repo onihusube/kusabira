@@ -33,7 +33,7 @@ namespace kusabira::table {
   * @param ch 入力文字
   * @param row_index 参照するテーブル番号
   */
-  ifn ref_symbol_table(char8_t ch, int row_index = 0) -> int {
+  cfn ref_symbol_table(char8_t ch, int row_index = 0) -> int {
     //制御文字は考慮しない
     std::uint8_t index = ch - 33;
 

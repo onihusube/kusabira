@@ -522,6 +522,17 @@ namespace pp_automaton_test
       CHECK_UNARY(res);
       CHECK_EQ(res, kusabira::PP::pp_tokenize_status::NumberLiteral);
     }
+
+    {
+      kusabira::PP::pp_tokenizer_sm sm{};
+
+      CHECK_UNARY_FALSE(sm.input_char(u8'.'));
+      CHECK_UNARY_FALSE(sm.input_char(u8'1'));
+      CHECK_UNARY_FALSE(sm.input_char(u8'f'));
+      auto res = sm.input_char(u8'_');
+      CHECK_UNARY(res);
+      CHECK_EQ(res, kusabira::PP::pp_tokenize_status::NumberLiteral);
+    }
   }
 
   TEST_CASE("input newline test") {

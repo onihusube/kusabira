@@ -579,24 +579,27 @@ namespace kusabira::PP {
       undo_rawstr(it, rawstr);
 
       do {
-        //生文字列リテラルを改行する
-        rawstr.push_back(u8'\n');
-        std::size_t length = rawstr.length();
-
         ++it;
         if (it == end or (*it).kind < pp_tokenize_status::Unaccepted) {
           //エラーかな
           return token;
-        } else {
+        } else if ((*it).kind != pp_tokenize_status::NewLine) {
+          //生文字列リテラルを改行する
+          rawstr.push_back(u8'\n');
+          std::size_t length = rawstr.length();
+
           //トークンをまとめて1つのPPトークンにする
           rawstr.append((*it).token);
           pos = list.emplace_after(pos, *it);
 
           undo_rawstr(it, rawstr, length);
         }
+        //改行入力はスルーする
 
-        //エラーを除いて、この2つ以外のトークン種別が出てくることはないはず
-        assert((*it).kind == pp_tokenize_status::RawStrLiteral or (*it).kind == pp_tokenize_status::DuringRawStr);
+        //エラーを除いて、この3つ以外のトークン種別が出てくることはないはず
+        assert((*it).kind == pp_tokenize_status::RawStrLiteral
+                or (*it).kind == pp_tokenize_status::DuringRawStr
+                or (*it).kind == pp_tokenize_status::NewLine);
 
       } while ((*it).kind != pp_tokenize_status::RawStrLiteral);
 

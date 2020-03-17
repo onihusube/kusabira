@@ -324,6 +324,10 @@ namespace kusabira::PP
       static constexpr pp_tokenize_status Category = pp_tokenize_status::NumberLiteral;
     };
 
+    struct maybe_number_literal {
+      static constexpr pp_tokenize_status Category = pp_tokenize_status::OPorPunc;
+    };
+
     /**
     * @brief 文字列リテラル中のエスケープシーケンスを無視する
     */
@@ -376,7 +380,7 @@ namespace kusabira::PP
     */
     using transition_table = table
       <
-        row<init, white_space_seq, maybe_comment, line_comment, block_comment, maybe_end_block_comment, identifier_seq, maybe_str_literal, maybe_u8str_literal, maybe_rawstr_literal, raw_string_literal, string_literal, char_literal, number_literal, number_sign, punct_seq, end_seq > ,
+        row<init, white_space_seq, maybe_comment, line_comment, block_comment, maybe_end_block_comment, identifier_seq, maybe_str_literal, maybe_u8str_literal, maybe_rawstr_literal, raw_string_literal, string_literal, char_literal, maybe_number_literal, number_literal, number_sign, punct_seq, end_seq > ,
         row<end_seq, init>,
         row<white_space_seq, init>,
         row<maybe_comment, line_comment, block_comment, punct_seq, end_seq, init>,
@@ -391,6 +395,7 @@ namespace kusabira::PP
         row<string_literal, ignore_escape_seq, end_seq, init>,
         row<char_literal, ignore_escape_seq, end_seq, init>,
         row<ignore_escape_seq, string_literal, char_literal, init>,
+        row<maybe_number_literal, number_literal, punct_seq, end_seq, init>,
         row<number_literal, number_sign, init>,
         row<number_sign, number_literal, init>,
         row<punct_seq, maybe_comment, end_seq, init>
@@ -413,12 +418,12 @@ namespace kusabira::PP
   * @return 受理可能ならtrue
   */
   ifn is_number_literal(char8_t ch) -> bool {
-    if (std::isxdigit(static_cast<unsigned char>(ch)))
-    {
+    if (std::isxdigit(static_cast<unsigned char>(ch))) {
       //16進の範囲で使われうる英数字
       return true;
-    } else if (ch == u8'x' or ch == u8'\'' or ch == u8'.') {
+    } else if (ch == u8'x' or ch == u8'\'' or ch == u8'.' or ch == u8'l'  or ch == u8'L') {
       //16進記号のxかドットか区切り文字、2つ続かないはずだけどここではチェックしないことにする・・・
+      //long doubleリテラルサフィックス、最後以外に来てたらエラーだけど・・・
       return true;
     } else {
       //サフィックスやユーザー定義リテラルは分割する
@@ -440,7 +445,7 @@ namespace kusabira::PP
             states::white_space_seq, states::identifier_seq,
             states::maybe_str_literal, states::maybe_rawstr_literal, states::maybe_u8str_literal, states::raw_string_literal,
             states::string_literal, states::char_literal, states::ignore_escape_seq,
-            states::number_literal, states::number_sign, states::punct_seq>
+            states::maybe_number_literal, states::number_literal, states::number_sign, states::punct_seq>
   {
 
     pp_tokenizer_sm() = default;
@@ -504,6 +509,9 @@ namespace kusabira::PP
             } else if (std::isdigit(cv)) {
               //数値リテラル読み取り、必ず数字で始まる
               this->transition<states::number_literal>(state);
+            } else if (ch == u8'.') {
+              //.から始まるトークン列、浮動小数点リテラルか記号列
+              this->transition<states::maybe_number_literal>(state);
             } else if (int res = kusabira::table::ref_symbol_table(cv); 0 <= res) {
               //区切り文字（記号）列読み取りモード
               if (res == 0) {
@@ -695,6 +703,26 @@ namespace kusabira::PP
             } else {
               //数字リテラル以外が出たら終了
               return this->restart(state, pp_tokenize_status::NumberLiteral);
+            }
+          },
+          //.から始まるトークン読み出し
+          [this](states::maybe_number_literal state, char8_t ch) -> pp_tokenize_result {
+            if (ch == u8'.') {
+              //ドットが二つ続いた場合は記号列とする
+              constexpr int res = kusabira::table::ref_symbol_table(u8'.', kusabira::table::ref_symbol_table(u8'.'));
+              this->transition<states::punct_seq>(state, res);
+              return { pp_tokenize_status::Unaccepted };
+            } else if (std::isdigit(static_cast<unsigned char>(ch))) {
+              //浮動小数点リテラル
+              this->transition<states::number_literal>(state);
+              return { pp_tokenize_status::Unaccepted };
+            } else if (ch == u8'*') {
+              //記号列、.*演算子、次の文字入力をもって確定する
+              this->transition<states::end_seq>(state, pp_tokenize_status::OPorPunc);
+              return {pp_tokenize_status::Unaccepted};
+            } else {
+              //ドット一つの読み取り、識別子へ
+              return this->restart(state, pp_tokenize_status::OPorPunc);
             }
           },
           //浮動小数点数の指数部の符号読み出し

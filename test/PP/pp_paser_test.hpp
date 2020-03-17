@@ -181,6 +181,7 @@ namespace pp_paser_test {
       auto &r = tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::DuringRawStr}, (*pos).line, pos);
       CHECK_UNARY(r.is_multiple_phlines());
     }
+    tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::NewLine}, u8""sv, pos);
 
     //論理行オブジェクト2
     pos = ll.emplace_after(pos, 4);
@@ -190,6 +191,7 @@ namespace pp_paser_test {
       auto &r = tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::DuringRawStr}, (*pos).line, pos);
       CHECK_UNARY(r.is_multiple_phlines());
     }
+    tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::NewLine}, u8""sv, pos);
 
     //論理行オブジェクト３
     pos = ll.emplace_after(pos, 6);
@@ -226,6 +228,7 @@ line2)")**"sv;
     pos = ll.emplace_after(pos, 9);
     (*pos).line = u8"R\"(testrawstri";
     tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::DuringRawStr}, (*pos).line, pos);
+    tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::NewLine}, u8""sv, pos);
 
     it = std::begin(tokens);
     end = std::end(tokens);
@@ -252,6 +255,29 @@ line2)")**"sv;
     CHECK_UNARY_FALSE(it == end);
     CHECK_UNARY(pptoken.token.to_view().empty());
     CHECK_UNARY_FALSE(pptoken.lextokens.empty());
+
+    //単に改行されてる生文字列リテラル
+    tokens.clear();
+    pos = ll.emplace_after(pos, 11);
+    (*pos).line = u8"R\"(rawstring test";
+    tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::DuringRawStr}, (*pos).line, pos);
+    tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::NewLine}, u8""sv, pos);
+    pos = ll.emplace_after(pos, 12);
+    (*pos).line = u8R"**(newline)")**";
+    tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::RawStrLiteral}, (*pos).line, pos);
+
+    it = std::begin(tokens);
+    end = std::end(tokens);
+
+    pptoken = ll_paser::read_rawstring_tokens(it, end);
+
+    //生文字列リテラル中の改行はそのままに
+    expect = u8R"**(R"(rawstring test
+newline)")**"sv;
+
+    CHECK_UNARY(pptoken.token == expect);
+    CHECK_EQ(pptoken.category, pp_token_category::raw_string_literal);
+    CHECK_EQ(std::distance(pptoken.lextokens.begin(), pptoken.lextokens.end()), 2u);
   }
 
 }
@@ -278,6 +304,7 @@ namespace pp_parsing_test
     auto status = parser.start(tokenizer);
 
     CHECK_UNARY(bool(status));
+    CHECK_EQ(parser.m_token_list.size(), 121);
   }
 
 } // namespace pp_parsing_test
