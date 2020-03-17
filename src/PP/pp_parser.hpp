@@ -49,12 +49,26 @@ namespace kusabira::PP {
       lextokens.emplace_front(std::move(ltoken));
     }
 
+    /**
+    * @brief テスト用コンストラクタ
+    */
+    pp_token(pp_token_category cat, std::u8string_view tokenstr)
+      : category{ cat }
+      , token{ tokenstr }
+      , lextokens{}
+    {}
+
+    ffn operator==(const pp_token& lhs, const pp_token& rhs) noexcept -> bool {
+      return lhs.category == rhs.category && lhs.token == rhs.token;
+    }
+
     //プリプロセッシングトークン種別
     pp_token_category category;
     //プリプロセッシングトークン文字列
     kusabira::vocabulary::whimsy_str_view<> token;
     //構成する字句トークン列
     std::pmr::forward_list<lex_token> lextokens;
+
   };
 
   enum class pp_parse_status : std::uint8_t {
@@ -156,7 +170,7 @@ namespace kusabira::PP {
 
     using pptoken_conteiner = std::pmr::list<pp_token>;
 
-    std::pmr::list<pp_token> m_token_list{std::pmr::polymorphic_allocator<pp_token>(&kusabira::def_mr)};
+    pptoken_conteiner pptoken_list{std::pmr::polymorphic_allocator<pp_token>(&kusabira::def_mr)};
 
     fn start(Tokenizer& pp_tokenizer) -> parse_status {
       auto it = begin(pp_tokenizer);
@@ -376,7 +390,7 @@ namespace kusabira::PP {
 
     fn text_line(iterator& it, sentinel end) -> parse_status {
       //1行分プリプロセッシングトークン列読み出し
-      auto status = this->pp_tokens(it, end, this->m_token_list);
+      auto status = this->pp_tokens(it, end, this->pptoken_list);
 
       if (!status) return status;
 

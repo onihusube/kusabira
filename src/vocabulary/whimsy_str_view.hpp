@@ -282,5 +282,16 @@ namespace kusabira::vocabulary {
         return self.m_string.size();
       }
     }
+
+    [[nodiscard]] friend auto operator==(const whimsy_str_view& lhs, const whimsy_str_view& rhs) noexcept -> bool {
+      return lhs.to_view() == rhs;
+    }
+
+//#ifdef __cpp_impl_three_way_comparison
+//
+//    [[nodiscard]] friend auto operator<=>(const whimsy_str_view& lhs, const whimsy_str_view& rhs) const noexcept -> std::strong_ordering {
+//      return lhs.to_view <=> rhs;
+//    }
+//#endif
   };
 }

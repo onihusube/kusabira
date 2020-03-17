@@ -721,7 +721,7 @@ namespace kusabira::PP
               this->transition<states::end_seq>(state, pp_tokenize_status::OPorPunc);
               return {pp_tokenize_status::Unaccepted};
             } else {
-              //ドット一つの読み取り、識別子へ
+              //ドット一つの読み取り
               return this->restart(state, pp_tokenize_status::OPorPunc);
             }
           },

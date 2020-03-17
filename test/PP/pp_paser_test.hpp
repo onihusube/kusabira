@@ -289,6 +289,8 @@ namespace pp_parsing_test
 
   TEST_CASE("text-line test") {
     using kusabira::PP::pp_token_category;
+    using kusabira::PP::pp_parse_status;
+    using kusabira::PP::pp_token;
     using namespace std::literals;
     using pp_tokenizer = kusabira::PP::tokenizer<kusabira::PP::filereader, kusabira::PP::pp_tokenizer_sm>;
     using ll_paser = kusabira::PP::ll_paser<pp_tokenizer>;
@@ -303,8 +305,19 @@ namespace pp_parsing_test
 
     auto status = parser.start(tokenizer);
 
-    CHECK_UNARY(bool(status));
-    CHECK_EQ(parser.m_token_list.size(), 121);
+    REQUIRE_UNARY(bool(status));
+    CHECK_EQ(status.value(), pp_parse_status::Complete);
+    constexpr auto token_num = 121u;
+    REQUIRE_EQ(parser.pptoken_list.size(), token_num);
+
+    constexpr std::u8string_view expect_token[] = { u8"" };
+    constexpr pp_token_category expect_category[] = { pp_token_category::identifier };
+
+    auto it = std::begin(parser.pptoken_list);
+
+    for (auto i = 0u; i < token_num; ++i) {
+      CHECK_EQ(*it, pp_token{ expect_category[i], expect_token[i] });
+    }
   }
 
 } // namespace pp_parsing_test
