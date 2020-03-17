@@ -134,8 +134,8 @@ namespace kusabira::PP {
 
 //トークナイザのエラーチェック
 #define TOKNIZE_ERR_CHECK(iterator)                                               \
-  if (auto kind = (*iterator).kind.status; kind < pp_tokenize_status::Unaccepted) \
-  return make_error(iterator, pp_parse_context{static_cast<std::underlying_type_t<decltype(kind)>>(kind)})
+  if (auto status_kind = (*iterator).kind.status; status_kind < pp_tokenize_status::Unaccepted) \
+  return make_error(iterator, pp_parse_context{static_cast<std::underlying_type_t<decltype(status_kind)>>(status_kind)})
 
 //イテレータを一つ進めるとともに終端チェック
 #define EOF_CHECK(iterator, sentinel) ++it; if (iterator == sentinel) return {pp_parse_status::EndOfFile}
