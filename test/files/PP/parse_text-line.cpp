@@ -23,6 +23,7 @@ int main() {
 newline)"_udl;
 
   constexpr int num = 123'456'789;
+  auto un = 111u;
 
   float f1 = 1.0E-8f;
   volatile float f2 = .1F;

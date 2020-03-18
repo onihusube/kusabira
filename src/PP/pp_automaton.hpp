@@ -421,12 +421,12 @@ namespace kusabira::PP
     if (std::isxdigit(static_cast<unsigned char>(ch))) {
       //16進の範囲で使われうる英数字
       return true;
-    } else if (ch == u8'x' or ch == u8'\'' or ch == u8'.' or ch == u8'l'  or ch == u8'L') {
+    } else if (ch == u8'x' or ch == u8'\'' or ch == u8'.' or ch == u8'l'  or ch == u8'L' or ch == u8'u'  or ch == u8'U') {
       //16進記号のxかドットか区切り文字、2つ続かないはずだけどここではチェックしないことにする・・・
-      //long doubleリテラルサフィックス、最後以外に来てたらエラーだけど・・・
+      //longリテラルサフィックス、unsignedリテラルサフィックス最後以外に来てたらエラーだけど・・・
       return true;
     } else {
-      //サフィックスやユーザー定義リテラルは分割する
+      //ユーザー定義リテラルは分割する
       return false;
     }
   }
