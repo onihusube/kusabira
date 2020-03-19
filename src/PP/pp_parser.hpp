@@ -511,7 +511,7 @@ namespace kusabira::PP {
     * @brief 文字・文字列リテラル直後のユーザー定義リテラルを検出する
     * @param it トークン列のイテレータ
     * @param prev_tokenstr 直前のトークン文字列
-    * @param last_pptoken 直前のプリプセッシングトークン
+    * @param last_pptoken 直前のプリプロセッシングトークン
     * @detail 直前が文字・文字列リテラルであることを前提に動作する、呼び出す場所に注意
     * @return ユーザー定義リテラルの有無
     */
@@ -528,10 +528,15 @@ namespace kusabira::PP {
       //イテレータは既に一つ進められているものとして扱う
       if ((*it).kind == pp_tokenize_status::Identifier) {
         using enum_int = std::underlying_type_t<decltype(last_pptoken.category)>;
-
         //文字列のすぐあとが識別子ならユーザー定義リテラル
         //どちらにせよ1つ進めれば適切なカテゴリになる
-       last_pptoken.category = static_cast<pp_token_category>(static_cast<enum_int>(last_pptoken.category) + enum_int(1u));
+        last_pptoken.category = static_cast<pp_token_category>(static_cast<enum_int>(last_pptoken.category) + enum_int(1u));
+
+        //ユーザー定義リテラルを文字列トークンに含める
+        auto str = std::move(last_pptoken.token).to_string();
+        str.append((*it).token);
+        last_pptoken.token = std::move(str);
+
         return true;
       } else {
         //そのほかのトークンはそのまま処理してもらう
@@ -621,6 +626,7 @@ namespace kusabira::PP {
 
       return token;
     }
+
   };
 
 } // namespace kusabira::PP

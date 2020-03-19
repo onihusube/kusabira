@@ -33,6 +33,7 @@ namespace pp_paser_test {
   //テストのためのトークン型
   struct test_token {
     kusabira::PP::pp_tokenize_status kind;
+    std::u8string_view token{};
   };
 
   TEST_CASE("skip whitespace token test") {
@@ -99,32 +100,39 @@ namespace pp_paser_test {
     using kusabira::PP::pp_tokenize_status;
     using kusabira::PP::pp_token_category;
     using namespace std::literals;
+    using my_strview = kusabira::vocabulary::whimsy_str_view<>;
 
     //トークン列を準備
     std::vector<test_token> test_tokens{};
     test_tokens.reserve(12);
-    test_tokens.emplace_back(test_token{.kind = pp_tokenize_status::Identifier});
+    test_tokens.emplace_back(test_token{.kind = pp_tokenize_status::Identifier, .token = u8"sv"sv});
 
     //一つ前に出現したトークン
     kusabira::PP::pp_token pptoken{pp_token_category::string_literal};
+    pptoken.token = my_strview{u8R"**('c')**"sv};
 
     auto it = std::begin(test_tokens);
 
     //文字リテラル -> ユーザー定義文字リテラル
-    CHECK_UNARY(ll_paser::strliteral_classify(it, u8R"**('c')**"sv, pptoken));
+    CHECK_UNARY(ll_paser::strliteral_classify(it, pptoken.token, pptoken));
     CHECK_EQ(pptoken.category, pp_token_category::user_defined_charcter_literal);
+    CHECK_UNARY(pptoken.token == u8"'c'sv"sv);
 
     pptoken.category = pp_token_category::string_literal;
+    pptoken.token = my_strview{u8R"**("string")**"sv};
 
     //文字列リテラル -> ユーザー定義文字列リテラル
-    CHECK_UNARY(ll_paser::strliteral_classify(it, u8R"**("string")**"sv, pptoken));
+    CHECK_UNARY(ll_paser::strliteral_classify(it, pptoken.token, pptoken));
     CHECK_EQ(pptoken.category, pp_token_category::user_defined_string_literal);
+    CHECK_UNARY(pptoken.token == u8R"**("string"sv)**"sv);
 
     pptoken.category = pp_token_category::raw_string_literal;
+    pptoken.token = my_strview{u8R"**(R"raw string")**"sv};
 
     //生文字列リテラル -> ユーザー定義生文字列リテラル
-    CHECK_UNARY(ll_paser::strliteral_classify(it, u8R"**(R"raw string")**"sv, pptoken));
+    CHECK_UNARY(ll_paser::strliteral_classify(it, pptoken.token, pptoken));
     CHECK_EQ(pptoken.category, pp_token_category::user_defined_raw_string_literal);
+    CHECK_UNARY(pptoken.token == u8R"**(R"raw string"sv)**"sv);
 
     //何もしないはずのトークン種別の入力
     test_tokens.clear();
