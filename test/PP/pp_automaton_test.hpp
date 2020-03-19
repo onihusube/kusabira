@@ -118,7 +118,7 @@ namespace pp_automaton_test
       CHECK_EQ(res, kusabira::PP::pp_tokenize_status::OPorPunc);
     }
 
-    //最長一致規則の例外対応、:は1つづつ分離し、代替トークンはそのまま受理
+    //最長一致規則の例外対応、:は1つづつ分離し、代替トークン<:はそのまま受理
     std::u8string_view exception_op[] = {u8":: ", u8"<::> ", u8"<:::>= ", u8"<::: "};
 
     //::
@@ -172,7 +172,7 @@ namespace pp_automaton_test
 
       CHECK_UNARY_FALSE(sm.input_char(op.at(3)));
       CHECK_UNARY_FALSE(sm.input_char(op.at(4)));
-      //:>受理、:と<=にはしない
+      //:>受理、:と>=にはしない
       res = sm.input_char(op.at(5));
       CHECK_UNARY(res);
       CHECK_EQ(res, kusabira::PP::pp_tokenize_status::OPorPunc);
