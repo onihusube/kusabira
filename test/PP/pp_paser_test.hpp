@@ -311,43 +311,65 @@ namespace pp_parsing_test
     REQUIRE_EQ(parser.pptoken_list.size(), token_num);
 
     constexpr std::u8string_view expect_token[] = {
-      u8"int", u8"main", u8"(", u8")", u8"{"
-      u8"int", u8"n", u8"=", u8"10", u8";"
-      u8"double", u8"d", u8"=", u8"1.0", u8";"
-      u8"int", u8"add", u8"=", u8"n", u8"+", u8"10", u8";"
-      u8"char", u8"c", u8"=", u8"'a'", u8";"
-      u8"char8_t", u8"u8str", u8"[", u8"]", u8"=", u8R"(u8"test string")", u8";"
-      u8"char", u8"rawstr", u8"[", u8"]", u8"=", u8R"+++(R"+*(test raw string)+*")+++", u8";"
-      u8"auto", u8"udl1", u8"=", u8R"+++("test udl")+++", u8"sv", u8";"
-      u8"auto", u8"udl2", u8"=", u8R"+++(U"test udl")+++", u8"s", u8";"
-      u8"auto", u8"udl3", u8"=", u8R"+++(L"test udl")+++", u8"sv", u8";"
-      u8"auto", u8"udl4", u8"=", u8R"+++(u8"test udl")+++", u8"sv", u8";"
-      u8"auto", u8"udl5", u8"=", u8R"+++(u"test udl")+++", u8"sv", u8";"
-      u8"auto", u8"udl6", u8"=", u8"u8R\"(test udl\nnewline)\"", u8"_udl", u8";"
-      u8"constexpr", u8"int", u8"num", u8"=", u8"123'456'789", u8";"
-      u8"auto", u8"un", u8"=", u8"111u", u8";"
-      u8"float", u8"f1", u8"=", u8"1.0E-8f", u8";"
-      u8"volatile", u8"float", u8"f2", u8"=", u8".1F", u8";"
-      u8"double", u8"d1", u8"=", u8"0x1.2p3", u8";"
-      u8"double", u8"d2", u8"=", u8"1.", u8";"
-      u8"long", u8"double", u8"d3", u8"=", u8"0.1e-1L", u8";"
-      u8"long", u8"double", u8"d4", u8"=", u8".1e-1l", u8";"
-      u8"const", u8"double", u8"d5", u8"=", u8"3.1415", u8"_udl", u8";"
-      u8"return", u8"n", u8";"
+      u8"int", u8"main", u8"(", u8")", u8"{",
+      u8"int", u8"n", u8"=", u8"10", u8";",
+      u8"double", u8"d", u8"=", u8"1.0", u8";",
+      u8"int", u8"add", u8"=", u8"n", u8"+", u8"10", u8";",
+      u8"char", u8"c", u8"=", u8"'a'", u8";",
+      u8"char8_t", u8"u8str", u8"[", u8"]", u8"=", u8R"(u8"test string")", u8";",
+      u8"char", u8"rawstr", u8"[", u8"]", u8"=", u8R"+++(R"+*(test raw string)+*")+++", u8";",
+      u8"auto", u8"udl1", u8"=", u8R"+++("test udl"sv)+++", u8";",
+      u8"auto", u8"udl2", u8"=", u8R"+++(U"test udl"s)+++", u8";",
+      u8"auto", u8"udl3", u8"=", u8R"+++(L"test udl"sv)+++", u8";",
+      u8"auto", u8"udl4", u8"=", u8R"+++(u8"test udl"sv)+++", u8";",
+      u8"auto", u8"udl5", u8"=", u8R"+++(u"test udl"sv)+++", u8";",
+      u8"auto", u8"udl6", u8"=", u8"u8R\"(test udl\nnewline)\"_udl", u8";",
+      u8"constexpr", u8"int", u8"num", u8"=", u8"123'456'789", u8";",
+      u8"auto", u8"un", u8"=", u8"111u", u8";",
+      u8"float", u8"f1", u8"=", u8"1.0E-8f", u8";",
+      u8"volatile", u8"float", u8"f2", u8"=", u8".1F", u8";",
+      u8"double", u8"d1", u8"=", u8"0x1.2p3", u8";",
+      u8"double", u8"d2", u8"=", u8"1.", u8";",
+      u8"long", u8"double", u8"d3", u8"=", u8"0.1e-1L", u8";",
+      u8"long", u8"double", u8"d4", u8"=", u8".1e-1l", u8";",
+      u8"const", u8"double", u8"d5", u8"=", u8"3.1415", u8"_udl", u8";",
+      u8"return", u8"n", u8";",
       u8"}"};
-      //static_assert(std::size(expect_token) == token_num, "The number of pp-tokens between expect_token and token_num does not match.");
+      static_assert(std::size(expect_token) == token_num, "The number of pp-tokens between expect_token and token_num does not match.");
 
-    constexpr pp_token_category expect_category[token_num] = {
+    constexpr pp_token_category expect_category[] = {
         pp_token_category::identifier, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::op_or_punc, pp_token_category::op_or_punc,
         pp_token_category::identifier, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::pp_number, pp_token_category::op_or_punc,
+        pp_token_category::identifier, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::pp_number, pp_token_category::op_or_punc,
+        pp_token_category::identifier, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::pp_number, pp_token_category::op_or_punc,
+        pp_token_category::identifier, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::charcter_literal, pp_token_category::op_or_punc,
+        pp_token_category::identifier, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::op_or_punc, pp_token_category::op_or_punc, pp_token_category::string_literal, pp_token_category::op_or_punc,
+        pp_token_category::identifier, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::op_or_punc, pp_token_category::op_or_punc, pp_token_category::raw_string_literal, pp_token_category::op_or_punc,
+        pp_token_category::identifier, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::user_defined_string_literal, pp_token_category::op_or_punc,
+        pp_token_category::identifier, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::user_defined_string_literal, pp_token_category::op_or_punc,
+        pp_token_category::identifier, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::user_defined_string_literal, pp_token_category::op_or_punc,
+        pp_token_category::identifier, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::user_defined_string_literal, pp_token_category::op_or_punc,
+        pp_token_category::identifier, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::user_defined_string_literal, pp_token_category::op_or_punc,
+        pp_token_category::identifier, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::user_defined_raw_string_literal, pp_token_category::op_or_punc,
+        pp_token_category::identifier, pp_token_category::identifier, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::pp_number, pp_token_category::op_or_punc,
+        pp_token_category::identifier, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::pp_number, pp_token_category::op_or_punc,
+        pp_token_category::identifier, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::pp_number, pp_token_category::op_or_punc,
+        pp_token_category::identifier, pp_token_category::identifier, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::pp_number, pp_token_category::op_or_punc,
+        pp_token_category::identifier, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::pp_number, pp_token_category::op_or_punc,
+        pp_token_category::identifier, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::pp_number, pp_token_category::op_or_punc,
+        pp_token_category::identifier, pp_token_category::identifier, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::pp_number, pp_token_category::op_or_punc,
+        pp_token_category::identifier, pp_token_category::identifier, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::pp_number, pp_token_category::op_or_punc,
+        pp_token_category::identifier, pp_token_category::identifier, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::pp_number, pp_token_category::identifier, pp_token_category::op_or_punc,
+        pp_token_category::identifier, pp_token_category::identifier, pp_token_category::op_or_punc,
         pp_token_category::op_or_punc};
+    static_assert(std::size(expect_category) == token_num, "The number of pp-token-categorys between expect_category and token_num does not match.");
 
     auto it = std::begin(parser.pptoken_list);
 
-    /*for (auto i = 0u; i < token_num; ++i) {
+    for (auto i = 0u; i < token_num; ++i) {
       CHECK_EQ(*it, pp_token{ expect_category[i], expect_token[i] });
       ++it;
-    }*/
+    }
   }
 
 } // namespace pp_parsing_test
