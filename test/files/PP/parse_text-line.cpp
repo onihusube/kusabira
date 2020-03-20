@@ -33,5 +33,9 @@ newline)"_udl;
   long double d4 = .1e-1l;
   const double d5 = 3.1415_udl;
 
+  int y<::>{};
+  std::vector<::Foo> x;
+  int z<:::Foo::value:>;
+
   return n;
 }

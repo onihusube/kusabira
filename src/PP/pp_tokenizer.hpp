@@ -63,6 +63,10 @@ namespace kusabira::PP {
       return *m_token_opt;
     }
 
+    fn operator*() const -> const value_type& {
+      return *m_token_opt;
+    }
+
     fn operator==(const pp_token_iterator&) const noexcept -> bool {
       return false;
     }

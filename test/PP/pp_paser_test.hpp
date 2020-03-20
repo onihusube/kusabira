@@ -288,6 +288,133 @@ newline)")**"sv;
     CHECK_EQ(std::distance(pptoken.lextokens.begin(), pptoken.lextokens.end()), 2u);
   }
 
+  TEST_CASE("longest match exception test") {
+
+    using ll_paser = kusabira::PP::ll_paser<kusabira::PP::tokenizer<kusabira::PP::filereader, kusabira::PP::pp_tokenizer_sm>>;
+    using kusabira::PP::lex_token;
+    using kusabira::PP::logical_line;
+    using kusabira::PP::pp_token_category;
+    using kusabira::PP::pp_tokenize_result;
+    using kusabira::PP::pp_tokenize_status;
+    using namespace std::literals;
+
+    //論理行保持コンテナ
+    std::pmr::forward_list<logical_line> ll{};
+    //トークン列
+    std::vector<lex_token> tokens{};
+    tokens.reserve(10);
+
+    auto pos = ll.before_begin();
+
+    //論理行オブジェクト1
+    pos = ll.emplace_after(pos, 0);
+    (*pos).line = u8"<::Foo>;";
+
+    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::OPorPunc }, u8"<:"sv, pos);
+    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::OPorPunc }, u8":"sv, pos);
+    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::Identifier }, u8"Foo"sv, pos);
+
+    {
+      auto it = std::begin(tokens);
+      auto end = std::end(tokens);
+
+      auto list = ll_paser::longest_match_exception_handling(it, end);
+
+      CHECK_EQ(list.size(), 2u);
+      CHECK_UNARY((*it).token == u8"Foo"sv);
+
+      auto lit = std::begin(list);
+      CHECK_EQ((*lit).token, u8"<"sv);
+      CHECK_EQ((*lit).category, pp_token_category::op_or_punc);
+      ++lit;
+      CHECK_EQ((*lit).token, u8"::"sv);
+      CHECK_EQ((*lit).category, pp_token_category::op_or_punc);
+    }
+
+
+    //論理行オブジェクト2
+    pos = ll.emplace_after(pos, 1);
+    (*pos).line = u8"<:::Foo::value:>;";
+
+    tokens.clear();
+    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::OPorPunc }, u8"<:"sv, pos);
+    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::OPorPunc }, u8":"sv, pos);
+    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::OPorPunc }, u8":"sv, pos);
+    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::Identifier }, u8"Foo"sv, pos);
+
+    {
+      auto it = std::begin(tokens);
+      auto end = std::end(tokens);
+
+      auto list = ll_paser::longest_match_exception_handling(it, end);
+
+      CHECK_EQ(list.size(), 2u);
+      CHECK_UNARY((*it).token == u8"Foo"sv);
+
+      auto lit = std::begin(list);
+      CHECK_UNARY((*lit).token == u8"<:"sv);
+      CHECK_UNARY((*lit).category == pp_token_category::op_or_punc);
+      ++lit;
+      CHECK_UNARY((*lit).token == u8"::"sv);
+      CHECK_UNARY((*lit).category == pp_token_category::op_or_punc);
+    }
+
+    //論理行オブジェクト3
+    pos = ll.emplace_after(pos, 2);
+    (*pos).line = u8"<:::> "; //こんなトークンエラーでは・・・
+
+    tokens.clear();
+    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::OPorPunc }, u8"<:"sv, pos);
+    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::OPorPunc }, u8":"sv, pos);
+    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::OPorPunc }, u8":>"sv, pos);
+    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::Whitespaces }, u8" "sv, pos);
+
+    {
+      auto it = std::begin(tokens);
+      auto end = std::end(tokens);
+
+      auto list = ll_paser::longest_match_exception_handling(it, end);
+
+      CHECK_EQ(list.size(), 3u);
+      CHECK_UNARY((*it).token == u8" "sv);
+
+      auto lit = std::begin(list);
+      CHECK_UNARY((*lit).token == u8"<:"sv);
+      CHECK_UNARY((*lit).category == pp_token_category::op_or_punc);
+      ++lit;
+      CHECK_UNARY((*lit).token == u8"::"sv);
+      CHECK_UNARY((*lit).category == pp_token_category::op_or_punc);
+      ++lit;
+      CHECK_UNARY((*lit).token == u8">"sv);
+      CHECK_UNARY((*lit).category == pp_token_category::op_or_punc);
+    }
+
+    //論理行オブジェクト4
+    pos = ll.emplace_after(pos, 3);
+    (*pos).line = u8"<::> = {}";
+
+    tokens.clear();
+    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::OPorPunc }, u8"<:"sv, pos);
+    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::OPorPunc }, u8":>"sv, pos);
+    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::Whitespaces }, u8" "sv, pos);
+
+    {
+      auto it = std::begin(tokens);
+      auto end = std::end(tokens);
+
+      auto list = ll_paser::longest_match_exception_handling(it, end);
+
+      CHECK_EQ(list.size(), 2u);
+      CHECK_UNARY((*it).token == u8" "sv);
+
+      auto lit = std::begin(list);
+      CHECK_UNARY((*lit).token == u8"<:"sv);
+      CHECK_UNARY((*lit).category == pp_token_category::op_or_punc);
+      ++lit;
+      CHECK_UNARY((*lit).token == u8":>"sv);
+      CHECK_UNARY((*lit).category == pp_token_category::op_or_punc);
+    }
+  }
 }
 
 #include "pp_tokenizer_test.hpp"
@@ -315,7 +442,7 @@ namespace pp_parsing_test
 
     REQUIRE_UNARY(bool(status));
     CHECK_EQ(status.value(), pp_parse_status::Complete);
-    constexpr auto token_num = 126u;
+    constexpr auto token_num = 153u;
     REQUIRE_EQ(parser.pptoken_list.size(), token_num);
 
     constexpr std::u8string_view expect_token[] = {
@@ -341,6 +468,9 @@ namespace pp_parsing_test
       u8"long", u8"double", u8"d3", u8"=", u8"0.1e-1L", u8";",
       u8"long", u8"double", u8"d4", u8"=", u8".1e-1l", u8";",
       u8"const", u8"double", u8"d5", u8"=", u8"3.1415", u8"_udl", u8";",
+      u8"int", u8"y", u8"<:", u8":>", u8"{", u8"}", u8";",
+      u8"std", u8":", u8":", u8"vector", u8"<", u8"::", u8"Foo", u8">", u8"x", u8";",
+      u8"int", u8"z", u8"<:", u8"::", u8"Foo", u8":", u8":", u8"value", u8":>", u8";",
       u8"return", u8"n", u8";",
       u8"}"};
       static_assert(std::size(expect_token) == token_num, "The number of pp-tokens between expect_token and token_num does not match.");
@@ -368,6 +498,10 @@ namespace pp_parsing_test
         pp_token_category::identifier, pp_token_category::identifier, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::pp_number, pp_token_category::op_or_punc,
         pp_token_category::identifier, pp_token_category::identifier, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::pp_number, pp_token_category::op_or_punc,
         pp_token_category::identifier, pp_token_category::identifier, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::pp_number, pp_token_category::identifier, pp_token_category::op_or_punc,
+        pp_token_category::identifier, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::op_or_punc, pp_token_category::op_or_punc, pp_token_category::op_or_punc, pp_token_category::op_or_punc,
+        pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::op_or_punc, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::op_or_punc, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::identifier, pp_token_category::op_or_punc,
+        pp_token_category::identifier, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::op_or_punc, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::op_or_punc, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::op_or_punc,
+
         pp_token_category::identifier, pp_token_category::identifier, pp_token_category::op_or_punc,
         pp_token_category::op_or_punc};
     static_assert(std::size(expect_category) == token_num, "The number of pp-token-categorys between expect_category and token_num does not match.");

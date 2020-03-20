@@ -422,6 +422,19 @@ namespace kusabira::PP {
           case pp_tokenize_status::Empty:
             //これらのトークンは無視する
             break;
+          case pp_tokenize_status::OPorPunc:
+          {
+            auto&& oppunc_list = longest_match_exception_handling(it, end);
+            if (0u < oppunc_list.size()) {
+              //auto pptokens_end = --std::end(list);
+              list.splice(std::end(list), std::move(oppunc_list));
+            }
+            if (it == end) {
+              return { pp_parse_status::EndOfFile };
+            }
+            kind = (*it).kind;
+            continue;
+          }
           case pp_tokenize_status::DuringRawStr:
           {
             //生文字列リテラル全体を一つのトークンとして読み出す必要がある
@@ -516,7 +529,7 @@ namespace kusabira::PP {
     * @return ユーザー定義リテラルの有無
     */
     template<typename Iterator = iterator>
-    sfn strliteral_classify(Iterator& it, std::u8string_view prev_tokenstr , pp_token& last_pptoken) -> bool {
+    sfn strliteral_classify(const Iterator& it, std::u8string_view prev_tokenstr , pp_token& last_pptoken) -> bool {
       //以前のトークンが文字列リテラルなのか文字リテラルなのか判断
       //auto& last_pptoken = list.back();
       
@@ -643,37 +656,36 @@ namespace kusabira::PP {
       //プリプロセッシングトークンを一時保存しておくリスト
       pptoken_conteiner tmp_pptoken_list{std::pmr::polymorphic_allocator<pp_token>(&kusabira::def_mr)};
 
-      if ((*it).token != u8"<:") {
+      bool is_not_handle = (*it).token != u8"<:";
+      //現在のプリプロセッシングトークンを保存
+      tmp_pptoken_list.emplace_back(pp_token_category::op_or_punc, std::move(*it));
+      //未処理のトークンを指した状態で帰るようにする
+      ++it;
+
+      if (is_not_handle) {
         //<:記号でなければ何もしない
-        //一番先頭のトークンを処理しないようにする
         return tmp_pptoken_list;
       }
 
-      auto lextoken_str = (*it).token;
+      //次のトークンをチェック、記号トークンでなければここでは処理しない
+      if (it == end or (*it).kind != pp_tokenize_status::OPorPunc) {
+        return tmp_pptoken_list;
+      }
+
+      is_not_handle = (*it).token != u8":";
       //現在のプリプロセッシングトークンを保存
       tmp_pptoken_list.emplace_back(pp_token_category::op_or_punc, std::move(*it));
-
-      //次のトークンをチェック
-      if (++it; it == end) {
-        return tmp_pptoken_list;
-      }
-      //:単体のトークンなら、最長一致例外処理を行う必要がある可能性がある
-      if ((*it).kind != pp_tokenize_status::OPorPunc or (*it).token != u8":" ) {
-        //一番先頭のトークンを処理しないようにする
-        return tmp_pptoken_list;
-      }
-
-      //現在のプリプロセッシングトークンを保存
-      tmp_pptoken_list.emplace_back(pp_token_category::op_or_punc, std::move(*it));
-
-      //次のトークンをチェック
-      if (++it; it == end) {
-        return tmp_pptoken_list;
-      }
+      //常に未処理のトークンを指した状態で帰るようにする
+      ++it;
 
       //ここまで2つのトークンが保存されているはず
       assert(std::size(tmp_pptoken_list) == 2u);
-      //:単体のトークンなら、最長一致例外処理を行う必要がある
+
+      //:単体のトークンなら、最長一致例外処理を行う必要がある可能性がある
+      if (is_not_handle or it == end) {
+        return tmp_pptoken_list;
+      }
+
       //代替トークンの並び"<::>"はトークナイザで適切に2つのトークンに分割されているはず
       //そのため、あとは"<:::"のパターンだけ気をつける必要がある
       //ただし、トークナイズの都合で<:::>みたいなのを"<:" ":" ":>"の3つのトークンに分割している・・・
@@ -684,21 +696,29 @@ namespace kusabira::PP {
         ++lit;
         //2つ目のトークンを::にする
         (*lit).token = std::pmr::u8string{u8"::", std::pmr::polymorphic_allocator<char8_t>{&kusabira::def_mr}};
+        //2トークンある筈
+        assert(std::size(tmp_pptoken_list) == 2u);
+
         //3つ目のトークンが:>ならばそれも再構成する・・・
         if (auto lextokenstr = (*it).token; 1u < lextokenstr.length()) {
           auto& token3 = tmp_pptoken_list.emplace_back(pp_token_category::op_or_punc, std::move(*it));
           //先頭1文字目をのぞいてトークン文字列を構成
           token3.token = std::pmr::u8string{lextokenstr.data() + 1, lextokenstr.length() - 1, std::pmr::polymorphic_allocator<char8_t>{&kusabira::def_mr}};
-          ++it;
+          //3トークンあるほず
+          assert(std::size(tmp_pptoken_list) == 3u);
         }
+
+        //トークンを進めておく
+        ++it;
       } else {
         //前2つのトークンを"<"と"::"の2つのトークンに構成する
-        //1つ目のトークンは<:になってるはずなのでそのまま
         (*lit).token = std::pmr::u8string{u8"<", std::pmr::polymorphic_allocator<char8_t>{&kusabira::def_mr}};
         ++lit;
         //2つ目のトークンを::にする
         (*lit).token = std::pmr::u8string{u8"::", std::pmr::polymorphic_allocator<char8_t>{&kusabira::def_mr}};
-        //3つ目のトークンはスルー、外で処理してもらう
+        //3つ目（今）のトークンはスルー、外で処理してもらう
+        //2トークンあるはず
+        assert(std::size(tmp_pptoken_list) == 2u);
       }
       return tmp_pptoken_list;
     }
