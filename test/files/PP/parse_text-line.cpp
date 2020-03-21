@@ -37,5 +37,7 @@ newline)"_udl;
   std::vector<::Foo> x;
   int z<:::Foo::value:>;
 
+  auto a=true?1:0;
+
   return n;
 }

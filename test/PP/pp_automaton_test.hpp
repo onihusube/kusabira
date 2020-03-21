@@ -118,20 +118,16 @@ namespace pp_automaton_test
       CHECK_EQ(res, kusabira::PP::pp_tokenize_status::OPorPunc);
     }
 
-    //最長一致規則の例外対応、:は1つづつ分離し、代替トークン<:はそのまま受理
+    //最長一致規則の例外対応、代替トークン<:はそのまま受理
     std::u8string_view exception_op[] = {u8":: ", u8"<::> ", u8"<:::>= ", u8"<::: "};
 
     //::
     {
       auto op = exception_op[0];
       CHECK_UNARY_FALSE(sm.input_char(op.at(0)));
-      //:は１つづつ受理
-      auto res = sm.input_char(op.at(1));
-      CHECK_UNARY(res);
-      CHECK_EQ(res, kusabira::PP::pp_tokenize_status::OPorPunc);
-
       CHECK_UNARY_FALSE(sm.input_char(op.at(1)));
-      res = sm.input_char(op.at(2));
+      //::はまとめる
+      auto res = sm.input_char(op.at(2));
       CHECK_UNARY(res);
       CHECK_EQ(res, kusabira::PP::pp_tokenize_status::OPorPunc);
     }
@@ -164,21 +160,16 @@ namespace pp_automaton_test
       CHECK_UNARY(res);
       CHECK_EQ(res, kusabira::PP::pp_tokenize_status::OPorPunc);
 
-      //:受理
+      //::受理
       CHECK_UNARY_FALSE(sm.input_char(op.at(2)));
-      res = sm.input_char(op.at(3));
-      CHECK_UNARY(res);
-      CHECK_EQ(res, kusabira::PP::pp_tokenize_status::OPorPunc);
-
       CHECK_UNARY_FALSE(sm.input_char(op.at(3)));
-      CHECK_UNARY_FALSE(sm.input_char(op.at(4)));
-      //:>受理、:と>=にはしない
-      res = sm.input_char(op.at(5));
+      res = sm.input_char(op.at(4));
       CHECK_UNARY(res);
       CHECK_EQ(res, kusabira::PP::pp_tokenize_status::OPorPunc);
 
-      //単体=演算子
+      CHECK_UNARY_FALSE(sm.input_char(op.at(4)));
       CHECK_UNARY_FALSE(sm.input_char(op.at(5)));
+      //>=受理
       res = sm.input_char(op.at(6));
       CHECK_UNARY(res);
       CHECK_EQ(res, kusabira::PP::pp_tokenize_status::OPorPunc);
@@ -194,13 +185,8 @@ namespace pp_automaton_test
       CHECK_UNARY(res);
       CHECK_EQ(res, kusabira::PP::pp_tokenize_status::OPorPunc);
 
-      //:受理
+      //::受理
       CHECK_UNARY_FALSE(sm.input_char(op.at(2)));
-      res = sm.input_char(op.at(3));
-      CHECK_UNARY(res);
-      CHECK_EQ(res, kusabira::PP::pp_tokenize_status::OPorPunc);
-
-      //:受理
       CHECK_UNARY_FALSE(sm.input_char(op.at(3)));
       res = sm.input_char(op.at(4));
       CHECK_UNARY(res);
