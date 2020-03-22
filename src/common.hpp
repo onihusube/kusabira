@@ -15,6 +15,8 @@
   #include "tl/expected.hpp"
 #endif
 
+#include "vocabulary/whimsy_str_view.hpp"
+
 #define  fn [[nodiscard]] auto
 #define sfn [[nodiscard]] static auto
 #define ifn [[nodiscard]] inline auto
@@ -174,5 +176,71 @@ namespace kusabira::PP
       return 0u < (*srcline_ref).line_offset.size();
     }
   };
+
+
+  /**
+  * @brief プリプロセッシングトークンの分類
+  */
+  enum class pp_token_category : std::uint8_t {
+    comment,
+    whitespaces,
+
+    header_name,
+    import_keyword,
+    export_keyword,
+    module_keyword,
+    identifier,
+    pp_number,
+    charcter_literal,
+    user_defined_charcter_literal,
+    string_literal,
+    user_defined_string_literal,
+    op_or_punc,
+    other_character,
+
+    //生文字列リテラル識別のため・・・
+    raw_string_literal,
+    user_defined_raw_string_literal,
+  };
+
+  /**
+  * @brief プリプロセッシングトークン1つを表現する型
+  */
+  struct pp_token {
+
+    pp_token(pp_token_category cat)
+      : category{ cat }
+      , lextokens{ std::pmr::polymorphic_allocator<lex_token>(&kusabira::def_mr) }
+    {}
+
+    pp_token(pp_token_category cat, lex_token&& ltoken)
+      : category{ cat }
+      , token{ ltoken.token }
+      , lextokens{ std::pmr::polymorphic_allocator<lex_token>(&kusabira::def_mr) }
+    {
+      lextokens.emplace_front(std::move(ltoken));
+    }
+
+    /**
+    * @brief テスト用コンストラクタ
+    */
+    pp_token(pp_token_category cat, std::u8string_view tokenstr)
+      : category{ cat }
+      , token{ tokenstr }
+      , lextokens{}
+    {}
+
+    ffn operator==(const pp_token& lhs, const pp_token& rhs) noexcept -> bool {
+      return lhs.category == rhs.category && lhs.token == rhs.token;
+    }
+
+    //プリプロセッシングトークン種別
+    pp_token_category category;
+    //プリプロセッシングトークン文字列
+    kusabira::vocabulary::whimsy_str_view<> token;
+    //構成する字句トークン列
+    std::pmr::forward_list<lex_token> lextokens;
+  };
+
 
 } // namespace kusabira::PP
