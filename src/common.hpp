@@ -175,6 +175,14 @@ namespace kusabira::PP
     fn is_multiple_phlines() const -> bool {
       return 0u < (*srcline_ref).line_offset.size();
     }
+
+    /**
+    * @brief 対応する論理行全体の文字列を取得する
+    * @return 論理行文字列へのconstな参照
+    */
+    fn get_line_string() const -> const std::pmr::u8string& {
+      return (*rcline_ref).line;
+    }
   };
 
 

@@ -9,6 +9,7 @@
 #include "file_reader.hpp"
 #include "pp_automaton.hpp"
 #include "pp_tokenizer.hpp"
+#include "pp_directive_manager.hpp"
 
 namespace kusabira::PP {
 
@@ -30,6 +31,7 @@ namespace kusabira::PP {
     IfSection,          // #ifセクションの途中で読み取り終了してしまった？
     IfGroup_Mistake,    // #ifから始まるifdef,ifndefではない間違ったトークン
     IfGroup_Invalid,    // 1つの定数式・識別子の前後、改行までの間に不正なトークンが現れている
+    ControlLine,
 
     ElseGroup,          // 改行の前に不正なトークンが現れている
     EndifLine_Mistake,  // #endifがくるべき所に別のものが来ている
@@ -112,6 +114,8 @@ namespace kusabira::PP {
     using pptoken_conteiner = std::pmr::list<pp_token>;
 
     pptoken_conteiner pptoken_list{std::pmr::polymorphic_allocator<pp_token>(&kusabira::def_mr)};
+
+    pp_directive_manager preprocessor{};
 
     fn start(Tokenizer& pp_tokenizer) -> parse_status {
       auto it = begin(pp_tokenizer);
@@ -196,16 +200,57 @@ namespace kusabira::PP {
             return this->control_line(it, end);
             // conditionally-supported-directiveはどうしよう・・
           }
-        } else if((*it).token == u8"import" or (*it).token == u8"export") {
-          // モジュールのインポート宣言
-          return this->control_line(it, end);
         }
       }
+
+      if ((*it).kind == pp_tokenize_status::Identifier) {
+        if ((*it).token == u8"import" or (*it).token == u8"export") {
+            // モジュールのインポート宣言
+            // pp-importに直接行ってもいい気がする
+            return this->control_line(it, end);
+        }
+      }
+
       // text-lineへ
       return this->text_line(it, end);
     }
 
-    fn control_line([[maybe_unused]] iterator& it, [[maybe_unused]] sentinel end) -> parse_status {
+    fn control_line(iterator& it, sentinel end) -> parse_status {
+      // 事前条件
+      assert((*it).kind == pp_tokenize_status::Identifier);
+      assert(it != end);
+
+      auto tokenstr = (*it).token;
+
+      if (tokenstr == u8"include") {
+
+      } else if (tokenstr == u8"define") {
+
+      } else if (tokenstr == u8"undef") {
+
+      } else if (tokenstr == u8"line") {
+
+      } else if (tokenstr == u8"error") {
+        // 論理行文字列
+        auto linestr = (*it).get_line_string();
+        // #errorディレクティブ後の最初のトークン位置を検索
+        // プリプロセッシングディレクティブの文法的に左側から検索すればいい
+        ++it;
+        auto pos = linestr.find((*it).token, 1 + 5);
+        preprocessor.error({linestr.data() + pos});
+        //もうコンパイルエラー
+        return make_error(it, pp_parse_context::ControlLine);
+      } else if (tokenstr == u8"pragma") {
+
+      } else {
+        // 知らないトークンだったら多分こっち
+        return this->conditionally_supported_directive(it, end);
+      }
+
+      return {tl::in_place, pp_parse_status::Complete};
+    }
+
+    fn conditionally_supported_directive([[maybe_unused]] iterator& it, [[maybe_unused]] sentinel end) -> parse_status {
       //未実装
       assert(false);
       return {};
