@@ -215,19 +215,19 @@ CHECK_EQ(token->column, col);}
     //#include <iostream>
     TOKEN_CHECK(pp_tokenize_status::OPorPunc, u8"#", 0u);
     TOKEN_CHECK(pp_tokenize_status::Identifier, u8"include", 1u);
-    check(pp_tokenize_status::Whitespaces, u8" ");
-    check(pp_tokenize_status::OPorPunc, u8"<");
-    check(pp_tokenize_status::Identifier, u8"iostream");
-    check(pp_tokenize_status::OPorPunc, u8">");
-    check(pp_tokenize_status::NewLine, u8"");
+    TOKEN_CHECK(pp_tokenize_status::Whitespaces, u8" ", 8u);
+    TOKEN_CHECK(pp_tokenize_status::OPorPunc, u8"<", 9u);
+    TOKEN_CHECK(pp_tokenize_status::Identifier, u8"iostream", 10u);
+    TOKEN_CHECK(pp_tokenize_status::OPorPunc, u8">", 18u);
+    TOKEN_CHECK(pp_tokenize_status::NewLine, u8"", 19u);
 
     //#include<cmath>
-    check(pp_tokenize_status::OPorPunc, u8"#");
-    check(pp_tokenize_status::Identifier, u8"include");
-    check(pp_tokenize_status::OPorPunc, u8"<");
-    check(pp_tokenize_status::Identifier, u8"cmath");
-    check(pp_tokenize_status::OPorPunc, u8">");
-    check(pp_tokenize_status::NewLine, u8"");
+    TOKEN_CHECK(pp_tokenize_status::OPorPunc, u8"#", 0u);
+    TOKEN_CHECK(pp_tokenize_status::Identifier, u8"include", 1u);
+    TOKEN_CHECK(pp_tokenize_status::OPorPunc, u8"<", 8u);
+    TOKEN_CHECK(pp_tokenize_status::Identifier, u8"cmath", 9u);
+    TOKEN_CHECK(pp_tokenize_status::OPorPunc, u8">", 14u);
+    TOKEN_CHECK(pp_tokenize_status::NewLine, u8"", 15u);
 
     //#include "hoge.hpp"
     check(pp_tokenize_status::OPorPunc, u8"#");

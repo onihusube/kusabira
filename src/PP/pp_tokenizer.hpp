@@ -176,7 +176,7 @@ namespace kusabira::PP {
       for (; m_pos != m_end; ++m_pos) {
         if (auto is_accept = m_accepter.input_char(*m_pos); is_accept) {
           //受理、エラーとごっちゃ
-          std::size_t length = std::distance((*m_line_pos).line.cbegin(), m_pos);
+          std::size_t length = std::distance((*m_line_pos).line.cbegin(), first);
           return std::optional<lex_token>{std::in_place, std::move(is_accept), std::u8string_view{&*first, std::size_t(std::distance(first, m_pos))}, length, m_line_pos};
         } else {
           //非受理
@@ -184,11 +184,20 @@ namespace kusabira::PP {
         }
       }
       //ここに出てきた場合、その行の文字を全て見終わったということ
+      //改行の一つ前までのトークンが来ているはず
       m_is_endline = true;
 
-      //空行の時、不正なイテレータのデリファレンスをしないように
-      auto token_str = (first == m_pos) ? std::u8string_view{} : std::u8string_view{&*first, std::size_t(std::distance(first, m_pos))};
-      return std::optional<lex_token>{std::in_place, m_accepter.input_newline(), token_str, 0u, m_line_pos};;
+      //空行の時、不正なイテレータのデリファレンスをしないようにする
+      std::u8string_view token_str{};
+      std::size_t length{};
+      if (first != m_pos) {
+        //空行ではなく何らかのトークンを識別しているとき
+        token_str = std::u8string_view{ &*first, std::size_t(std::distance(first, m_pos)) };
+        length = std::distance((*m_line_pos).line.cbegin(), first);
+      }
+      //auto token_str = (first == m_pos) ? std::u8string_view{} : std::u8string_view{&*first, std::size_t(std::distance(first, m_pos))};
+
+      return std::optional<lex_token>{std::in_place, m_accepter.input_newline(), token_str, length, m_line_pos};;
     }
 
     ffn begin(tokenizer& attached_tokenizer) -> pp_token_iterator<tokenizer> {
