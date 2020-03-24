@@ -161,11 +161,12 @@ namespace kusabira::PP {
       if (m_is_endline == true) {
         //先にreadline()してしまうと更新されてしまうためバックアップ
         auto linepos = m_line_pos;
+        auto length = (*m_line_pos).line.length();
 
         //次の行を読み込む
         m_is_terminate = this->readline();
 
-        return std::optional<lex_token>{ std::in_place, pp_tokenize_result{ pp_tokenize_status::NewLine }, std::u8string_view{}, std::move(linepos) };
+        return std::optional<lex_token>{std::in_place, pp_tokenize_result{pp_tokenize_status::NewLine}, std::u8string_view{}, length, std::move(linepos)};
       }
 
       //現在の先頭文字位置を記録
@@ -175,7 +176,8 @@ namespace kusabira::PP {
       for (; m_pos != m_end; ++m_pos) {
         if (auto is_accept = m_accepter.input_char(*m_pos); is_accept) {
           //受理、エラーとごっちゃ
-          return std::optional<lex_token>{std::in_place, std::move(is_accept), std::u8string_view{&*first, std::size_t(std::distance(first, m_pos))}, m_line_pos};
+          std::size_t length = std::distance((*m_line_pos).line.cbegin(), m_pos);
+          return std::optional<lex_token>{std::in_place, std::move(is_accept), std::u8string_view{&*first, std::size_t(std::distance(first, m_pos))}, length, m_line_pos};
         } else {
           //非受理
           continue;
@@ -186,7 +188,7 @@ namespace kusabira::PP {
 
       //空行の時、不正なイテレータのデリファレンスをしないように
       auto token_str = (first == m_pos) ? std::u8string_view{} : std::u8string_view{&*first, std::size_t(std::distance(first, m_pos))};
-      return std::optional<lex_token>{std::in_place, m_accepter.input_newline(), token_str, m_line_pos};;
+      return std::optional<lex_token>{std::in_place, m_accepter.input_newline(), token_str, 0u, m_line_pos};;
     }
 
     ffn begin(tokenizer& attached_tokenizer) -> pp_token_iterator<tokenizer> {

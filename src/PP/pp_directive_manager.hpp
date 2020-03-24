@@ -17,10 +17,10 @@ namespace kusabira::PP {
     * @param it プリプロセッシングトークン列の先頭イテレータ
     * @param end プリプロセッシングトークン列の終端イテレータ
     */
-    void error(std::u8string_view err_message) const {
+    void error(std::u8string_view) const {
       //エラーメッセージを出力
-      std::cout << err_message;
+      //std::cout << err_message;
     }
-  };
+  };  
     
 } // namespace kusabira::PP

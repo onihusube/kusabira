@@ -15,7 +15,7 @@ namespace pp_paser_test {
     using kusabira::PP::pp_tokenize_status;
 
     std::vector<lex_token> test_tokens{};
-    test_tokens.emplace_back(lex_token{{pp_tokenize_status::Identifier}, u8"test"sv, {}});
+    test_tokens.emplace_back(lex_token{{pp_tokenize_status::Identifier}, u8"test"sv, 0, {}});
 
     using kusabira::PP::make_error;
 
@@ -186,20 +186,20 @@ namespace pp_paser_test {
     (*pos).line_offset.emplace_back(7 + 3);
     (*pos).line_offset.emplace_back(7 + 3 + 6);
     {
-      auto &r = tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::DuringRawStr}, (*pos).line, pos);
+      auto &r = tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::DuringRawStr}, (*pos).line, 0, pos);
       CHECK_UNARY(r.is_multiple_phlines());
     }
-    tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::NewLine}, u8""sv, pos);
+    tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::NewLine}, u8""sv, (*pos).line.length(), pos);
 
     //論理行オブジェクト2
     pos = ll.emplace_after(pos, 4);
     (*pos).line = u8"testline1";
     (*pos).line_offset.emplace_back(4);
     {
-      auto &r = tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::DuringRawStr}, (*pos).line, pos);
+      auto &r = tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::DuringRawStr}, (*pos).line, 0, pos);
       CHECK_UNARY(r.is_multiple_phlines());
     }
-    tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::NewLine}, u8""sv, pos);
+    tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::NewLine}, u8""sv, (*pos).line.length(), pos);
 
     //論理行オブジェクト３
     pos = ll.emplace_after(pos, 6);
@@ -207,7 +207,7 @@ namespace pp_paser_test {
     (*pos).line_offset.emplace_back(4);
     (*pos).line_offset.emplace_back(4 + 7);
     {
-      auto &r = tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::RawStrLiteral}, (*pos).line, pos);
+      auto &r = tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::RawStrLiteral}, (*pos).line, 0, pos);
       CHECK_UNARY(r.is_multiple_phlines());
     }
 
@@ -235,8 +235,8 @@ line2)")**"sv;
     tokens.clear();
     pos = ll.emplace_after(pos, 9);
     (*pos).line = u8"R\"(testrawstri";
-    tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::DuringRawStr}, (*pos).line, pos);
-    tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::NewLine}, u8""sv, pos);
+    tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::DuringRawStr}, (*pos).line, 0, pos);
+    tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::NewLine}, u8""sv, (*pos).line.length(), pos);
 
     it = std::begin(tokens);
     end = std::end(tokens);
@@ -250,11 +250,11 @@ line2)")**"sv;
     tokens.clear();
     pos = ll.emplace_after(pos, 10);
     (*pos).line = u8"R\"(rwastring read error";
-    tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::DuringRawStr}, (*pos).line, pos);
+    tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::DuringRawStr}, (*pos).line, 0, pos);
   
     pos = ll.emplace_after(pos, 11);
     (*pos).line = u8"";
-    tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::FailedRawStrLiteralRead}, (*pos).line, pos);
+    tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::FailedRawStrLiteralRead}, (*pos).line, 0, pos);
 
     it = std::begin(tokens);
     end = std::end(tokens);
@@ -268,11 +268,11 @@ line2)")**"sv;
     tokens.clear();
     pos = ll.emplace_after(pos, 11);
     (*pos).line = u8"R\"(rawstring test";
-    tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::DuringRawStr}, (*pos).line, pos);
-    tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::NewLine}, u8""sv, pos);
+    tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::DuringRawStr}, (*pos).line, 0, pos);
+    tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::NewLine}, u8""sv, (*pos).line.length(), pos);
     pos = ll.emplace_after(pos, 12);
     (*pos).line = u8R"**(newline)")**";
-    tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::RawStrLiteral}, (*pos).line, pos);
+    tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::RawStrLiteral}, (*pos).line, 0, pos);
 
     it = std::begin(tokens);
     end = std::end(tokens);
@@ -310,9 +310,9 @@ newline)")**"sv;
     pos = ll.emplace_after(pos, 0);
     (*pos).line = u8"<::Foo>;";
 
-    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::OPorPunc }, u8"<:"sv, pos);
-    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::OPorPunc }, u8":"sv, pos);
-    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::Identifier }, u8"Foo"sv, pos);
+    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::OPorPunc }, u8"<:"sv, 0, pos);
+    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::OPorPunc }, u8":"sv, 2, pos);
+    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::Identifier }, u8"Foo"sv, 3, pos);
 
     {
       auto it = std::begin(tokens);
@@ -337,9 +337,9 @@ newline)")**"sv;
     (*pos).line = u8"<:::Foo::value:>;";
 
     tokens.clear();
-    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::OPorPunc }, u8"<:"sv, pos);
-    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::OPorPunc }, u8"::"sv, pos);
-    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::Identifier }, u8"Foo"sv, pos);
+    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::OPorPunc }, u8"<:"sv, 0, pos);
+    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::OPorPunc }, u8"::"sv, 2, pos);
+    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::Identifier }, u8"Foo"sv, 4, pos);
 
     {
       auto it = std::begin(tokens);
@@ -363,10 +363,10 @@ newline)")**"sv;
     (*pos).line = u8"<:::> "; //こんなトークンエラーでは・・・
 
     tokens.clear();
-    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::OPorPunc }, u8"<:"sv, pos);
-    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::OPorPunc }, u8"::"sv, pos);
-    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::OPorPunc }, u8">"sv, pos);
-    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::Whitespaces }, u8" "sv, pos);
+    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::OPorPunc }, u8"<:"sv, 0, pos);
+    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::OPorPunc }, u8"::"sv, 2, pos);
+    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::OPorPunc }, u8">"sv,4, pos);
+    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::Whitespaces }, u8" "sv, 5, pos);
 
     {
       auto it = std::begin(tokens);
@@ -390,9 +390,9 @@ newline)")**"sv;
     (*pos).line = u8"<::> = {}";
 
     tokens.clear();
-    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::OPorPunc }, u8"<:"sv, pos);
-    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::OPorPunc }, u8":>"sv, pos);
-    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::Whitespaces }, u8" "sv, pos);
+    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::OPorPunc }, u8"<:"sv, 0, pos);
+    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::OPorPunc }, u8":>"sv, 2, pos);
+    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::Whitespaces }, u8" "sv, 4, pos);
 
     {
       auto it = std::begin(tokens);

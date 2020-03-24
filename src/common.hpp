@@ -152,9 +152,10 @@ namespace kusabira::PP
     using line_iterator = std::pmr::forward_list<logical_line>::const_iterator;
 
     //()集成体初期化がポータブルになったならこのコンストラクタは消える定め
-    lex_token(kusabira::PP::pp_tokenize_result result, std::u8string_view view, line_iterator line)
+    lex_token(kusabira::PP::pp_tokenize_result result, std::u8string_view view, std::size_t col, line_iterator line)
       : kind{ std::move(result) }
       , token{ std::move(view) }
+      , column{ col }
       , srcline_ref{ std::move(line) }
     {}
 
@@ -163,6 +164,9 @@ namespace kusabira::PP
 
     //トークン文字列
     std::u8string_view token;
+
+    //トークンの論理行での位置
+    std::size_t column;
 
     //対応する論理行オブジェクトへのイテレータ
     line_iterator srcline_ref;
@@ -181,7 +185,7 @@ namespace kusabira::PP
     * @return 論理行文字列へのconstな参照
     */
     fn get_line_string() const -> const std::pmr::u8string& {
-      return (*rcline_ref).line;
+      return (*srcline_ref).line;
     }
   };
 

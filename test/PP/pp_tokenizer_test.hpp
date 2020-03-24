@@ -205,9 +205,16 @@ REQUIRE(token);\
 CHECK_EQ(token->kind, caegory);\
 CHECK_UNARY(token->token == str);}
 
+#define TOKEN_CHECK(caegory, str, col) \
+{auto token = tokenizer.tokenize();\
+REQUIRE(token);\
+CHECK_EQ(token->kind, caegory);\
+CHECK_UNARY(token->token == str);\
+CHECK_EQ(token->column, col);}
+
     //#include <iostream>
-    check(pp_tokenize_status::OPorPunc, u8"#");
-    check(pp_tokenize_status::Identifier, u8"include");
+    TOKEN_CHECK(pp_tokenize_status::OPorPunc, u8"#", 0u);
+    TOKEN_CHECK(pp_tokenize_status::Identifier, u8"include", 1u);
     check(pp_tokenize_status::Whitespaces, u8" ");
     check(pp_tokenize_status::OPorPunc, u8"<");
     check(pp_tokenize_status::Identifier, u8"iostream");
