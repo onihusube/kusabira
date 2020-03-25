@@ -14,6 +14,7 @@
 #else
   #include "tl/expected.hpp"
 #endif
+#include <cassert>
 
 #include "vocabulary/whimsy_str_view.hpp"
 
@@ -186,6 +187,35 @@ namespace kusabira::PP
     */
     fn get_line_string() const -> const std::pmr::u8string& {
       return (*srcline_ref).line;
+    }
+
+    /**
+    * @brief 対応する物理行上の位置を取得する
+    * @return {行, 列}のペア
+    */
+    fn get_phline_pos() const -> std::pair<std::size_t, std::size_t> {
+      if (0u < (*srcline_ref).line_offset.size()) {
+        //物理行とのズレ
+        std::size_t offset{};
+        //確認した行までの文字数
+        std::size_t total_len{};
+
+        //line_offsetの各要素は行継続前物理行の文字数が入っている
+        for (auto len : (*srcline_ref).line_offset) {
+          total_len += len;
+          //今の行数までのトータル文字数の間に収まっていれば、その行にあったという事
+          if (this->column < total_len) {
+            return {(*srcline_ref).phisic_line + offset, this->column};
+          }
+          ++offset;
+        }
+
+        //ここに来るはずはない・・・
+        assert(false);
+        return {};
+      } else {
+        return {(*srcline_ref).phisic_line, this->column};
+      }
     }
   };
 
