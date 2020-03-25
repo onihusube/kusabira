@@ -200,19 +200,17 @@ namespace kusabira::PP
         //確認した行までの文字数
         std::size_t total_len{};
 
-        //line_offsetの各要素は行継続前物理行の文字数が入っている
+        //line_offsetの各要素は行継続前の各物理行の文字数（2文字なら2、100文字なら100）が入っている
         for (auto len : (*srcline_ref).line_offset) {
-          total_len += len;
           //今の行数までのトータル文字数の間に収まっていれば、その行にあったという事
-          if (this->column < total_len) {
-            return {(*srcline_ref).phisic_line + offset, this->column};
-          }
+          if (this->column < total_len + len) break;
+          //今の行までのトータル文字数を減ずることでその行での本来の文字位置を算出する
+          //total_lenの更新はチェックの後
+          total_len += len;
           ++offset;
         }
 
-        //ここに来るはずはない・・・
-        assert(false);
-        return {};
+        return { (*srcline_ref).phisic_line + offset, this->column - total_len };
       } else {
         return {(*srcline_ref).phisic_line, this->column};
       }
