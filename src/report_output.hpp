@@ -43,12 +43,9 @@ namespace kusabira::PP {
 namespace kusabira::report
 {
 
-  enum class report_type : std::uint8_t {
-    error,
-    warning
-  };
-
   namespace detail {
+
+#ifdef KUSABIRA_TARGET_WIN
 
     /**
     * @brief 標準出力への出力
@@ -57,8 +54,6 @@ namespace kusabira::report
 
       static void output_u8string(const std::u8string_view str) {
         auto punned_str = reinterpret_cast<const char*>(str.data());
-
-#ifdef KUSABIRA_TARGET_WIN
 
         //変換後の長さを取得
         const std::size_t length = ::MultiByteToWideChar(CP_UTF8, 0, punned_str, static_cast<int>(str.length()), nullptr, 0);
@@ -69,53 +64,52 @@ namespace kusabira::report
           std::wcout << converted;
 
 #ifndef KUSABIRA_CL_BUILD
-
           //UTF-16 -> Ansi(Shift-JIS)にマップできない文字があった時に復帰させる
           if (std::wcout.fail()) std::wcout.clear();
-
 #endif // !KUSABIRA_CL_BUILD
 
         } else {
           std::wcerr << L"UTF-8文字列の変換に失敗しました。" << std::endl;
           assert(false);
         }
-
-#else
-
-        std::cout << punned_str;
-
-#endif // KUSABIRA_TARGET_WIN
-
       }
 
       template<typename... Args>
       static void output(Args&&... args) {
-
-#ifdef KUSABIRA_TARGET_WIN
-
         (std::wcout << ... << std::forward<Args>(args));
-
-#else
-
-        (std::cout << ... << std::forward<Args>(args));
-
-#endif // KUSABIRA_TARGET_WIN
-
       }
 
       static void endl() {
-#ifdef KUSABIRA_TARGET_WIN
-
         std::wcout << std::endl;
-
-#else
-
-        std::cout << std::endl;
-
-#endif // KUSABIRA_TARGET_WIN
       }
 
     };
+
+#else
+
+    /**
+    * @brief 標準出力への出力
+    */
+    struct stdoutput {
+
+      static void output_u8string(const std::u8string_view str) {
+        auto punned_str = reinterpret_cast<const char*>(str.data());
+        std::cout << punned_str;
+      }
+
+      template<typename... Args>
+      static void output(Args&&... args) {
+        (std::cout << ... << std::forward<Args>(args));
+      }
+
+      static void endl() {
+        std::cout << std::endl;
+      }
+
+    };
+
+#endif // KUSABIRA_TARGET_WIN
+
 
   }
 
@@ -126,22 +120,19 @@ namespace kusabira::report
   template<typename Destination = detail::stdoutput>
   struct ireporter {
 
+//Windowsのみ、コンソール出力のために少し調整を行う
 #ifdef KUSABIRA_TARGET_WIN
-
-    ireporter() {
 #ifdef KUSABIRA_CL_BUILD
-
+    ireporter() {
       //ストリーム出力をユニコードモードに変更する
       _setmode(_fileno(stdout), _O_U16TEXT);
-
+    }
 #else
-
+    ireporter() {
       //ロケール及びコードページをシステムデフォルトに変更
       std::wcout.imbue(std::locale(""));
-
-#endif // KUSABIRA_CL_BUILD
     }
-
+#endif // KUSABIRA_CL_BUILD
 #endif // KUSABIRA_TARGET_WIN
 
     virtual ~ireporter() = default;
