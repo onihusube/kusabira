@@ -1,4 +1,5 @@
 #include "../common.hpp"
+#include "../report_output.hpp"
 
 namespace kusabira::PP {
 

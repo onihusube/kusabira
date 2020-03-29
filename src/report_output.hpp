@@ -1,6 +1,22 @@
 #pragma once
 
 #include "common.hpp"
+#include <iostream>
+
+//雑なWindows判定
+#ifdef _MSC_VER
+#define KUSABIRA_TARGET_WIN
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
+
+//テストビルドでない場合に追加ヘッダのインクルード
+#ifdef KUSABIRA_CL_BUILD
+#include <io.h>
+#include <fcntl.h>
+#endif // KUSABIRA_CL_BUILD
+
+#endif // _MSC_VER
+
 
 namespace kusabira::PP {
 
@@ -34,46 +50,167 @@ namespace kusabira::report
 
   namespace detail {
 
-    struct stdout {
+    /**
+    * @brief 標準出力への出力
+    */
+    struct stdoutput {
 
-      static auto output(std::u8string_view str) -> std::basic_ostream<char>& {
+      static void output_u8string(const std::u8string_view str) {
         auto punned_str = reinterpret_cast<const char*>(str.data());
-        return (std::cout << punned_str);
+
+#ifdef KUSABIRA_TARGET_WIN
+
+        //変換後の長さを取得
+        const std::size_t length = ::MultiByteToWideChar(CP_UTF8, 0, punned_str, static_cast<int>(str.length()), nullptr, 0);
+        std::wstring converted(length, L'\0');
+        //変換に成功したら出力
+        auto res = ::MultiByteToWideChar(CP_UTF8, 0, punned_str, static_cast<int>(str.length()), converted.data(), static_cast<int>(length));
+        if (res != 0) {
+          std::wcout << converted;
+
+#ifndef KUSABIRA_CL_BUILD
+
+          //UTF-16 -> Ansi(Shift-JIS)にマップできない文字があった時に復帰させる
+          if (std::wcout.fail()) std::wcout.clear();
+
+#endif // !KUSABIRA_CL_BUILD
+
+        } else {
+          std::wcerr << L"UTF-8文字列の変換に失敗しました。" << std::endl;
+          assert(false);
+        }
+
+#else
+
+        std::cout << punned_str;
+
+#endif // KUSABIRA_TARGET_WIN
+
       }
 
-      static auto output_err(std::u8string_view str) -> std::basic_ostream<char>& {
-        auto punned_str = reinterpret_cast<const char*>(str.data());
-        return (std::cerr << punned_str);
+      template<typename... Args>
+      static void output(Args&&... args) {
+
+#ifdef KUSABIRA_TARGET_WIN
+
+        (std::wcout << ... << std::forward<Args>(args));
+
+#else
+
+        (std::cout << ... << std::forward<Args>(args));
+
+#endif // KUSABIRA_TARGET_WIN
+
       }
+
+      static void endl() {
+#ifdef KUSABIRA_TARGET_WIN
+
+        std::wcout << std::endl;
+
+#else
+
+        std::cout << std::endl;
+
+#endif // KUSABIRA_TARGET_WIN
+      }
+
     };
 
   }
 
-  template<typename Destination = detail::stdout>
+  /**
+  * @brief エラー出力のデフォルト実装兼インターフェース
+  * @tparam Destination 出力先
+  */
+  template<typename Destination = detail::stdoutput>
   struct ireporter {
 
+#ifdef KUSABIRA_TARGET_WIN
+
+    ireporter() {
+#ifdef KUSABIRA_CL_BUILD
+
+      //ストリーム出力をユニコードモードに変更する
+      _setmode(_fileno(stdout), _O_U16TEXT);
+
+#else
+
+      //ロケール及びコードページをシステムデフォルトに変更
+      std::wcout.imbue(std::locale(""));
+
+#endif // KUSABIRA_CL_BUILD
+    }
+
+#endif // KUSABIRA_TARGET_WIN
+
+    virtual ~ireporter() = default;
+
+    /**
+    * @brief 指定文字列を直接出力する
+    * @param message 本文
+    * @param filename ソースファイル名
+    * @param context 出力のきっかけとなった場所を示す字句トークン
+    */
     void print_report(std::u8string_view message, const fs::path& filename, const PP::lex_token& context) {
       //<file名>:<行>:<列>: <メッセージのカテゴリ>: <本文>
       //の形式で出力
 
       //ファイル名を出力
-      //detail::print_u8string(filename.filename().u8string()) << ":";
-      Destination::output_err(filename.filename().u8string()) << ":";
+      Destination::output_u8string(filename.filename().u8string());
 
-      //物理行番号、列番号を出力
+      //物理行番号、列番号
+      const auto [row, col] = context.get_phline_pos();
 
+      //ソースコード上位置、カテゴリを出力
+      Destination::output(":", row, ":", col, ": error: ");
 
+      //本文出力
+      Destination::output_u8string(message);
+      Destination::endl();
     }
 
-    virtual void pp_err_report(const fs::path &filename, PP::lex_token token, PP::pp_parse_context context) {
+    virtual void pp_err_report([[maybe_unused]] const fs::path &filename, [[maybe_unused]] PP::lex_token token, [[maybe_unused]] PP::pp_parse_context context) {
+    }
+  };
+
+  template<typename Destination = detail::stdoutput>
+  struct reporter_ja final : public ireporter<Destination> {
+
+    void pp_err_report([[maybe_unused]] const fs::path &filename, [[maybe_unused]] PP::lex_token token, [[maybe_unused]] PP::pp_parse_context context) override {
     }
   };
 
-  template<typename Destination = detail::stdout>
-  struct reporter_ja : public ireporter<Destination> {
 
-    void pp_err_report(const fs::path &filename, PP::lex_token token, PP::pp_parse_context context) override {
-    }
+
+  /**
+  * @brief 出力言語を指定する列挙型
+  * @detail RFC4646、ISO 639-1に従った命名をする
+  */
+  enum class report_lang : std::uint8_t {
+    en_us,
+    ja
   };
+
+  /**
+  * @brief メッセージ出力型のオブジェクトを取得する
+  * @tparam Destination 出力先を指定する型
+  * @param lang 出力言語指定
+  * @return ireporterインターフェースのポインタ (unique_ptr)
+  */
+  template<typename Destination = detail::stdoutput>
+  ifn get_reporter(report_lang lang = report_lang::ja) -> std::unique_ptr<ireporter<Destination>> {
+
+    switch (lang)
+    {
+    case kusabira::report::report_lang::ja:
+      return std::make_unique<reporter_ja<Destination>>();
+    case kusabira::report::report_lang::en_us: [[fallthrough]];
+    default:
+      return std::make_unique<ireporter<Destination>>();
+    } 
+  }
 
 } // namespace kusabira::report
+
+#undef KUSABIRA_TARGET_WIN

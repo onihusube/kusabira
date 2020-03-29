@@ -20,6 +20,7 @@ namespace kusabira::PP {
     EndOfFile
   };
 
+  /*
   enum class pp_parse_context : std::int8_t {
     UnknownError = std::numeric_limits<std::int8_t>::min(),
     FailedRawStrLiteralRead,            //生文字列リテラルの読み取りに失敗した、バグの可能性が高い
@@ -38,6 +39,7 @@ namespace kusabira::PP {
     EndifLine_Invalid,  // #endif ~ 改行までの間に不正なトークンが現れている
     TextLine            // 改行が現れる前にファイル終端に達した？バグっぽい
   };
+  */
 
   struct pp_err_info {
 
@@ -97,6 +99,8 @@ namespace kusabira::PP {
 //イテレータを一つ進めるとともに終端チェック
 #define EOF_CHECK(iterator, sentinel) ++it; if (iterator == sentinel) return {pp_parse_status::EndOfFile}
 
+
+
   using std::begin;
   using std::end;
 
@@ -105,16 +109,20 @@ namespace kusabira::PP {
   * @detail 再帰下降構文解析によりパースする
   * @detail パースしながらプリプロセスを実行し、成果物はプリプロセッシングトークン列
   */
-  template <typename Tokenizer = kusabira::PP::tokenizer<kusabira::PP::filereader, kusabira::PP::pp_tokenizer_sm>>
+  template<
+    typename Tokenizer = kusabira::PP::tokenizer<kusabira::PP::filereader, kusabira::PP::pp_tokenizer_sm>,
+    typename OutDest = report::detail::stdoutput
+  >
   struct ll_paser {
     //using Tokenizer = kusabira::PP::tokenizer<kusabira::PP::filereader, kusabira::PP::pp_tokenizer_sm>;
     using iterator = decltype(begin(std::declval<Tokenizer &>()));
-    using sentinel = decltype(end(std::declval<Tokenizer &>()));
-
+    using sentinel = decltype(end(std::declval<Tokenizer&>()));
     using pptoken_conteiner = std::pmr::list<pp_token>;
+    using reporter = std::unique_ptr<report::ireporter<OutDest>>;
 
     pptoken_conteiner pptoken_list{std::pmr::polymorphic_allocator<pp_token>(&kusabira::def_mr)};
 
+    reporter m_reporter = report::get_reporter<OutDest>();
     pp_directive_manager preprocessor{};
 
     fn start(Tokenizer& pp_tokenizer) -> parse_status {
