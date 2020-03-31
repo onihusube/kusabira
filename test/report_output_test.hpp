@@ -5,8 +5,7 @@
 
 namespace kusabira_test::report
 {
-    //出力テスト
-
+  
   struct test_out {
 
     static inline std::stringstream stream{};

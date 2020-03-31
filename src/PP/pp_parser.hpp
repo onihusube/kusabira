@@ -20,27 +20,6 @@ namespace kusabira::PP {
     EndOfFile
   };
 
-  /*
-  enum class pp_parse_context : std::int8_t {
-    UnknownError = std::numeric_limits<std::int8_t>::min(),
-    FailedRawStrLiteralRead,            //生文字列リテラルの読み取りに失敗した、バグの可能性が高い
-    RawStrLiteralDelimiterOver16Chars,  //生文字列リテラルデリミタの長さが16文字を超えた
-    RawStrLiteralDelimiterInvalid,      //生文字列リテラルデリミタに現れてはいけない文字が現れた
-    UnexpectedNewLine,                  //予期しない改行入力があった
-
-    GroupPart = 0,      // #の後で有効なトークンが現れなかった
-    IfSection,          // #ifセクションの途中で読み取り終了してしまった？
-    IfGroup_Mistake,    // #ifから始まるifdef,ifndefではない間違ったトークン
-    IfGroup_Invalid,    // 1つの定数式・識別子の前後、改行までの間に不正なトークンが現れている
-    ControlLine,
-
-    ElseGroup,          // 改行の前に不正なトークンが現れている
-    EndifLine_Mistake,  // #endifがくるべき所に別のものが来ている
-    EndifLine_Invalid,  // #endif ~ 改行までの間に不正なトークンが現れている
-    TextLine            // 改行が現れる前にファイル終端に達した？バグっぽい
-  };
-  */
-
   struct pp_err_info {
 
     template<typename Token = lex_token>
@@ -121,9 +100,17 @@ namespace kusabira::PP {
     using reporter = std::unique_ptr<report::ireporter<OutDest>>;
 
     pptoken_conteiner pptoken_list{std::pmr::polymorphic_allocator<pp_token>(&kusabira::def_mr)};
+    pp_directive_manager preprocessor{};
+
+  private:
 
     reporter m_reporter = report::get_reporter<OutDest>();
-    pp_directive_manager preprocessor{};
+
+  public:
+
+    ll_paser(report::report_lang lang = report::report_lang::ja)
+      : m_reporter(report::get_reporter<OutDest>(lang))
+    {}
 
     fn start(Tokenizer& pp_tokenizer) -> parse_status {
       auto it = begin(pp_tokenizer);
@@ -239,14 +226,9 @@ namespace kusabira::PP {
       } else if (tokenstr == u8"line") {
 
       } else if (tokenstr == u8"error") {
-        // 論理行文字列
-        auto linestr = (*it).get_line_string();
-        // #errorディレクティブ後の最初のトークン位置を検索
-        // プリプロセッシングディレクティブの文法的に左側から検索すればいい
-        ++it;
-        auto pos = linestr.find((*it).token, 1 + 5);
-        preprocessor.error({linestr.data() + pos});
-        //もうコンパイルエラー
+        // #errorディレクティブの実行
+        preprocessor.error(*m_reporter, it, end);
+        //コンパイルエラー
         return make_error(it, pp_parse_context::ControlLine);
       } else if (tokenstr == u8"pragma") {
 
