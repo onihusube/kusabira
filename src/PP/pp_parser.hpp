@@ -14,10 +14,10 @@
 namespace kusabira::PP {
 
   enum class pp_parse_status : std::uint8_t {
-    UnknownTokens,
-    Complete,
-    FollowingSharpToken,
-    EndOfFile
+    UnknownTokens,        //予期しないトークン入力、エラー
+    Complete,             //1行分の完了
+    FollowingSharpToken,  //#トークンを読んだ状態で戻っている、#if系のバックトラック
+    EndOfFile             //ファイル終端
   };
 
   struct pp_err_info {
@@ -87,6 +87,7 @@ namespace kusabira::PP {
   * @brief トークン列をパースしてプリプロセッシングディレクティブの検出とCPPの実行を行う
   * @detail 再帰下降構文解析によりパースする
   * @detail パースしながらプリプロセスを実行し、成果物はプリプロセッシングトークン列
+  * @detail なるべく末尾再帰を意識したい
   */
   template<
     typename Tokenizer = kusabira::PP::tokenizer<kusabira::PP::filereader, kusabira::PP::pp_tokenizer_sm>,
@@ -104,7 +105,7 @@ namespace kusabira::PP {
 
   private:
 
-    reporter m_reporter = report::get_reporter<OutDest>();
+    reporter m_reporter;
 
   public:
 
@@ -137,7 +138,7 @@ namespace kusabira::PP {
       return this->group(it, se);
     }
 
-    fn module_file([[maybe_unused]] iterator &iter, [[maybe_unused]] sentinel end) -> parse_status {
+    fn module_file([[maybe_unused]] iterator& it, [[maybe_unused]] sentinel end) -> parse_status {
       //未実装
       assert(false);
       //モジュール宣言とかを生成する
@@ -147,6 +148,7 @@ namespace kusabira::PP {
     fn group(iterator& it, sentinel end) -> parse_status {
       parse_status status{ tl::in_place, pp_parse_status::Complete };
 
+      //ここでEOFチェックする意味ある？？？
       while (it != end and status == pp_parse_status::Complete) {
         status = group_part(it, end);
       }
@@ -172,7 +174,7 @@ namespace kusabira::PP {
           if (auto& next_token = *it; next_token.kind != pp_tokenize_status::Identifier) {
             if (next_token.kind == pp_tokenize_status::NewLine) {
               //空のプリプロセッシングディレクティブ
-              return { tl::in_place, pp_parse_status::Complete };
+              return this->newline(it, end);
             }
             //エラーでは？？
             return make_error(it, pp_parse_context::GroupPart);
@@ -224,20 +226,22 @@ namespace kusabira::PP {
       } else if (tokenstr == u8"undef") {
 
       } else if (tokenstr == u8"line") {
-
+        // #lineディレクティブの実行
+        preprocessor.line(it, end);
       } else if (tokenstr == u8"error") {
         // #errorディレクティブの実行
         preprocessor.error(*m_reporter, it, end);
         //コンパイルエラー
         return make_error(it, pp_parse_context::ControlLine);
       } else if (tokenstr == u8"pragma") {
-
+        // #pragmaディレクティブの実行
+        preprocessor.pragma(*m_reporter, it, end);
       } else {
         // 知らないトークンだったら多分こっち
         return this->conditionally_supported_directive(it, end);
       }
 
-      return {tl::in_place, pp_parse_status::Complete};
+      return this->newline(it, end);
     }
 
     fn conditionally_supported_directive([[maybe_unused]] iterator& it, [[maybe_unused]] sentinel end) -> parse_status {
@@ -354,7 +358,7 @@ namespace kusabira::PP {
         //改行が現れなければならない
         if (it != end and (*it).kind == pp_tokenize_status::NewLine) {
           //正常終了
-          return {pp_parse_status::Complete};
+          return this->newline(it, end);
         } else {
           //他のトークンが出てきた
           return make_error(it, pp_parse_context::EndifLine_Invalid);
@@ -366,19 +370,19 @@ namespace kusabira::PP {
 
     fn text_line(iterator& it, sentinel end) -> parse_status {
       //1行分プリプロセッシングトークン列読み出し
-      auto status = this->pp_tokens(it, end, this->pptoken_list);
+      return this->pp_tokens(it, end, this->pptoken_list);
+      // auto status = this->pp_tokens(it, end, this->pptoken_list);
 
-      if (!status) return status;
+      // if (!status) return status;
 
-      //改行されて終了
-      if ((*it).kind == pp_tokenize_status::NewLine) {
-        //正常にtext-lineを読み込んだ
-        ++it;
-        return {pp_parse_status::Complete};
-      }
+      // //改行されて終了
+      // if ((*it).kind == pp_tokenize_status::NewLine) {
+      //   //正常にtext-lineを読み込んだ
+      //   return this->newline(it, end);
+      // }
 
-      //何かおかしい
-      return make_error(it, pp_parse_context::TextLine);
+      // //何かおかしい
+      // return make_error(it, pp_parse_context::TextLine);
     }
 
     fn pp_tokens(iterator& it, sentinel end, pptoken_conteiner& list) -> parse_status {
@@ -467,7 +471,25 @@ namespace kusabira::PP {
       TOKNIZE_ERR_CHECK(it);
 
       //改行で終了しているはず
-      return {pp_parse_status::Complete};
+      return this->newline(it, end);
+    }
+
+    /**
+    * @brief 改行処理を行う
+    * @param it 現在の先頭トークン
+    * @param end トークン列の終端
+    * @return 1行分正常終了したことを表すステータス
+    */
+    fn newline(iterator& it, sentinel end) -> parse_status {
+      //事前条件
+      assert(it != end);
+      assert((*it).kind == pp_tokenize_status::NewLine);
+
+      //プリプロセッサへ行が進んだことを伝える
+      preprocessor.newline();
+      //次の行の頭のトークンへ進めて戻る
+      ++it;
+      return {tl::in_place, pp_parse_status::Complete};
     }
 
 
@@ -617,7 +639,7 @@ namespace kusabira::PP {
     }
 
     /**
-    * @brief 
+    * @brief 最長一致規則の例外処理
     * @param it トークン列のイテレータ
     * @param end トークン列の終端イテレータ
     * @return 構成した記号列トークン
