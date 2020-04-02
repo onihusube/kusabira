@@ -223,8 +223,7 @@ namespace kusabira::PP
   * @brief プリプロセッシングトークンの分類
   */
   enum class pp_token_category : std::uint8_t {
-    comment,
-    whitespaces,
+    newline = 0,
 
     header_name,
     import_keyword,
@@ -234,14 +233,15 @@ namespace kusabira::PP
     pp_number,
     charcter_literal,
     user_defined_charcter_literal,
+
     string_literal,
     user_defined_string_literal,
-    op_or_punc,
-    other_character,
-
     //生文字列リテラル識別のため・・・
     raw_string_literal,
     user_defined_raw_string_literal,
+  
+    op_or_punc,
+    other_character
   };
 
   /**

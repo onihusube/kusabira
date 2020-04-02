@@ -1,7 +1,9 @@
 #pragma once
 
-#include "common.hpp"
 #include <iostream>
+#include <unordered_map>
+
+#include "common.hpp"
 
 //雑なWindows判定
 #ifdef _MSC_VER
@@ -32,6 +34,7 @@ namespace kusabira::PP {
     IfGroup_Mistake,    // #ifから始まるifdef,ifndefではない間違ったトークン
     IfGroup_Invalid,    // 1つの定数式・識別子の前後、改行までの間に不正なトークンが現れている
     ControlLine,
+    ControlLine_Line_Num,   // #lineディレクティブの行数指定が符号なし整数値として読み取れない
 
     ElseGroup,          // 改行の前に不正なトークンが現れている
     EndifLine_Mistake,  // #endifがくるべき所に別のものが来ている
@@ -40,8 +43,7 @@ namespace kusabira::PP {
   };
 }
 
-namespace kusabira::report
-{
+namespace kusabira::report {
 
   namespace detail {
 
@@ -110,8 +112,18 @@ namespace kusabira::report
 
 #endif // KUSABIRA_TARGET_WIN
 
+  } // namespace detail
 
-  }
+  /**
+  * @brief 翻訳フェーズ3~4くらいでのエラーをメッセージに変換するためのmap
+  */
+  using pp_message_map = std::unordered_map<pp_parse_context, std::u8string_view>;
+
+  /**
+  * @brief 上記pp_message_mapの値型
+  */
+  using pp_message_map_vt = std::unordered_map<pp_parse_context, std::u8string_view>::value_type;
+
 
   /**
   * @brief エラー出力のデフォルト実装兼インターフェース
@@ -119,6 +131,11 @@ namespace kusabira::report
   */
   template<typename Destination = detail::stdoutput>
   struct ireporter {
+
+    inline static const pp_message_map pp_err_message_en =
+    {
+      {pp_parse_context::ControlLine_Line_Num , u8"The number specified for the #LINE directive is incorrect. Please specify a number in the range of std::size_t."}
+    };
 
 //Windowsのみ、コンソール出力のために少し調整を行う
 #ifdef KUSABIRA_TARGET_WIN
@@ -137,6 +154,23 @@ namespace kusabira::report
 
     virtual ~ireporter() = default;
 
+  protected:
+
+    void print_src_pos(const fs::path& filename, const PP::lex_token& context) {
+      // "<file名>:<行>:<列>: <メッセージのカテゴリ>: "を出力
+
+      //ファイル名を出力
+      Destination::output_u8string(filename.filename().u8string());
+
+      //物理行番号、列番号
+      const auto [row, col] = context.get_phline_pos();
+
+      //ソースコード上位置、カテゴリを出力
+      Destination::output(":", row, ":", col, ": error: ");
+    }
+
+
+  public:
     /**
     * @brief 指定文字列を直接出力する
     * @param message 本文
@@ -147,28 +181,44 @@ namespace kusabira::report
       //<file名>:<行>:<列>: <メッセージのカテゴリ>: <本文>
       //の形式で出力
 
-      //ファイル名を出力
-      Destination::output_u8string(filename.filename().u8string());
-
-      //物理行番号、列番号
-      const auto [row, col] = context.get_phline_pos();
-
-      //ソースコード上位置、カテゴリを出力
-      Destination::output(":", row, ":", col, ": error: ");
+      this->print_src_pos(filename, context);
 
       //本文出力
       Destination::output_u8string(message);
       Destination::endl();
     }
 
-    virtual void pp_err_report([[maybe_unused]] const fs::path &filename, [[maybe_unused]] PP::lex_token token, [[maybe_unused]] PP::pp_parse_context context) {
+    virtual void pp_err_report(const fs::path &filename, PP::pp_token token, PP::pp_parse_context context) {
+      //事前条件
+      assert(token.lextokens.empty() == false);
+
+      auto lextoken = token.lextokens.front();
+
+      //エラー位置等の出力
+      this->print_src_pos(filename, lextoken);
+
+      //本文出力
+      Destination::output_u8string(pp_err_message_en[context]);
+      Destination::endl();
+
+      //ソースライン出力（物理行を出力するのが多分正しい？
+      Destination::output_u8string(lextoken.get_line_string());
+      Destination::endl();
+
+      //位置のマーキングとかできるといいなあ・・・
     }
   };
 
   template<typename Destination = detail::stdoutput>
   struct reporter_ja final : public ireporter<Destination> {
 
-    void pp_err_report([[maybe_unused]] const fs::path &filename, [[maybe_unused]] PP::lex_token token, [[maybe_unused]] PP::pp_parse_context context) override {
+    inline static const pp_message_map pp_err_message_ja =
+    {
+      {pp_parse_context::ControlLine_Line_Num , u8"#lineディレクティブに指定された数値が不正です。std::size_tの範囲内の数値を指定してください。"}
+    };
+
+    void pp_err_report([[maybe_unused]] const fs::path &filename, [[maybe_unused]] PP::pp_token token, [[maybe_unused]] PP::pp_parse_context context) override
+    {
     }
   };
 

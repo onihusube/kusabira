@@ -226,8 +226,14 @@ namespace kusabira::PP {
       } else if (tokenstr == u8"undef") {
 
       } else if (tokenstr == u8"line") {
+        pptoken_conteiner pptoken_list{std::pmr::polymorphic_allocator<pp_token>(&kusabira::def_mr)};
+
+        //lineの次のトークンからプリプロセッシングトークンを構成する
+        ++it;
+        if (auto res = this->pp_tokens(it, end, pptoken_list); !res) return res;
+
         // #lineディレクティブの実行
-        preprocessor.line(it, end);
+        preprocessor.line(pptoken_list);
       } else if (tokenstr == u8"error") {
         // #errorディレクティブの実行
         preprocessor.error(*m_reporter, it, end);
