@@ -1,6 +1,7 @@
 #pragma once
 
 #include <iostream>
+#include <memory>
 #include <unordered_map>
 
 #include "common.hpp"
@@ -115,14 +116,39 @@ namespace kusabira::report {
   } // namespace detail
 
   /**
-  * @brief 翻訳フェーズ3~4くらいでのエラーをメッセージに変換するためのmap
+  * @brief メッセージ出力時のカテゴリ指定
   */
-  using pp_message_map = std::unordered_map<pp_parse_context, std::u8string_view>;
+  enum class report_category : std::uint8_t {
+    error,
+    warning
+  };
 
   /**
-  * @brief 上記pp_message_mapの値型
+  * @brief メッセージカテゴリを文字列へ変換する
+  * @param cat メッセージ種別を示す列挙値
   */
-  using pp_message_map_vt = std::unordered_map<pp_parse_context, std::u8string_view>::value_type;
+  ifn report_category_to_u8string(report_category cat) -> std::string_view {
+    using namespace std::string_view_literals;
+    
+    std::string_view str{};
+
+    switch (cat)
+    {
+      case report_category::error :
+        str = "error"sv;
+        break;
+      case report_category::warning :
+        str = "warning"sv;
+        break;
+    }
+
+    return str;
+  }
+
+  /**
+  * @brief 翻訳フェーズ3~4くらいでのエラーをメッセージに変換するためのmap
+  */
+  using pp_message_map = std::unordered_map<PP::pp_parse_context, std::u8string_view>;
 
 
   /**
@@ -134,7 +160,7 @@ namespace kusabira::report {
 
     inline static const pp_message_map pp_err_message_en =
     {
-      {pp_parse_context::ControlLine_Line_Num , u8"The number specified for the #LINE directive is incorrect. Please specify a number in the range of std::size_t."}
+      {PP::pp_parse_context::ControlLine_Line_Num , u8"The number specified for the #LINE directive is incorrect. Please specify a number in the range of std::size_t."}
     };
 
 //Windowsのみ、コンソール出力のために少し調整を行う
@@ -156,77 +182,98 @@ namespace kusabira::report {
 
   protected:
 
-    void print_src_pos(const fs::path& filename, const PP::lex_token& context) {
-      // "<file名>:<行>:<列>: <メッセージのカテゴリ>: "を出力
+    /**
+    * @brief プリプロセス時エラーのコンテキストからエラーメッセージへ変換する
+    * @param context エラー発生地点を示す列挙値
+    * @details これをオーバライドすることで、多言語対応する（やるかはともかく・・・
+    */
+    [[nodiscard]]
+    virtual auto pp_context_to_message(PP::pp_parse_context context) const -> std::u8string_view {
+      using std::end;
 
-      //ファイル名を出力
-      Destination::output_u8string(filename.filename().u8string());
+      auto it = pp_err_message_en.find(context);
 
-      //物理行番号、列番号
-      const auto [row, col] = context.get_phline_pos();
+      //少なくとも英語メッセージは全て用意しておくこと！
+      assert(it != end(pp_err_message_en));
 
-      //ソースコード上位置、カテゴリを出力
-      Destination::output(":", row, ":", col, ": error: ");
+      return (*it).second;
     }
 
-
   public:
+
     /**
     * @brief 指定文字列を直接出力する
     * @param message 本文
     * @param filename ソースファイル名
     * @param context 出力のきっかけとなった場所を示す字句トークン
     */
-    void print_report(std::u8string_view message, const fs::path& filename, const PP::lex_token& context) {
+    void print_report(std::u8string_view message, const fs::path& filename, const PP::lex_token& context, report_category cat = report_category::error) const {
       //<file名>:<行>:<列>: <メッセージのカテゴリ>: <本文>
       //の形式で出力
 
-      this->print_src_pos(filename, context);
+      //ファイル名を出力
+      Destination::output_u8string(filename.filename().u8string());
+
+      //物理行番号、列番号
+      const auto [row, col] = context.get_phline_pos();
+      //カテゴリ文字列
+      const auto category = report_category_to_u8string(cat);
+
+      //ソースコード上位置、カテゴリを出力
+      Destination::output(":", row, ":", col, ": ", category, ": ");
 
       //本文出力
       Destination::output_u8string(message);
       Destination::endl();
     }
 
-    virtual void pp_err_report(const fs::path &filename, PP::pp_token token, PP::pp_parse_context context) {
-      //事前条件
-      assert(token.lextokens.empty() == false);
+    /**
+    * @brief プリプロセス時エラーメッセージを出力する
+    * @param filename ソースファイル名
+    * @param token エラー発生時の字句トークン
+    * @param context エラー発生箇所の文脈
+    */
+    void pp_err_report(const fs::path &filename, PP::lex_token token, PP::pp_parse_context context) const {
 
-      auto lextoken = token.lextokens.front();
-
-      //エラー位置等の出力
-      this->print_src_pos(filename, lextoken);
-
-      //本文出力
-      Destination::output_u8string(pp_err_message_en[context]);
-      Destination::endl();
+      //エラーメッセージ本文出力
+      this->print_report(this->pp_context_to_message(context), filename, token, report_category::error);
 
       //ソースライン出力（物理行を出力するのが多分正しい？
-      Destination::output_u8string(lextoken.get_line_string());
+      Destination::output_u8string(token.get_line_string());
       Destination::endl();
 
       //位置のマーキングとかできるといいなあ・・・
     }
   };
 
+  /**
+  * @brief 日本語エラーメッセージ出力器
+  * @tparam Destination 出力先
+  */
   template<typename Destination = detail::stdoutput>
   struct reporter_ja final : public ireporter<Destination> {
 
     inline static const pp_message_map pp_err_message_ja =
     {
-      {pp_parse_context::ControlLine_Line_Num , u8"#lineディレクティブに指定された数値が不正です。std::size_tの範囲内の数値を指定してください。"}
+      {PP::pp_parse_context::ControlLine_Line_Num , u8"#lineディレクティブに指定された数値が不正です。std::size_tの範囲内の数値を指定してください。"}
     };
 
-    void pp_err_report([[maybe_unused]] const fs::path &filename, [[maybe_unused]] PP::pp_token token, [[maybe_unused]] PP::pp_parse_context context) override
-    {
+    fn pp_context_to_message(PP::pp_parse_context context) const -> std::u8string_view override {
+      using std::end;
+
+      //日本語メッセージがなければ英語メッセージを取得
+      if (auto it = pp_err_message_ja.find(context); it != end(pp_err_message_ja)) {
+        return (*it).second;
+      } else {
+        return ireporter<Destination>::pp_err_message_en.at(context);
+      }
     }
   };
 
 
-
   /**
   * @brief 出力言語を指定する列挙型
-  * @detail RFC4646、ISO 639-1に従った命名をする
+  * @details RFC4646、ISO 639-1に従った命名をする
   */
   enum class report_lang : std::uint8_t {
     en_us,
@@ -234,23 +281,33 @@ namespace kusabira::report {
   };
 
   /**
-  * @brief メッセージ出力型のオブジェクトを取得する
-  * @tparam Destination 出力先を指定する型
-  * @param lang 出力言語指定
-  * @return ireporterインターフェースのポインタ (unique_ptr)
+  * @brief メッセージ出力型の実装を取得するためのFactory
+  * @tparam Destination 出力先を指定するTraits型
   */
   template<typename Destination = detail::stdoutput>
-  ifn get_reporter(report_lang lang = report_lang::ja) -> std::unique_ptr<ireporter<Destination>> {
+  struct reporter_factory {
 
-    switch (lang)
-    {
-    case kusabira::report::report_lang::ja:
-      return std::make_unique<reporter_ja<Destination>>();
-    case kusabira::report::report_lang::en_us: [[fallthrough]];
-    default:
-      return std::make_unique<ireporter<Destination>>();
-    } 
-  }
+    /**
+    * @brief このファクトリによって取得できるメッセージ出力器の型
+    */
+    using reporter_t = std::unique_ptr<ireporter<Destination>>;
+
+    /**
+    * @brief メッセージ出力型の実装オブジェクトを取得する
+    * @param lang 出力言語指定
+    * @return ireporterインターフェースのポインタ (unique_ptr)
+    */
+    sfn create(report_lang lang = report_lang::ja) -> reporter_t {
+      switch (lang)
+      {
+      case kusabira::report::report_lang::ja:
+        return std::make_unique<reporter_ja<Destination>>();
+      case kusabira::report::report_lang::en_us: [[fallthrough]];
+      default:
+        return std::make_unique<ireporter<Destination>>();
+      } 
+    }
+  };
 
 } // namespace kusabira::report
 

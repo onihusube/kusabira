@@ -58,7 +58,7 @@ namespace kusabira_test::report
     (*pos).line = u8"#error test error out";
     lex_token token1(pp_tokenize_result{ .status = pp_tokenize_status::Identifier }, u8"error", 1, pos);
 
-    auto reporter = kusabira::report::get_reporter<test_out>();
+    auto reporter = kusabira::report::reporter_factory<test_out>::create();
     reporter->print_report(u8"test error out", L"testdummy.cpp", token1);
 
     auto expect_text = u8"testdummy.cpp:1:1: error: test error out\n"sv;

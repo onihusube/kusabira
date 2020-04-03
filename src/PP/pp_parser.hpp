@@ -85,20 +85,21 @@ namespace kusabira::PP {
 
   /**
   * @brief トークン列をパースしてプリプロセッシングディレクティブの検出とCPPの実行を行う
-  * @detail 再帰下降構文解析によりパースする
-  * @detail パースしながらプリプロセスを実行し、成果物はプリプロセッシングトークン列
-  * @detail なるべく末尾再帰を意識したい
+  * @details 再帰下降構文解析によりパースする
+  * @details パースしながらプリプロセスを実行し、成果物はプリプロセッシングトークン列
+  * @details なるべく末尾再帰を意識したい
   */
   template<
     typename Tokenizer = kusabira::PP::tokenizer<kusabira::PP::filereader, kusabira::PP::pp_tokenizer_sm>,
-    typename OutDest = report::detail::stdoutput
+    typename OutDest = report::detail::stdoutput,
+    typename ReporterFactory = report::reporter_factory<>
   >
   struct ll_paser {
     //using Tokenizer = kusabira::PP::tokenizer<kusabira::PP::filereader, kusabira::PP::pp_tokenizer_sm>;
     using iterator = decltype(begin(std::declval<Tokenizer &>()));
     using sentinel = decltype(end(std::declval<Tokenizer&>()));
     using pptoken_conteiner = std::pmr::list<pp_token>;
-    using reporter = std::unique_ptr<report::ireporter<OutDest>>;
+    using reporter = ReporterFactory::reporter_t;
 
     pptoken_conteiner pptoken_list{std::pmr::polymorphic_allocator<pp_token>(&kusabira::def_mr)};
     pp_directive_manager preprocessor{};
@@ -110,7 +111,7 @@ namespace kusabira::PP {
   public:
 
     ll_paser(report::report_lang lang = report::report_lang::ja)
-      : m_reporter(report::get_reporter<OutDest>(lang))
+      : m_reporter(ReporterFactory::create(lang))
     {}
 
     fn start(Tokenizer& pp_tokenizer) -> parse_status {
@@ -233,7 +234,7 @@ namespace kusabira::PP {
         if (auto res = this->pp_tokens(it, end, pptoken_list); !res) return res;
 
         // #lineディレクティブの実行
-        preprocessor.line(pptoken_list);
+        preprocessor.line(*m_reporter, pptoken_list);
       } else if (tokenstr == u8"error") {
         // #errorディレクティブの実行
         preprocessor.error(*m_reporter, it, end);
@@ -391,9 +392,8 @@ namespace kusabira::PP {
       // return make_error(it, pp_parse_context::TextLine);
     }
 
-    fn pp_tokens(iterator& it, sentinel end, pptoken_conteiner& list) -> parse_status {
+    fn pp_tokens(iterator& it, sentinel end, pptoken_conteiner& list) ->  parse_status {
       using namespace std::string_view_literals;
-
       //プリプロセッシングトークン列を読み出す
       auto kind = (*it).kind;
       while (kind != pp_tokenize_status::NewLine) {
@@ -529,7 +529,7 @@ namespace kusabira::PP {
     * @param it トークン列のイテレータ
     * @param prev_tokenstr 直前のトークン文字列
     * @param last_pptoken 直前のプリプロセッシングトークン
-    * @detail 直前が文字・文字列リテラルであることを前提に動作する、呼び出す場所に注意
+    * @details 直前が文字・文字列リテラルであることを前提に動作する、呼び出す場所に注意
     * @return ユーザー定義リテラルの有無
     */
     template<typename Iterator = iterator>

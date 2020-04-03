@@ -29,12 +29,11 @@ namespace kusabira::PP {
     * @param end プリプロセッシングトークン列の終端イテレータ
     */
     template <typename Reporter, typename PPTokenRange>
-    void line(Reporter& reporter, const PPTokenRange &token_range) const
-    {
+    void line(Reporter& reporter, const PPTokenRange& token_range) {
       using std::cbegin;
       using std::cend;
 
-      auto it = cnegin(token_range);
+      auto it = cbegin(token_range);
       auto end = cend(token_range);
 
       //事前条件
@@ -44,19 +43,20 @@ namespace kusabira::PP {
         //現在行番号の変更
 
         std::size_t value;
-        auto tokenstr = (*it).to_view();
-        auto *first = reinterpret_cast<const char *>(data((*it).token));
+        auto tokenstr = (*it).token.to_view();
+        auto* first = reinterpret_cast<const char *>(tokenstr.data());
 
-        if (auto [ptr, ec] = std::from_chars(first, first + size((*it).token), value); ec == std::errc{}) {
+        if (auto [ptr, ec] = std::from_chars(first, first + tokenstr.length(), value); ec == std::errc{}) {
           m_line = value;
         } else {
+          assert((*it).lextokens.empty() == false);
           //エラーです
-          reporter.pp_err_report(m_filename, *it, pp_parse_context::ControlLine_Line_Num);
+          reporter.pp_err_report(m_filename, (*it).lextokens.front(), pp_parse_context::ControlLine_Line_Num);
         }
 
         if ((*it).category == pp_token_category::identifier) return;
 
-        if (pp_token_category::string_literal <= (*it).category and (*it).category <= user_defined_raw_string_literal) {
+        if (pp_token_category::string_literal <= (*it).category and (*it).category <= pp_token_category::user_defined_raw_string_literal) {
           //ファイル名変更
           if (it != end or (*it).category == pp_token_category::newline) return;
           //ここにきた場合は未定義に当たるはずなので、警告出して継続する
@@ -118,7 +118,7 @@ namespace kusabira::PP {
     * @param end プリプロセッシングトークン列の終端イテレータ
     */
     template<typename TokensIterator, typename TokensSentinel>
-    void skip_whitespace(TokensIterator& it, TokensSentinel end) {
+    void skip_whitespace(TokensIterator& it, TokensSentinel end) const {
       do {
         ++it;
       } while (it != end and (*it).kind == pp_tokenize_status::Whitespaces);
