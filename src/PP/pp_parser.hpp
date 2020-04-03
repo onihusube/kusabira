@@ -91,7 +91,6 @@ namespace kusabira::PP {
   */
   template<
     typename Tokenizer = kusabira::PP::tokenizer<kusabira::PP::filereader, kusabira::PP::pp_tokenizer_sm>,
-    typename OutDest = report::detail::stdoutput,
     typename ReporterFactory = report::reporter_factory<>
   >
   struct ll_paser {
