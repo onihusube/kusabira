@@ -98,7 +98,7 @@ namespace kusabira::PP {
     using iterator = decltype(begin(std::declval<Tokenizer &>()));
     using sentinel = decltype(end(std::declval<Tokenizer&>()));
     using pptoken_conteiner = std::pmr::list<pp_token>;
-    using reporter = ReporterFactory::reporter_t;
+    using reporter = typename ReporterFactory::reporter_t;
 
     pptoken_conteiner pptoken_list{std::pmr::polymorphic_allocator<pp_token>(&kusabira::def_mr)};
     pp_directive_manager preprocessor{};
@@ -226,14 +226,18 @@ namespace kusabira::PP {
       } else if (tokenstr == u8"undef") {
 
       } else if (tokenstr == u8"line") {
-        pptoken_conteiner pptoken_list{std::pmr::polymorphic_allocator<pp_token>(&kusabira::def_mr)};
+        pptoken_conteiner line_token_list{std::pmr::polymorphic_allocator<pp_token>(&kusabira::def_mr)};
 
         //lineの次のトークンからプリプロセッシングトークンを構成する
         ++it;
-        if (auto res = this->pp_tokens(it, end, pptoken_list); !res) return res;
+        if (auto res = this->pp_tokens(it, end, line_token_list); !res) return res;
 
         // #lineディレクティブの実行
-        preprocessor.line(*m_reporter, pptoken_list);
+        if (auto is_err = preprocessor.line(*m_reporter, line_token_list); is_err) {
+          return { pp_parse_status::Complete };
+        } else {
+          return make_error(it, pp_parse_context::ControlLine);
+        }
       } else if (tokenstr == u8"error") {
         // #errorディレクティブの実行
         preprocessor.error(*m_reporter, it, end);
@@ -377,18 +381,6 @@ namespace kusabira::PP {
     fn text_line(iterator& it, sentinel end) -> parse_status {
       //1行分プリプロセッシングトークン列読み出し
       return this->pp_tokens(it, end, this->pptoken_list);
-      // auto status = this->pp_tokens(it, end, this->pptoken_list);
-
-      // if (!status) return status;
-
-      // //改行されて終了
-      // if ((*it).kind == pp_tokenize_status::NewLine) {
-      //   //正常にtext-lineを読み込んだ
-      //   return this->newline(it, end);
-      // }
-
-      // //何かおかしい
-      // return make_error(it, pp_parse_context::TextLine);
     }
 
     fn pp_tokens(iterator& it, sentinel end, pptoken_conteiner& list) ->  parse_status {

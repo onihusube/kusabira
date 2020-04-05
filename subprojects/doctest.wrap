@@ -1,5 +1,5 @@
 [wrap-git]
 directory=doctest
 url=https://github.com/onqtam/doctest.git
-revision=2.3.5
+revision=932a2ca50666138256dae56fbb16db3b1cae133a
 clone-recursive=true

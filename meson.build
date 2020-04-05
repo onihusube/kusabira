@@ -10,7 +10,7 @@ tlexpected_dep = tlexpected_proj.get_variable('tlexpected_dep')
 cppcompiler = meson.get_compiler('cpp').get_argument_syntax()
 
 if cppcompiler == 'msvc'
-    options = ['/std:c++latest', '/source-charset:utf-8']
+    options = ['/std:c++latest', '/source-charset:utf-8', '/Zc:__cplusplus']
 elif cppcompiler == 'gcc'
     options = ['-std=c++2a']
 else

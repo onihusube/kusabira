@@ -11,12 +11,8 @@
 #define KUSABIRA_TARGET_WIN
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
-
-//テストビルドでない場合に追加ヘッダのインクルード
-#ifdef KUSABIRA_CL_BUILD
 #include <io.h>
 #include <fcntl.h>
-#endif // KUSABIRA_CL_BUILD
 
 #endif // _MSC_VER
 
@@ -35,7 +31,8 @@ namespace kusabira::PP {
     IfGroup_Mistake,    // #ifから始まるifdef,ifndefではない間違ったトークン
     IfGroup_Invalid,    // 1つの定数式・識別子の前後、改行までの間に不正なトークンが現れている
     ControlLine,
-    ControlLine_Line_Num,   // #lineディレクティブの行数指定が符号なし整数値として読み取れない
+    ControlLine_Line_Num,         // #lineディレクティブの行数指定が符号なし整数値として読み取れない
+    ControlLine_Line_ManyToken,   // #lineディレクティブの後ろに不要なトークンが付いてる（警告）
 
     ElseGroup,          // 改行の前に不正なトークンが現れている
     EndifLine_Mistake,  // #endifがくるべき所に別のものが来ている
@@ -47,48 +44,6 @@ namespace kusabira::PP {
 namespace kusabira::report {
 
   namespace detail {
-
-#ifdef KUSABIRA_TARGET_WIN
-
-    /**
-    * @brief 標準出力への出力
-    */
-    struct stdoutput {
-
-      static void output_u8string(const std::u8string_view str) {
-        auto punned_str = reinterpret_cast<const char*>(str.data());
-
-        //変換後の長さを取得
-        const std::size_t length = ::MultiByteToWideChar(CP_UTF8, 0, punned_str, static_cast<int>(str.length()), nullptr, 0);
-        std::wstring converted(length, L'\0');
-        //変換に成功したら出力
-        auto res = ::MultiByteToWideChar(CP_UTF8, 0, punned_str, static_cast<int>(str.length()), converted.data(), static_cast<int>(length));
-        if (res != 0) {
-          std::wcout << converted;
-
-#ifndef KUSABIRA_CL_BUILD
-          //UTF-16 -> Ansi(Shift-JIS)にマップできない文字があった時に復帰させる
-          if (std::wcout.fail()) std::wcout.clear();
-#endif // !KUSABIRA_CL_BUILD
-
-        } else {
-          std::wcerr << L"UTF-8文字列の変換に失敗しました。" << std::endl;
-          assert(false);
-        }
-      }
-
-      template<typename... Args>
-      static void output(Args&&... args) {
-        (std::wcout << ... << std::forward<Args>(args));
-      }
-
-      static void endl() {
-        std::wcout << std::endl;
-      }
-
-    };
-
-#else
 
     /**
     * @brief 標準出力への出力
@@ -110,8 +65,6 @@ namespace kusabira::report {
       }
 
     };
-
-#endif // KUSABIRA_TARGET_WIN
 
   } // namespace detail
 
@@ -160,25 +113,38 @@ namespace kusabira::report {
 
     inline static const pp_message_map pp_err_message_en =
     {
-      {PP::pp_parse_context::ControlLine_Line_Num , u8"The number specified for the #LINE directive is incorrect. Please specify a number in the range of std::size_t."}
+      {PP::pp_parse_context::ControlLine_Line_Num , u8"The number specified for the #LINE directive is incorrect. Please specify a number in the range of std::size_t."},
+      {PP::pp_parse_context::ControlLine_Line_ManyToken, u8"There is an unnecessary token after the #line directive."}
     };
 
 //Windowsのみ、コンソール出力のために少し調整を行う
+//コンソールのコードページを変更し、UTF-8を直接出力する
 #ifdef KUSABIRA_TARGET_WIN
-#ifdef KUSABIRA_CL_BUILD
-    ireporter() {
-      //ストリーム出力をユニコードモードに変更する
-      _setmode(_fileno(stdout), _O_U16TEXT);
+  private:
+    const std::uint32_t m_cp{};
+
+  public:
+
+    ireporter()
+      //コードページを保存
+      : m_cp(::GetConsoleCP())
+    {
+      //コードページをUTF-8に変更
+      ::SetConsoleOutputCP(65001u);
+      // 標準出力をバイナリモードにする
+      ::_setmode(_fileno(stdout), _O_BINARY);
     }
+    
+    virtual ~ireporter() {
+      //コードページを元に戻しておく
+      ::SetConsoleOutputCP(m_cp);
+    }
+
 #else
-    ireporter() {
-      //ロケール及びコードページをシステムデフォルトに変更
-      std::wcout.imbue(std::locale(""));
-    }
-#endif // KUSABIRA_CL_BUILD
-#endif // KUSABIRA_TARGET_WIN
 
     virtual ~ireporter() = default;
+
+#endif // KUSABIRA_TARGET_WIN
 
   protected:
 
@@ -233,10 +199,10 @@ namespace kusabira::report {
     * @param token エラー発生時の字句トークン
     * @param context エラー発生箇所の文脈
     */
-    void pp_err_report(const fs::path &filename, PP::lex_token token, PP::pp_parse_context context) const {
+    void pp_err_report(const fs::path &filename, PP::lex_token token, PP::pp_parse_context context, report_category cat = report_category::error) const {
 
       //エラーメッセージ本文出力
-      this->print_report(this->pp_context_to_message(context), filename, token, report_category::error);
+      this->print_report(this->pp_context_to_message(context), filename, token, cat);
 
       //ソースライン出力（物理行を出力するのが多分正しい？
       Destination::output_u8string(token.get_line_string());
@@ -255,7 +221,8 @@ namespace kusabira::report {
 
     inline static const pp_message_map pp_err_message_ja =
     {
-      {PP::pp_parse_context::ControlLine_Line_Num , u8"#lineディレクティブに指定された数値が不正です。std::size_tの範囲内の数値を指定してください。"}
+      {PP::pp_parse_context::ControlLine_Line_Num , u8"#lineディレクティブに指定された数値が不正です。std::size_tの範囲内の数値を指定してください。"},
+      {PP::pp_parse_context::ControlLine_Line_ManyToken , u8"#lineディレクティブの後に不要なトークンがあります。"}
     };
 
     fn pp_context_to_message(PP::pp_parse_context context) const -> std::u8string_view override {

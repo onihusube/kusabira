@@ -5,11 +5,32 @@
 
 namespace kusabira::PP {
 
+
+  ifn extract_string_from_strtoken(std::u8string_view tokenstr, bool is_rawstr) -> std::u8string_view {
+    if (is_rawstr) {
+      //生文字列リテラルの""の中の文字列を取得
+
+    } else {
+
+      //通常の文字列リテラルの""の中の文字列を取得
+
+      auto first = tokenstr.find_first_of(u8'"', 0) + 1;
+      auto last = tokenstr.find_last_of(u8'"', first) + 1;
+
+      assert(0 <= (last - first));
+      assert((last - first) < (tokenstr.length() - 2));
+
+      return tokenstr.substr(first, last - first);
+    }
+
+    return {};
+  }
+
   struct pp_directive_manager {
 
     std::size_t m_line = 1;
     fs::path m_filename{};
-    std::optional<fs::path> m_replace_filename{};
+    fs::path m_replace_filename{};
 
     void newline() {
       ++m_line;
@@ -29,7 +50,7 @@ namespace kusabira::PP {
     * @param end プリプロセッシングトークン列の終端イテレータ
     */
     template <typename Reporter, typename PPTokenRange>
-    void line(Reporter& reporter, const PPTokenRange& token_range) {
+    fn line(Reporter& reporter, const PPTokenRange& token_range) -> bool {
       using std::cbegin;
       using std::cend;
 
@@ -44,27 +65,44 @@ namespace kusabira::PP {
 
         std::size_t value;
         auto tokenstr = (*it).token.to_view();
-        auto* first = reinterpret_cast<const char *>(tokenstr.data());
+        auto* first = reinterpret_cast<const char*>(tokenstr.data());
 
         if (auto [ptr, ec] = std::from_chars(first, first + tokenstr.length(), value); ec == std::errc{}) {
+          //カウントしてる行番号を変更
           m_line = value;
         } else {
           assert((*it).lextokens.empty() == false);
           //エラーです
           reporter.pp_err_report(m_filename, (*it).lextokens.front(), pp_parse_context::ControlLine_Line_Num);
+          return false;
         }
 
-        if ((*it).category == pp_token_category::identifier) return;
+        //次のトークンが無ければ終わり
+        ++it;
+        if (it == end or (*it).category == pp_token_category::newline) return true;
 
         if (pp_token_category::string_literal <= (*it).category and (*it).category <= pp_token_category::user_defined_raw_string_literal) {
           //ファイル名変更
-          if (it != end or (*it).category == pp_token_category::newline) return;
-          //ここにきた場合は未定義に当たるはずなので、警告出して継続する
+
+          //文字列リテラルから文字列を取得
+          auto str = extract_string_from_strtoken((*it).token);
+          m_replace_filename = str;
+
+          ++it;
+          if (it != end or (*it).category != pp_token_category::newline) {
+            //ここにきた場合は未定義に当たるはずなので、警告出して継続する
+            reporter.pp_err_report(m_filename, (*it).lextokens.front(), pp_parse_context::ControlLine_Line_ManyToken, report::report_category::warning);
+          }
+
+          return true;
         }
       }
 
-      //マクロを展開した上で#lineディレクティブを実行する
+      //マクロを展開した上で#lineディレクティブを実行する、マクロ展開を先に実装しないと・・・
       //展開後に#lineにならなければ未定義動作、エラーにしようかなあ
+      assert(false);
+
+      return false;
     }
 
     /**
