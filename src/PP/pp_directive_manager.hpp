@@ -8,8 +8,26 @@ namespace kusabira::PP {
 
   ifn extract_string_from_strtoken(std::u8string_view tokenstr, bool is_rawstr) -> std::u8string_view {
     if (is_rawstr) {
-      //生文字列リテラルの""の中の文字列を取得
+      //生文字列リテラルのR"...()..."の中の文字列を取得
+      const auto first = tokenstr.find_first_of(u8"R\"", 2) + 1;
+      auto pos = first;
 
+      std::size_t index = 1u;
+      char8_t delimiter[18]{u8')'};
+
+      while (tokenstr[pos] != u8'(') {
+        delimiter[index] = tokenstr[pos];
+        ++index;
+        ++pos;
+      }
+
+      delimiter[index] = u8'"';
+      ++index;
+      auto delimiter_str = std::u8string_view{delimiter, index};
+
+      auto last = tokenstr.find_first_of(delimiter, pos, index) - 1;
+
+      return tokenstr.substr(first, last - first);
     } else {
 
       //通常の文字列リテラルの""の中の文字列を取得
@@ -17,7 +35,6 @@ namespace kusabira::PP {
       auto first = tokenstr.find_first_of(u8'"', 0) + 1;
       auto last = tokenstr.find_last_of(u8'"', first) + 1;
 
-      assert(0 <= (last - first));
       assert((last - first) < (tokenstr.length() - 2));
 
       return tokenstr.substr(first, last - first);
@@ -85,7 +102,7 @@ namespace kusabira::PP {
           //ファイル名変更
 
           //文字列リテラルから文字列を取得
-          auto str = extract_string_from_strtoken((*it).token);
+          auto str = extract_string_from_strtoken((*it).token, pp_token_category::raw_string_literal <= (*it).category);
           m_replace_filename = str;
 
           ++it;
