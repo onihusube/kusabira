@@ -1,4 +1,5 @@
 #include <charconv>
+#include <functional>
 
 #include "../common.hpp"
 #include "../report_output.hpp"
@@ -7,40 +8,66 @@ namespace kusabira::PP {
 
 
   ifn extract_string_from_strtoken(std::u8string_view tokenstr, bool is_rawstr) -> std::u8string_view {
-    if (is_rawstr) {
-      //生文字列リテラルのR"...()..."の中の文字列を取得
-      const auto first = tokenstr.find_first_of(u8"R\"", 2) + 1;
-      auto pos = first;
+    //正しい（生）文字列リテラルが入ってくることを仮定する
 
-      std::size_t index = 1u;
+    if (is_rawstr) {
+      //生文字列リテラルのR"delimiter(...)delimiter"の中の文字列を取得
+
+      //R"を探してその次の位置を見つける
+      auto pos = tokenstr.find_first_of(u8"R\"", 2);
+      //絶対見つかる筈
+      assert(pos != std::string_view::npos);
+      //R"の分すすめる
+      pos += 2;
+
+      //デリミタ長
+      std::size_t delimiter_length = 1u;
+      //デリミタ文字列
       char8_t delimiter[18]{u8')'};
 
+      //デリミタを検出
       while (tokenstr[pos] != u8'(') {
-        delimiter[index] = tokenstr[pos];
-        ++index;
+        delimiter[delimiter_length] = tokenstr[pos];
+        ++delimiter_length;
         ++pos;
       }
 
-      delimiter[index] = u8'"';
-      ++index;
-      auto delimiter_str = std::u8string_view{delimiter, index};
+      //デリミタの長さは16文字まで、)があるので+1
+      assert(delimiter_length <= 17u);
 
-      auto last = tokenstr.find_first_of(delimiter, pos, index) - 1;
+      // )delimiter" の形にしておく
+      delimiter[delimiter_length] = u8'"';
+      ++delimiter_length;
 
-      return tokenstr.substr(first, last - first);
+      //posは R"delimiter( の次の位置（＝文字列本体の先頭）までの文字数
+      ++pos;
+
+      //閉じデリミタの位置を検索
+      std::boyer_moore_searcher searcher{ delimiter, delimiter + delimiter_length };
+      //生文字列リテラルの先頭ポインタ
+      auto* p = tokenstr.data();
+
+      //戻り値は[検索対象の開始位置, 検索対象の終了位置]
+      const auto [last_ptr, ignore] = searcher(p + pos, p + tokenstr.length());
+      //これが来ることは無い・・・はず
+      assert(last_ptr == ignore);
+
+      //生文字列リテラル本文長
+      std::size_t str_length = std::distance(p + pos, last_ptr);
+
+      return tokenstr.substr(pos, str_length);
     } else {
-
       //通常の文字列リテラルの""の中の文字列を取得
 
+      //"の次
       auto first = tokenstr.find_first_of(u8'"', 0) + 1;
-      auto last = tokenstr.find_last_of(u8'"', first) + 1;
+      //"の前
+      auto last = tokenstr.find_last_of(u8'"', first) - 1;
 
       assert((last - first) < (tokenstr.length() - 2));
 
       return tokenstr.substr(first, last - first);
     }
-
-    return {};
   }
 
   struct pp_directive_manager {
