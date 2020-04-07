@@ -8,7 +8,7 @@
             "name": "lldb debug",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/meson-out/kusabira_test",
+            "program": "${workspaceFolder}/build/kusabira_test",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/build",

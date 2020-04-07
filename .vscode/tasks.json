@@ -14,7 +14,7 @@
         },
         {
             "label": "build & test",
-            "command": "build/meson-out/kusabira_test",
+            "command": "build/kusabira_test",
             "group": {
                 "kind": "test",
                 "isDefault": true

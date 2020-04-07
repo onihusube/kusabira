@@ -1,3 +1,5 @@
+#pragma once
+
 #include <charconv>
 #include <functional>
 
@@ -14,7 +16,7 @@ namespace kusabira::PP {
       //生文字列リテラルのR"delimiter(...)delimiter"の中の文字列を取得
 
       //R"を探してその次の位置を見つける
-      auto pos = tokenstr.find_first_of(u8"R\"", 2);
+      auto pos = tokenstr.find(u8"R\"", 0, 2);
       //絶対見つかる筈
       assert(pos != std::string_view::npos);
       //R"の分すすめる
@@ -50,7 +52,7 @@ namespace kusabira::PP {
       //戻り値は[検索対象の開始位置, 検索対象の終了位置]
       const auto [last_ptr, ignore] = searcher(p + pos, p + tokenstr.length());
       //これが来ることは無い・・・はず
-      assert(last_ptr == ignore);
+      assert(last_ptr != ignore);
 
       //生文字列リテラル本文長
       std::size_t str_length = std::distance(p + pos, last_ptr);

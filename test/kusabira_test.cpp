@@ -9,3 +9,4 @@
 #include "PP/pp_paser_test.hpp"
 #include "common_test.hpp"
 #include "report_output_test.hpp"
+#include "PP/pp_directive_manager_test.hpp"
