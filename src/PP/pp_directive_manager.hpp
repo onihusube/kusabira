@@ -63,10 +63,10 @@ namespace kusabira::PP {
 
       //"の次
       auto first = tokenstr.find_first_of(u8'"', 0) + 1;
-      //"の前
-      auto last = tokenstr.find_last_of(u8'"', first) - 1;
+      //最後の"
+      auto last = tokenstr.find_last_of(u8'"', tokenstr.length());
 
-      assert((last - first) < (tokenstr.length() - 2));
+      assert((last - first) <= (tokenstr.length() - 2));
 
       return tokenstr.substr(first, last - first);
     }

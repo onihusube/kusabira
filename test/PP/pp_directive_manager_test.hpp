@@ -1,7 +1,7 @@
 #pragma once
 
 #include "doctest/doctest.h"
-#include "src/PP/pp_directive_manager.hpp"
+#include "PP/pp_directive_manager.hpp"
 
 namespace kusabira_test::preprocessor
 {
@@ -41,6 +41,35 @@ namespace kusabira_test::preprocessor
       auto result = kusabira::PP::extract_string_from_strtoken(rstr, true);
 
       CHECK_UNARY(result.empty());
+    }
+  }
+
+  TEST_CASE("strliteral extract test") {
+
+    {
+      auto str = u8R"++++("normal string literal")++++";
+
+      auto result = kusabira::PP::extract_string_from_strtoken(str, false);
+
+      CHECK_UNARY_FALSE(result.empty());
+      CHECK_UNARY(result == u8"normal string literal");
+    }
+
+    {
+      auto str = u8R"++++(U"")++++";
+
+      auto result = kusabira::PP::extract_string_from_strtoken(str, false);
+
+      CHECK_UNARY(result.empty());
+    }
+
+    {
+      auto str = u8R"++++(u8"string " literal")++++";
+
+      auto result = kusabira::PP::extract_string_from_strtoken(str, false);
+
+      CHECK_UNARY_FALSE(result.empty());
+      CHECK_UNARY(result == u8"string \" literal");
     }
   }
 
