@@ -62,9 +62,9 @@ namespace kusabira::PP {
       //通常の文字列リテラルの""の中の文字列を取得
 
       //"の次
-      auto first = tokenstr.find_first_of(u8'"', 0) + 1;
+      auto first = tokenstr.find(u8'"') + 1;
       //最後の"
-      auto last = tokenstr.find_last_of(u8'"', tokenstr.length());
+      auto last = tokenstr.rfind(u8'"');
 
       assert((last - first) <= (tokenstr.length() - 2));
 
