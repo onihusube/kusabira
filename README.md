@@ -30,7 +30,7 @@ kusabiraはC++コンパイラを目指すキノコです。
 ### 開発に使用しているコンパイラ
 
 - VC++2019 Preview latest
-- GCC 9.2 (on MacOS)
+- GCC 9.3 (on MacOS)
 
 ### ふわっとした方針
 
