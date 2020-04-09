@@ -105,6 +105,7 @@ namespace kusabira::PP {
 
   private:
 
+    fs::path m_filename{};
     reporter m_reporter;
 
   public:
@@ -222,7 +223,29 @@ namespace kusabira::PP {
       if (tokenstr == u8"include") {
 
       } else if (tokenstr == u8"define") {
+        //ホワイトスペース列を読み飛ばす
+        SKIP_WHITESPACE(it, end);
 
+        if ((*it).kind != pp_tokenize_status::Identifier) {
+          // #defineディレクティブのエラー
+          m_reporter->pp_err_report(m_filename, *it, pp_parse_context::Define_No_Identifier);
+          return make_error(it, pp_parse_context::Define_No_Identifier);
+        }
+
+        auto id_token = std::move(*it);
+
+        ++it;
+
+        if ((*it).kind != pp_tokenize_status::OPorPunc) and (*it).token == u8"(" ) {
+          //関数形式マクロ
+
+        } else if ((*it).kind != pp_tokenize_status::Whitespaces) {
+          //オブジェクト形式マクロ
+
+        } else {
+          //エラー
+
+        }
       } else if (tokenstr == u8"undef") {
 
       } else if (tokenstr == u8"line") {
