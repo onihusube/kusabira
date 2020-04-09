@@ -72,6 +72,8 @@ namespace kusabira::PP {
     }
   }
 
+
+
   struct pp_directive_manager {
 
     std::size_t m_line = 1;
@@ -87,6 +89,13 @@ namespace kusabira::PP {
       //未実装
       assert(false);
       return {};
+    }
+
+    template<typename Reporter, typename PPTokenRange>
+    void define(Reporter& reporter, lex_token macro_name, PPTokenRange&& token_range) {
+      
+      //オブジェクトマクロを登録する
+
     }
 
     /**

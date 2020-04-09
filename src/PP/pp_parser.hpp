@@ -233,14 +233,21 @@ namespace kusabira::PP {
         }
 
         auto id_token = std::move(*it);
+        pptoken_conteiner replacement_list{ std::pmr::polymorphic_allocator<pp_token>(&kusabira::def_mr) };
 
         ++it;
 
         if ((*it).kind != pp_tokenize_status::OPorPunc) and (*it).token == u8"(" ) {
           //関数形式マクロ
+          ++it;
+          if (auto res = this->pp_tokens(it, end, line_token_list); !res) return res;
 
         } else if ((*it).kind != pp_tokenize_status::Whitespaces) {
           //オブジェクト形式マクロ
+          ++it;
+          if (auto res = this->pp_tokens(it, end, line_token_list); !res) return res;
+
+
 
         } else {
           //エラー
