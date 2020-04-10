@@ -233,22 +233,24 @@ namespace kusabira::PP {
         }
 
         auto id_token = std::move(*it);
-        pptoken_conteiner replacement_list{ std::pmr::polymorphic_allocator<pp_token>(&kusabira::def_mr) };
+        pptoken_conteiner replacement_token_list{ std::pmr::polymorphic_allocator<pp_token>(&kusabira::def_mr) };
 
         ++it;
 
         if ((*it).kind != pp_tokenize_status::OPorPunc) and (*it).token == u8"(" ) {
           //関数形式マクロ
           ++it;
-          if (auto res = this->pp_tokens(it, end, line_token_list); !res) return res;
+          if (auto res = this->replacement_list(it, end, replacement_token_list); !res) return res;
 
         } else if ((*it).kind != pp_tokenize_status::Whitespaces) {
           //オブジェクト形式マクロ
           ++it;
-          if (auto res = this->pp_tokens(it, end, line_token_list); !res) return res;
+          if (auto res = this->replacement_list(it, end, replacement_token_list); !res) return res;
+          
+          //マクロの登録
+          preprocessor.define((*id_token).token, replacement_list);
 
-
-
+          return { pp_parse_status::Complete };
         } else {
           //エラー
 
@@ -282,6 +284,10 @@ namespace kusabira::PP {
       }
 
       return this->newline(it, end);
+    }
+
+    fn replacement_list(iterator &it, sentinel end, pptoken_conteiner& list) -> parse_status {
+      return this->pp_tokens(it, end, list);
     }
 
     fn conditionally_supported_directive([[maybe_unused]] iterator& it, [[maybe_unused]] sentinel end) -> parse_status {

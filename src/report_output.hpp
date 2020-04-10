@@ -19,27 +19,29 @@
 
 namespace kusabira::PP {
 
-  enum class pp_parse_context : std::int8_t {
-    UnknownError = std::numeric_limits<std::int8_t>::min(),
-    FailedRawStrLiteralRead,            //生文字列リテラルの読み取りに失敗した、バグの可能性が高い
-    RawStrLiteralDelimiterOver16Chars,  //生文字列リテラルデリミタの長さが16文字を超えた
-    RawStrLiteralDelimiterInvalid,      //生文字列リテラルデリミタに現れてはいけない文字が現れた
-    UnexpectedNewLine,                  //予期しない改行入力があった
+enum class pp_parse_context : std::int8_t
+{
+  UnknownError = std::numeric_limits<std::int8_t>::min(),
+  FailedRawStrLiteralRead,           //生文字列リテラルの読み取りに失敗した、バグの可能性が高い
+  RawStrLiteralDelimiterOver16Chars, //生文字列リテラルデリミタの長さが16文字を超えた
+  RawStrLiteralDelimiterInvalid,     //生文字列リテラルデリミタに現れてはいけない文字が現れた
+  UnexpectedNewLine,                 //予期しない改行入力があった
 
-    GroupPart = 0,      // #の後で有効なトークンが現れなかった
-    IfSection,          // #ifセクションの途中で読み取り終了してしまった？
-    IfGroup_Mistake,    // #ifから始まるifdef,ifndefではない間違ったトークン
-    IfGroup_Invalid,    // 1つの定数式・識別子の前後、改行までの間に不正なトークンが現れている
-    ControlLine,
-    Define_No_Identifier, //#defineの後に識別子が現れなかった
-    ControlLine_Line_Num,         // #lineディレクティブの行数指定が符号なし整数値として読み取れない
-    ControlLine_Line_ManyToken,   // #lineディレクティブの後ろに不要なトークンが付いてる（警告）
+  GroupPart = 0,   // #の後で有効なトークンが現れなかった
+  IfSection,       // #ifセクションの途中で読み取り終了してしまった？
+  IfGroup_Mistake, // #ifから始まるifdef,ifndefではない間違ったトークン
+  IfGroup_Invalid, // 1つの定数式・識別子の前後、改行までの間に不正なトークンが現れている
+  ControlLine,
+  Define_No_Identifier,       //#defineの後に識別子が現れなかった
+  Define_Duplicate,           //#defineの後に識別子が現れなかった
+  ControlLine_Line_Num,       // #lineディレクティブの行数指定が符号なし整数値として読み取れない
+  ControlLine_Line_ManyToken, // #lineディレクティブの後ろに不要なトークンが付いてる（警告）
 
-    ElseGroup,          // 改行の前に不正なトークンが現れている
-    EndifLine_Mistake,  // #endifがくるべき所に別のものが来ている
-    EndifLine_Invalid,  // #endif ~ 改行までの間に不正なトークンが現れている
-    TextLine            // 改行が現れる前にファイル終端に達した？バグっぽい
-  };
+  ElseGroup,         // 改行の前に不正なトークンが現れている
+  EndifLine_Mistake, // #endifがくるべき所に別のものが来ている
+  EndifLine_Invalid, // #endif ~ 改行までの間に不正なトークンが現れている
+  TextLine           // 改行が現れる前にファイル終端に達した？バグっぽい
+};
 }
 
 namespace kusabira::report {
@@ -115,6 +117,7 @@ namespace kusabira::report {
     inline static const pp_message_map pp_err_message_en =
     {
       {PP::pp_parse_context::Define_No_Identifier, u8"#define directive is followed by no identifier to replace."},
+      {PP::pp_parse_context::Define_Duplicate, u8"A macro with the same name has been redefined with a different definition."},
       {PP::pp_parse_context::ControlLine_Line_Num , u8"The number specified for the #LINE directive is incorrect. Please specify a number in the range of std::size_t."},
       {PP::pp_parse_context::ControlLine_Line_ManyToken, u8"There is an unnecessary token after the #line directive."}
     };
@@ -224,6 +227,7 @@ namespace kusabira::report {
     inline static const pp_message_map pp_err_message_ja =
     {
       {PP::pp_parse_context::Define_No_Identifier, u8"#defineディレクティブの後に置換対象の識別子がありません。"},
+      {PP::pp_parse_context::Define_Duplicate, u8"同じ名前のマクロが異なる定義で再定義されました。"},
       {PP::pp_parse_context::ControlLine_Line_Num , u8"#lineディレクティブに指定された数値が不正です。std::size_tの範囲内の数値を指定してください。"},
       {PP::pp_parse_context::ControlLine_Line_ManyToken , u8"#lineディレクティブの後に不要なトークンがあります。"}
     };

@@ -76,9 +76,13 @@ namespace kusabira::PP {
 
   struct pp_directive_manager {
 
+    using macro_map = std::pmr::unordered_map<std::u8string_view, std::pmr::list<pp_token>>;
+    using pmralloc = typename acro_map::allocator_type;
+
     std::size_t m_line = 1;
     fs::path m_filename{};
     fs::path m_replace_filename{};
+    macro_map m_objmacros{pmralloc(&kusabira::def_mr)};
 
     void newline() {
       ++m_line;
@@ -92,10 +96,22 @@ namespace kusabira::PP {
     }
 
     template<typename Reporter, typename PPTokenRange>
-    void define(Reporter& reporter, lex_token macro_name, PPTokenRange&& token_range) {
+    fn define(Reporter& reporter, std::u8string_view macro_name, PPTokenRange&& token_range) -> bool {
       
       //オブジェクトマクロを登録する
+      if (m_objmacros.contains(macro_name)) {
+        //すでに登録されている場合
+        //登録済みのトークン列の同一性を判定する
+        if (token_range == m_objmacros[macro_name]) return true;
 
+        //トークンが一致していなければエラー
+        //reporter.pp_err_report(m_filename, (*it).lextokens.front(), pp_parse_context::Define_Duplicate);
+        return false;
+      }
+
+      //なければそのまま登録
+      m_objmacros.emplace(std::forward<PPTokenRange>(token_range));
+      return true;
     }
 
     /**
