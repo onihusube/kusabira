@@ -240,6 +240,7 @@ namespace kusabira::PP {
         if ((*it).kind != pp_tokenize_status::OPorPunc) and (*it).token == u8"(" ) {
           //関数形式マクロ
           ++it;
+
           if (auto res = this->replacement_list(it, end, replacement_token_list); !res) return res;
 
         } else if ((*it).kind != pp_tokenize_status::Whitespaces) {
@@ -288,6 +289,49 @@ namespace kusabira::PP {
 
     fn replacement_list(iterator &it, sentinel end, pptoken_conteiner& list) -> parse_status {
       return this->pp_tokens(it, end, list);
+    }
+
+    fn identifier_list(iterator& it, sentinel end) -> std::pair<parse_status, std::pmr::vector<std::u8string_view>> {
+      std::pmr::vector<std::u8string_view> arglist{ std::pmr::polymorphic_allocator<std::u8string_view>(&kusabira::def_mr) };
+      arglist.reserve(10);
+
+      auto skip = [end](auto& itr) {
+        while (itr != end and (*itr).kind != pp_tokenize_status::Whitespaces) ++itr;
+        return itr != end;
+      };
+
+      for (;;) {
+        if (skip(it) == false) return{};
+
+        if ((*it).kind == pp_tokenize_status::Identifier) {
+          arglist.emplace_back((*it).token);
+        } else if ((*it).kind == pp_tokenize_status::OPorPunc) {
+          //可変長マクロor関数マクロの終わり
+          if ((*it).token == u8"..." or (*it).token == u8")") {
+            return std::make_pair({ pp_parse_status::Complete }, std::move(arglist));
+          }
+          //エラー：現れてはいけない記号が現れている
+          return std::make_pair(make_error(it, pp_parse_context::Define_Func_Disappointing_Token), {});
+        } else {
+          //エラー：現れるべきトークンが現れなかった
+          return std::make_pair(make_error(it, pp_parse_context::Define_Func_Disappointing_Token), {});
+        }
+
+        //カンマを探す
+        if (skip(it) == false) return{};
+
+        if ((*it).kind == pp_tokenize_status::OPorPunc) {
+          if ((*it).token == u8",") {
+            ++it;
+            continue;
+          } else if ((*it).token == u8")") {
+            //関数マクロの終わり
+            return std::make_pair({ pp_parse_status::Complete }, std::move(arglist))
+          }
+        }
+        //エラー：現れるべきトークンが現れなかった
+        return std::make_pair(make_error(it, pp_parse_context::Define_Func_Disappointing_Token), {});
+      }
     }
 
     fn conditionally_supported_directive([[maybe_unused]] iterator& it, [[maybe_unused]] sentinel end) -> parse_status {

@@ -77,7 +77,7 @@ namespace kusabira::PP {
   struct pp_directive_manager {
 
     using macro_map = std::pmr::unordered_map<std::u8string_view, std::pmr::list<pp_token>>;
-    using pmralloc = typename acro_map::allocator_type;
+    using pmralloc = typename macro_map::allocator_type;
 
     std::size_t m_line = 1;
     fs::path m_filename{};
@@ -97,7 +97,6 @@ namespace kusabira::PP {
 
     template<typename Reporter, typename PPTokenRange>
     fn define(Reporter& reporter, std::u8string_view macro_name, PPTokenRange&& token_range) -> bool {
-      
       //オブジェクトマクロを登録する
       if (m_objmacros.contains(macro_name)) {
         //すでに登録されている場合

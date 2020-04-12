@@ -34,6 +34,7 @@ enum class pp_parse_context : std::int8_t
   ControlLine,
   Define_No_Identifier,       //#defineの後に識別子が現れなかった
   Define_Duplicate,           //#defineの後に識別子が現れなかった
+  Define_Func_Disappointing_Token,
   ControlLine_Line_Num,       // #lineディレクティブの行数指定が符号なし整数値として読み取れない
   ControlLine_Line_ManyToken, // #lineディレクティブの後ろに不要なトークンが付いてる（警告）
 
