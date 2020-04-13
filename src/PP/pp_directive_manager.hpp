@@ -113,6 +113,24 @@ namespace kusabira::PP {
       return true;
     }
 
+    template<typename Reporter, typename ArgList, typename PPTokenRange>
+    fn define(Reporter& reporter, std::u8string_view macro_name, ArgList&& args, PPTokenRange&& token_range) -> bool {
+      //関数マクロを登録する
+      if (m_objmacros.contains(macro_name)) {
+        //すでに登録されている場合
+        //登録済みのトークン列の同一性を判定する
+        if (token_range == m_objmacros[macro_name]) return true;
+
+        //トークンが一致していなければエラー
+        //reporter.pp_err_report(m_filename, (*it).lextokens.front(), pp_parse_context::Define_Duplicate);
+        return false;
+      }
+
+      //なければそのまま登録
+      m_objmacros.emplace(std::forward<PPTokenRange>(token_range));
+      return true;
+    }
+
     /**
     * @brief #lineディレクティブを実行する
     * @param reporter レポート出力オブジェクトへの参照

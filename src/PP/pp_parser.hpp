@@ -254,6 +254,15 @@ namespace kusabira::PP {
               ++it;
               break;
             case pp_parse_status::DefineVA:
+              //可変長引数として登録
+              arglist.emplace_back(u8"__VA_ARGS__");
+              //閉じかっこを探す
+              SKIP_WHITESPACE(it, end);
+              if ((*it).kind == pp_tokenize_status::OPorPunc and (*it).token == u8")") {
+                ++it;
+              } else {
+                return make_error(it, pp_parse_context::Define_Func_Disappointing_Token);
+              }
               break;
             default:
               //ここにきたらバグ
