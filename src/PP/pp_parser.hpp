@@ -17,6 +17,8 @@ namespace kusabira::PP {
     UnknownTokens,        //予期しないトークン入力、エラー
     Complete,             //1行分の完了
     FollowingSharpToken,  //#トークンを読んだ状態で戻っている、#if系のバックトラック
+    DefineVA,             //関数マクロのパース、可変長
+    DefineRparen,         //関数マクロのパース、閉じ括弧
     EndOfFile             //ファイル終端
   };
 
@@ -232,29 +234,53 @@ namespace kusabira::PP {
           return make_error(it, pp_parse_context::Define_No_Identifier);
         }
 
-        auto id_token = std::move(*it);
-        pptoken_conteiner replacement_token_list{ std::pmr::polymorphic_allocator<pp_token>(&kusabira::def_mr) };
+        //マクロ名となるトークン
+        auto macroname = std::move(*it);
 
+        //関数マクロの場合、マクロ名と開き括弧の間にスペースは入らない
+        //オブジェクトマクロは逆に必ずスペースが入る
         ++it;
-
         if ((*it).kind != pp_tokenize_status::OPorPunc) and (*it).token == u8"(" ) {
           //関数形式マクロ
-          ++it;
 
-          if (auto res = this->replacement_list(it, end, replacement_token_list); !res) return res;
+          //引数リストの取得
+          auto&& [arg_status, arglist] = this->identifier_list(it, end);
+          if (!arg_status) return arg_status;
 
-        } else if ((*it).kind != pp_tokenize_status::Whitespaces) {
+          //可変長マクロ対応と引数リストパースの終了
+          switch (*arg_status) {
+            case pp_parse_status::DefineRparen:
+              //次のトークンへ進める
+              ++it;
+              break;
+            case pp_parse_status::DefineVA:
+              break;
+            default:
+              //ここにきたらバグ
+              assert(false);
+          }
+
+          //置換リストの取得
+          auto&& [rep_status, replacement_token_list] = this->replacement_list(it, end);
+          if (!rep_status) return rep_status;
+
+          //マクロの登録
+
+          return {pp_parse_status::Complete};
+        } else if ((*it).kind == pp_tokenize_status::Whitespaces) {
           //オブジェクト形式マクロ
-          ++it;
-          if (auto res = this->replacement_list(it, end, replacement_token_list); !res) return res;
+
+          //置換リストの取得
+          auto&& [status, replacement_token_list] = this->replacement_list(it, end);
+          if (!status) return status;
           
           //マクロの登録
-          preprocessor.define((*id_token).token, replacement_list);
+          preprocessor.define((*macroname).token, std::move(replacement_token_list));
 
           return { pp_parse_status::Complete };
         } else {
           //エラー
-
+          return make_error(it, pp_parse_context::Define_Func_Disappointing_Token);
         }
       } else if (tokenstr == u8"undef") {
 
@@ -287,8 +313,11 @@ namespace kusabira::PP {
       return this->newline(it, end);
     }
 
-    fn replacement_list(iterator &it, sentinel end, pptoken_conteiner& list) -> parse_status {
-      return this->pp_tokens(it, end, list);
+    fn replacement_list(iterator &it, sentinel end) -> std::pair<parse_status, pptoken_conteiner> {
+      pptoken_conteiner list{std::pmr::polymorphic_allocator<pp_token>(&kusabira::def_mr)};
+      auto&& res = this->pp_tokens(it, end, list);
+
+      return std::make_pair(std::move(res), std::move(list));
     }
 
     fn identifier_list(iterator& it, sentinel end) -> std::pair<parse_status, std::pmr::vector<std::u8string_view>> {
@@ -301,32 +330,37 @@ namespace kusabira::PP {
       };
 
       for (;;) {
-        if (skip(it) == false) return{};
+        if (skip(it) == false) return std::make_pair(make_error(it, pp_parse_context::UnexpectedEOF), {});
 
         if ((*it).kind == pp_tokenize_status::Identifier) {
           arglist.emplace_back((*it).token);
         } else if ((*it).kind == pp_tokenize_status::OPorPunc) {
           //可変長マクロor関数マクロの終わり
-          if ((*it).token == u8"..." or (*it).token == u8")") {
-            return std::make_pair({ pp_parse_status::Complete }, std::move(arglist));
+          if ((*it).token == u8"...") {
+            return std::make_pair({pp_parse_status::DefineVA}, std::move(arglist));
+          } else if ((*it).token == u8")") {
+            return std::make_pair({pp_parse_status::DefineRparen}, std::move(arglist));
           }
+
           //エラー：現れてはいけない記号が現れている
           return std::make_pair(make_error(it, pp_parse_context::Define_Func_Disappointing_Token), {});
         } else {
           //エラー：現れるべきトークンが現れなかった
-          return std::make_pair(make_error(it, pp_parse_context::Define_Func_Disappointing_Token), {});
+          return std::make_pair(make_error(it, pp_parse_context::Define_Fuqnc_Disappointing_Token), {});
         }
 
         //カンマを探す
-        if (skip(it) == false) return{};
+        if (skip(it) == false) return std::make_pair(make_error(it, pp_parse_context::UnexpectedEOF), {});
 
         if ((*it).kind == pp_tokenize_status::OPorPunc) {
           if ((*it).token == u8",") {
+            //残りの引数リストをパースする
             ++it;
             continue;
-          } else if ((*it).token == u8")") {
+          }
+          if ((*it).token == u8")") {
             //関数マクロの終わり
-            return std::make_pair({ pp_parse_status::Complete }, std::move(arglist))
+            return std::make_pair({pp_parse_status::DefineRparen}, std::move(arglist))
           }
         }
         //エラー：現れるべきトークンが現れなかった
@@ -362,7 +396,8 @@ namespace kusabira::PP {
         return this->endif_line(it, end);
       } else {
         //各セクションパース中のエラー、status == trueとなるときはどんな時だろう？
-        return status ? make_error(it, pp_parse_context::IfSection) : status;
+        return status ? make_error(it, pp_parse_context::IfSection) :
+              status;
       }
     }
 

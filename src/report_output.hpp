@@ -19,30 +19,31 @@
 
 namespace kusabira::PP {
 
-enum class pp_parse_context : std::int8_t
-{
-  UnknownError = std::numeric_limits<std::int8_t>::min(),
-  FailedRawStrLiteralRead,           //生文字列リテラルの読み取りに失敗した、バグの可能性が高い
-  RawStrLiteralDelimiterOver16Chars, //生文字列リテラルデリミタの長さが16文字を超えた
-  RawStrLiteralDelimiterInvalid,     //生文字列リテラルデリミタに現れてはいけない文字が現れた
-  UnexpectedNewLine,                 //予期しない改行入力があった
-
-  GroupPart = 0,   // #の後で有効なトークンが現れなかった
-  IfSection,       // #ifセクションの途中で読み取り終了してしまった？
-  IfGroup_Mistake, // #ifから始まるifdef,ifndefではない間違ったトークン
-  IfGroup_Invalid, // 1つの定数式・識別子の前後、改行までの間に不正なトークンが現れている
-  ControlLine,
-  Define_No_Identifier,       //#defineの後に識別子が現れなかった
-  Define_Duplicate,           //#defineの後に識別子が現れなかった
-  Define_Func_Disappointing_Token,
-  ControlLine_Line_Num,       // #lineディレクティブの行数指定が符号なし整数値として読み取れない
-  ControlLine_Line_ManyToken, // #lineディレクティブの後ろに不要なトークンが付いてる（警告）
-
-  ElseGroup,         // 改行の前に不正なトークンが現れている
-  EndifLine_Mistake, // #endifがくるべき所に別のものが来ている
-  EndifLine_Invalid, // #endif ~ 改行までの間に不正なトークンが現れている
-  TextLine           // 改行が現れる前にファイル終端に達した？バグっぽい
-};
+  enum class pp_parse_context : std::int8_t
+  {
+    UnknownError = std::numeric_limits<std::int8_t>::min(),
+    FailedRawStrLiteralRead,           //生文字列リテラルの読み取りに失敗した、バグの可能性が高い
+    RawStrLiteralDelimiterOver16Chars, //生文字列リテラルデリミタの長さが16文字を超えた
+    RawStrLiteralDelimiterInvalid,     //生文字列リテラルデリミタに現れてはいけない文字が現れた
+    UnexpectedNewLine,                 //予期しない改行入力があった
+    UnexpectedEOF,                     //予期しない改行入力があった
+  
+    GroupPart = 0,   // #の後で有効なトークンが現れなかった
+    IfSection,       // #ifセクションの途中で読み取り終了してしまった？
+    IfGroup_Mistake, // #ifから始まるifdef,ifndefではない間違ったトークン
+    IfGroup_Invalid, // 1つの定数式・識別子の前後、改行までの間に不正なトークンが現れている
+    ControlLine,
+    Define_No_Identifier,       //#defineの後に識別子が現れなかった
+    Define_Duplicate,           //#defineの後に識別子が現れなかった
+    Define_Func_Disappointing_Token,
+    ControlLine_Line_Num,       // #lineディレクティブの行数指定が符号なし整数値として読み取れない
+    ControlLine_Line_ManyToken, // #lineディレクティブの後ろに不要なトークンが付いてる（警告）
+  
+    ElseGroup,         // 改行の前に不正なトークンが現れている
+    EndifLine_Mistake, // #endifがくるべき所に別のものが来ている
+    EndifLine_Invalid, // #endif ~ 改行までの間に不正なトークンが現れている
+    TextLine           // 改行が現れる前にファイル終端に達した？バグっぽい
+  };
 }
 
 namespace kusabira::report {
