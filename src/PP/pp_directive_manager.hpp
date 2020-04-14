@@ -9,6 +9,12 @@
 namespace kusabira::PP {
 
 
+  /**
+  * @brief 文字列リテラルトークンから文字列そのものを抽出する
+  * @param tokenstr 文字列リテラル全体のトークン（リテラルサフィックス付いててもいい）
+  * @param is_rawstr 生文字列リテラルであるか？
+  * @return 文字列部分を参照するstring_view
+  */
   ifn extract_string_from_strtoken(std::u8string_view tokenstr, bool is_rawstr) -> std::u8string_view {
     //正しい（生）文字列リテラルが入ってくることを仮定する
 
@@ -73,7 +79,84 @@ namespace kusabira::PP {
   }
 
 
+  class func_like_macro {
+    //仮引数リスト
+    std::pmr::vector<std::u8string_view> m_args;
+    //置換トークンのリスト
+    std::pmr::list<pp_token> m_tokens;
+    //可変長マクロですか？
+    bool m_is_va = false;
 
+  public:
+    template <typename T = std::pmr::vector<std::u8string_view>, typename U = std::pmr::list<pp_token>>
+    func_like_macro(T &&args, U &&tokens, bool is_va)
+        : m_args{std::forward<T>(args)}
+        , m_tokens{std::forward<U>(tokens)}
+        , m_is_va{is_va}
+    {}
+
+    fn check_args_num(const std::pmr::list<pp_token>& args) const noexcept -> bool {
+      if (m_is_va == true) {
+        //return m_args.size() <= args.size();
+        return true;
+      } else {
+        return m_args.size() == args.size();
+      }
+    }
+
+    fn operator()(const std::pmr::list<pp_token>& args) const -> std::pmr::list<pp_token> {
+      std::pmr::list<pp_token> result_list{m_tokens, std::pmr::polymorphic_allocator<pp_token>(&kusabira::def_mr)};
+      auto arg_first = std::begin(args);
+
+      auto find_index = [&m_args](auto token_str) -> std::pair<bool, std::size_t> {
+        for (auto i = 0u; i < m_args.size(); ++i) {
+          if (m_args[i] == token_str) {
+            return {true, i};
+          }
+        }
+        return {false, 0};
+      };
+
+      for (auto& idtoken : result_list) {
+        //識別子だけを相手にする
+        if (idtoken.category != identifier) continue;
+
+        //可変長マクロだったら・・・？
+        if (m_is_va and idtoken.token.to_view() == u8"__VA_ARGS__") {
+          auto [ismatch, index] = find_index(u8"__VA_ARGS__");
+          if (ismatch) {
+            //可変長実引数の先頭イテレータ
+            auto arg_it = std::next(arg_first, index);
+            //可変長引数部分をコピーしつつカンマを登録
+
+            //result_listの末尾にspliceする
+
+            //関連イテレータの更新
+          } else {
+            //エラー、可変長マクロでは無いのに__VA_ARGS__が参照された
+            //チェックは登録時にやってほしい
+            assert(false);
+          }
+        }
+
+        auto arg_it = arg_first;
+        //引数リストとのマッチを取る
+        for (auto i = 0u; i < m_args.size(); ++i) {
+          if (m_args[i] == idtoken.token.to_view()) {
+            arg_it = std::next(arg_first, i);
+            break;
+          }
+        }
+
+        //トークン文字列のみを置換
+        idtoken.token = (*arg_it).token;
+      }
+    }
+  };
+
+  /**
+  * @brief マクロの管理などプリプロセッシングディレクティブの実行を担う
+  */
   struct pp_directive_manager {
 
     using macro_map = std::pmr::unordered_map<std::u8string_view, std::pmr::list<pp_token>>;
@@ -113,13 +196,13 @@ namespace kusabira::PP {
       return true;
     }
 
-    template<typename Reporter, typename ArgList, typename PPTokenRange>
-    fn define(Reporter& reporter, std::u8string_view macro_name, ArgList&& args, PPTokenRange&& token_range) -> bool {
+    template<typename Reporter, typename ArgList, typename ReplacementList>
+    fn define(Reporter& reporter, std::u8string_view macro_name, ArgList&& args, ReplacementList&& tokenlist) -> bool {
       //関数マクロを登録する
       if (m_objmacros.contains(macro_name)) {
         //すでに登録されている場合
         //登録済みのトークン列の同一性を判定する
-        if (token_range == m_objmacros[macro_name]) return true;
+        if (tokenlist == m_objmacros[macro_name]) return true;
 
         //トークンが一致していなければエラー
         //reporter.pp_err_report(m_filename, (*it).lextokens.front(), pp_parse_context::Define_Duplicate);
@@ -127,7 +210,7 @@ namespace kusabira::PP {
       }
 
       //なければそのまま登録
-      m_objmacros.emplace(std::forward<PPTokenRange>(token_range));
+      m_objmacros.emplace(std::forward<PPTokenRange>(tokenlist));
       return true;
     }
 
