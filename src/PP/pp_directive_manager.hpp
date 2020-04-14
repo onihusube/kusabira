@@ -81,7 +81,7 @@ namespace kusabira::PP {
 
   class func_like_macro {
     //仮引数リスト
-    std::pmr::vector<std::u8string_view> m_args;
+    std::pmr::vector<std::u8string_view> m_params;
     //置換トークンのリスト
     std::pmr::list<pp_token> m_tokens;
     //可変長マクロですか？
@@ -90,67 +90,91 @@ namespace kusabira::PP {
   public:
     template <typename T = std::pmr::vector<std::u8string_view>, typename U = std::pmr::list<pp_token>>
     func_like_macro(T &&args, U &&tokens, bool is_va)
-        : m_args{std::forward<T>(args)}
+        : m_params{std::forward<T>(args)}
         , m_tokens{std::forward<U>(tokens)}
         , m_is_va{is_va}
     {}
 
     fn check_args_num(const std::pmr::list<pp_token>& args) const noexcept -> bool {
       if (m_is_va == true) {
-        //return m_args.size() <= args.size();
-        return true;
+        return (m_params.size() - 1u) <= args.size();
       } else {
-        return m_args.size() == args.size();
+        return m_params.size() == args.size();
       }
     }
 
     fn operator()(const std::pmr::list<pp_token>& args) const -> std::pmr::list<pp_token> {
+
+      using namespace std::string_view_literals;
+
+      //置換対象のトークンシーケンス
       std::pmr::list<pp_token> result_list{m_tokens, std::pmr::polymorphic_allocator<pp_token>(&kusabira::def_mr)};
+      
+      //実引数リストの先頭
       auto arg_first = std::begin(args);
 
-      auto find_index = [&m_args](auto token_str) -> std::pair<bool, std::size_t> {
-        for (auto i = 0u; i < m_args.size(); ++i) {
-          if (m_args[i] == token_str) {
+      //与えられたトークン文字列が仮引数名ならば、その実引数リスト上の位置を求める
+      auto find_param_index = [&arglist = m_params](auto token_str) -> std::pair<bool, std::size_t> {
+        for (auto i = 0u; i < arglist.size(); ++i) {
+          if (arglist[i] == token_str) {
             return {true, i};
           }
         }
         return {false, 0};
       };
 
-      for (auto& idtoken : result_list) {
+      //置換対象リストのトークン列から仮引数を見つけて置換する
+      auto last = std::end(result_list);
+      for (auto it = std::begin(result_list); it != last; ++it) {
+        auto& idtoken = *it;
+
         //識別子だけを相手にする
-        if (idtoken.category != identifier) continue;
+        if (idtoken.category != pp_token_category::identifier) continue;
 
         //可変長マクロだったら・・・？
         if (m_is_va and idtoken.token.to_view() == u8"__VA_ARGS__") {
-          auto [ismatch, index] = find_index(u8"__VA_ARGS__");
+          auto [ismatch, index] = find_param_index(u8"__VA_ARGS__");
           if (ismatch) {
             //可変長実引数の先頭イテレータ
             auto arg_it = std::next(arg_first, index);
+            //可変長実引数の置換リスト
+            std::pmr::list<pp_token> va_list{ std::pmr::polymorphic_allocator<pp_token>(&kusabira::def_mr) };
+            
             //可変長引数部分をコピーしつつカンマを登録
+            auto arg_last = std::end(args);
+            for (; arg_it != arg_last; ++arg_it) {
+              //実引数トークンの追加
+              va_list.emplace_back(*arg_it);
+              //カンマの追加
+              auto& comma = va_list.emplace_back(pp_token_category::op_or_punc);
+              comma.token = vocabulary::whimsy_str_view{ u8","sv };
+            }
+            
+            //#演算子の処理がいる？
 
-            //result_listの末尾にspliceする
+            //__VA_OPT__の処理
+
+            //result_listの今の要素を消して、可変長リストをspliceする
 
             //関連イテレータの更新
           } else {
-            //エラー、可変長マクロでは無いのに__VA_ARGS__が参照された
+            //エラー、可変長マクロでは無いのに__VA_ARGS__が参照された?
             //チェックは登録時にやってほしい
             assert(false);
           }
-        }
-
-        auto arg_it = arg_first;
-        //引数リストとのマッチを取る
-        for (auto i = 0u; i < m_args.size(); ++i) {
-          if (m_args[i] == idtoken.token.to_view()) {
-            arg_it = std::next(arg_first, i);
-            break;
+        } else {
+          //普通の関数マクロとして処理
+          auto [ismatch, index] = find_param_index(idtoken.token.to_view());
+          if (ismatch) {
+            auto arg_it = std::next(arg_first, index);
+            //トークン文字列のみを置換
+            idtoken.token = (*arg_it).token;
           }
+          //見つからないという事は関数マクロの仮引数ではなかったということ
         }
-
-        //トークン文字列のみを置換
-        idtoken.token = (*arg_it).token;
       }
+      
+      //#,##演算子の処理？
     }
   };
 
