@@ -111,7 +111,7 @@ namespace kusabira::PP {
       std::pmr::list<pp_token> result_list{m_tokens, std::pmr::polymorphic_allocator<pp_token>(&kusabira::def_mr)};
       
       //実引数リストの先頭
-      auto arg_first = std::begin(args);
+      const auto arg_first = std::begin(args);
 
       //与えられたトークン文字列が仮引数名ならば、その実引数リスト上の位置を求める
       auto find_param_index = [&arglist = m_params](auto token_str) -> std::pair<bool, std::size_t> {
@@ -124,7 +124,7 @@ namespace kusabira::PP {
       };
 
       //置換対象リストのトークン列から仮引数を見つけて置換する
-      auto last = std::end(result_list);
+      const auto last = std::end(result_list);
       for (auto it = std::begin(result_list); it != last; ++it) {
         auto& idtoken = *it;
 
@@ -136,12 +136,12 @@ namespace kusabira::PP {
           auto [ismatch, index] = find_param_index(u8"__VA_ARGS__");
           if (ismatch) {
             //可変長実引数の先頭イテレータ
-            auto arg_it = std::next(arg_first, index);
+            const auto arg_it = std::next(arg_first, index);
             //可変長実引数の置換リスト
             std::pmr::list<pp_token> va_list{ std::pmr::polymorphic_allocator<pp_token>(&kusabira::def_mr) };
             
             //可変長引数部分をコピーしつつカンマを登録
-            auto arg_last = std::end(args);
+            const auto arg_last = std::end(args);
             for (; arg_it != arg_last; ++arg_it) {
               //実引数トークンの追加
               va_list.emplace_back(*arg_it);
@@ -151,12 +151,14 @@ namespace kusabira::PP {
             }
             
             //#演算子の処理がいる？
-
-            //__VA_OPT__の処理
+            //__VA_OPT__の処理？？
 
             //result_listの今の要素を消して、可変長リストをspliceする
-
+            pos = result_list.erase(it);
             //関連イテレータの更新
+            it = std::prev(va_list.end());
+
+            result_list.splice(pos, std::move(va_list));
           } else {
             //エラー、可変長マクロでは無いのに__VA_ARGS__が参照された?
             //チェックは登録時にやってほしい
@@ -164,11 +166,13 @@ namespace kusabira::PP {
           }
         } else {
           //普通の関数マクロとして処理
-          auto [ismatch, index] = find_param_index(idtoken.token.to_view());
+          const auto [ismatch, index] = find_param_index(idtoken.token.to_view());
           if (ismatch) {
             auto arg_it = std::next(arg_first, index);
-            //トークン文字列のみを置換
+            //トークン文字列とカテゴリを置換
             idtoken.token = (*arg_it).token;
+            idtoken.category = (*arg_it).category;
+
           }
           //見つからないという事は関数マクロの仮引数ではなかったということ
         }
