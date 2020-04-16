@@ -113,7 +113,7 @@ namespace kusabira::PP {
       //実引数リストの先頭
       const auto arg_first = std::begin(args);
 
-      //与えられたトークン文字列が仮引数名ならば、その実引数リスト上の位置を求める
+      //仮引数名に対応する実引数リスト上の位置を求める
       auto find_param_index = [&arglist = m_params](auto token_str) -> std::pair<bool, std::size_t> {
         for (auto i = 0u; i < arglist.size(); ++i) {
           if (arglist[i] == token_str) {
@@ -133,10 +133,10 @@ namespace kusabira::PP {
 
         //可変長マクロだったら・・・？
         if (m_is_va and idtoken.token.to_view() == u8"__VA_ARGS__") {
-          auto [ismatch, index] = find_param_index(u8"__VA_ARGS__");
+          auto [ismatch, index] = find_param_index(u8"...");
           if (ismatch) {
             //可変長実引数の先頭イテレータ
-            const auto arg_it = std::next(arg_first, index);
+            auto arg_it = std::next(arg_first, index);
             //可変長実引数の置換リスト
             std::pmr::list<pp_token> va_list{ std::pmr::polymorphic_allocator<pp_token>(&kusabira::def_mr) };
             
@@ -154,7 +154,7 @@ namespace kusabira::PP {
             //__VA_OPT__の処理？？
 
             //result_listの今の要素を消して、可変長リストをspliceする
-            pos = result_list.erase(it);
+            auto pos = result_list.erase(it);
             //関連イテレータの更新
             it = std::prev(va_list.end());
 

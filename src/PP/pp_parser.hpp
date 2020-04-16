@@ -254,8 +254,8 @@ namespace kusabira::PP {
               ++it;
               break;
             case pp_parse_status::DefineVA:
-              //可変長引数として登録
-              arglist.emplace_back(u8"__VA_ARGS__");
+              //可変長引数を登録
+              arglist.emplace_back(u8"...");
               //閉じかっこを探す
               SKIP_WHITESPACE(it, end);
               if ((*it).kind == pp_tokenize_status::OPorPunc and (*it).token == u8")") {
@@ -330,6 +330,7 @@ namespace kusabira::PP {
     }
 
     fn identifier_list(iterator& it, sentinel end) -> std::pair<parse_status, std::pmr::vector<std::u8string_view>> {
+
       std::pmr::vector<std::u8string_view> arglist{ std::pmr::polymorphic_allocator<std::u8string_view>(&kusabira::def_mr) };
       arglist.reserve(10);
 
