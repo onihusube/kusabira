@@ -195,6 +195,13 @@ namespace kusabira::PP {
     fs::path m_replace_filename{};
     macro_map m_objmacros{pmralloc(&kusabira::def_mr)};
 
+    pp_directive_manager() = default;
+
+    pp_directive_manager(const fs::path& filename)
+      : m_filename{filename}
+      , m_replace_filename{filename}
+    {}
+
     void newline() {
       ++m_line;
     }
@@ -227,18 +234,6 @@ namespace kusabira::PP {
     template<typename Reporter, typename ArgList, typename ReplacementList>
     fn define(Reporter& reporter, std::u8string_view macro_name, ArgList&& args, ReplacementList&& tokenlist) -> bool {
       //関数マクロを登録する
-      if (m_objmacros.contains(macro_name)) {
-        //すでに登録されている場合
-        //登録済みのトークン列の同一性を判定する
-        if (tokenlist == m_objmacros[macro_name]) return true;
-
-        //トークンが一致していなければエラー
-        //reporter.pp_err_report(m_filename, (*it).lextokens.front(), pp_parse_context::Define_Duplicate);
-        return false;
-      }
-
-      //なければそのまま登録
-      m_objmacros.emplace(std::forward<PPTokenRange>(tokenlist));
       return true;
     }
 
@@ -313,10 +308,12 @@ namespace kusabira::PP {
     template<typename Reporter, typename TokensIterator, typename TokensSentinel>
     void error(Reporter& reporter, TokensIterator& it, TokensSentinel end) const {
       assert(it != end);
+      assert((*it).token == u8"error");
 
       auto err_token = std::move(*it);
       const auto &line_str = err_token.get_line_string();
 
+      //#errorの次のホワイトスペースでないトークン以降を出力
       this->skip_whitespace(it, end);
 
       if ((*it).kind != pp_tokenize_status::NewLine) {
@@ -325,7 +322,11 @@ namespace kusabira::PP {
 
         assert(col < line_str.length());
 
-        reporter.print_report({line_str.data() + col + 1, line_str.length() - (col + 1)}, m_filename, err_token);
+        //その行の文字列中の#errorディレクティブメッセージの開始位置と長さ
+        auto start_pos = line_str.data() + col;
+        std::size_t length = (line_str.data() + line_str.length()) - start_pos;
+
+        reporter.print_report({ start_pos, length }, m_filename, err_token);
       } else {
         //出力するものがない・・・
         reporter.print_report({}, m_filename, *it);

@@ -47,9 +47,6 @@ namespace kusabira_test::report
 
     //論理行保持コンテナ
     std::pmr::forward_list<logical_line> ll{};
-    //トークン列
-    std::vector<lex_token> tokens{};
-    tokens.reserve(10);
 
     auto pos = ll.before_begin();
 

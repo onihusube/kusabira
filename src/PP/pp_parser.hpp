@@ -240,7 +240,7 @@ namespace kusabira::PP {
         //関数マクロの場合、マクロ名と開き括弧の間にスペースは入らない
         //オブジェクトマクロは逆に必ずスペースが入る
         ++it;
-        if ((*it).kind != pp_tokenize_status::OPorPunc) and (*it).token == u8"(" ) {
+        if ((*it).kind != pp_tokenize_status::OPorPunc and (*it).token == u8"(" ) {
           //関数形式マクロ
 
           //引数リストの取得
@@ -284,7 +284,7 @@ namespace kusabira::PP {
           if (!status) return status;
           
           //マクロの登録
-          preprocessor.define((*macroname).token, std::move(replacement_token_list));
+          //preprocessor.define(macroname.token, std::move(replacement_token_list));
 
           return { pp_parse_status::Complete };
         } else {
@@ -340,27 +340,27 @@ namespace kusabira::PP {
       };
 
       for (;;) {
-        if (skip(it) == false) return std::make_pair(make_error(it, pp_parse_context::UnexpectedEOF), {});
+        if (skip(it) == false) return std::make_pair(make_error(it, pp_parse_context::UnexpectedEOF), std::move(arglist));
 
         if ((*it).kind == pp_tokenize_status::Identifier) {
           arglist.emplace_back((*it).token);
         } else if ((*it).kind == pp_tokenize_status::OPorPunc) {
           //可変長マクロor関数マクロの終わり
           if ((*it).token == u8"...") {
-            return std::make_pair({pp_parse_status::DefineVA}, std::move(arglist));
+            return std::make_pair(parse_status{pp_parse_status::DefineVA}, std::move(arglist));
           } else if ((*it).token == u8")") {
-            return std::make_pair({pp_parse_status::DefineRparen}, std::move(arglist));
+            return std::make_pair(parse_status{pp_parse_status::DefineRparen}, std::move(arglist));
           }
 
           //エラー：現れてはいけない記号が現れている
-          return std::make_pair(make_error(it, pp_parse_context::Define_Func_Disappointing_Token), {});
+          return std::make_pair(make_error(it, pp_parse_context::Define_Func_Disappointing_Token), std::move(arglist));
         } else {
           //エラー：現れるべきトークンが現れなかった
-          return std::make_pair(make_error(it, pp_parse_context::Define_Fuqnc_Disappointing_Token), {});
+          return std::make_pair(make_error(it, pp_parse_context::Define_Func_Disappointing_Token), std::move(arglist));
         }
 
         //カンマを探す
-        if (skip(it) == false) return std::make_pair(make_error(it, pp_parse_context::UnexpectedEOF), {});
+        if (skip(it) == false) return std::make_pair(make_error(it, pp_parse_context::UnexpectedEOF), std::move(arglist));
 
         if ((*it).kind == pp_tokenize_status::OPorPunc) {
           if ((*it).token == u8",") {
@@ -370,11 +370,11 @@ namespace kusabira::PP {
           }
           if ((*it).token == u8")") {
             //関数マクロの終わり
-            return std::make_pair({pp_parse_status::DefineRparen}, std::move(arglist))
+            return std::make_pair(parse_status{ pp_parse_status::DefineRparen }, std::move(arglist));
           }
         }
         //エラー：現れるべきトークンが現れなかった
-        return std::make_pair(make_error(it, pp_parse_context::Define_Func_Disappointing_Token), {});
+        return std::make_pair(make_error(it, pp_parse_context::Define_Func_Disappointing_Token), std::move(arglist));
       }
     }
 
