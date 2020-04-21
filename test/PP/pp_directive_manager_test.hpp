@@ -85,11 +85,11 @@ namespace kusabira_test::preprocessor
     std::pmr::forward_list<logical_line> ll{};
     //トークン列
     std::vector<lex_token> tokens{};
-    tokens.reserve(10);
+    tokens.reserve(20);
     //エラー出力先
     auto reporter = kusabira::report::reporter_factory<report::test_out>::create();
     //プリプロセッサ
-    kusabira::PP::pp_directive_manager pp{"C:\\kusabira\\test_error_directive.hpp"};
+    kusabira::PP::pp_directive_manager pp{"/kusabira/test_error_directive.hpp"};
 
     auto pos = ll.before_begin();
 
@@ -133,6 +133,81 @@ namespace kusabira_test::preprocessor
 
       CHECK_UNARY(expect_text == str);
     }
+  }
+
+  TEST_CASE("line directive test") {
+    using kusabira::PP::lex_token;
+    using kusabira::PP::logical_line;
+    using kusabira::PP::pp_token_category;
+    using kusabira::PP::pp_tokenize_result;
+    using kusabira::PP::pp_tokenize_status;
+    using kusabira::PP::pp_token;
+    using kusabira::PP::pp_token_category;
+    using namespace std::literals;
+
+    //論理行保持コンテナ
+    std::pmr::forward_list<logical_line> ll{};
+    //PPトークン列
+    std::vector<pp_token> pptokens{};
+    pptokens.reserve(20);
+    //エラー出力先
+    auto reporter = kusabira::report::reporter_factory<report::test_out>::create();
+    //プリプロセッサ
+    kusabira::PP::pp_directive_manager pp{"/kusabira/test_line_directive.hpp"};
+
+    auto pos = ll.before_begin();
+    pos = ll.emplace_after(pos, 0);
+    (*pos).line = u8"#line 1234";
+
+    //行数のみの変更
+    {
+      //字句トークン
+      lex_token lt{pp_tokenize_result{.status = pp_tokenize_status::NumberLiteral}, u8"1234", 6, pos};
+      lex_token nl{pp_tokenize_result{.status = pp_tokenize_status::NewLine}, u8"", 10, pos};
+
+      //PPトークン列
+      pptokens.emplace_back(pp_token_category::pp_number, std::move(lt));
+      pptokens.emplace_back(pp_token_category::newline, std::move(nl));
+
+      CHECK_UNARY(pp.line(*reporter, pptokens));
+
+      const auto& [linenum, filename] = pp.get_state();
+
+      CHECK_EQ(1234, linenum);
+      CHECK_EQ(filename, "test_line_directive.hpp");
+
+      auto&& str = report::test_out::extract_string();
+      CHECK_UNARY(str.empty());
+    }
+
+    pptokens.clear();
+    pos = ll.emplace_after(pos, 1);
+    (*pos).line = u8R"(#line 5678 "replace_filename.hpp")";
+
+    //行数とファイル名の変更
+    {
+      //字句トークン
+      lex_token lt1{pp_tokenize_result{.status = pp_tokenize_status::NumberLiteral}, u8"5678", 6, pos};
+      lex_token lt2{pp_tokenize_result{.status = pp_tokenize_status::StringLiteral}, u8R"("replace_filename.hpp")", 11, pos};
+      lex_token nl{pp_tokenize_result{.status = pp_tokenize_status::NewLine}, u8"", 32, pos};
+
+      //PPトークン列
+      pptokens.emplace_back(pp_token_category::pp_number, std::move(lt1));
+      pptokens.emplace_back(pp_token_category::string_literal, std::move(lt2));
+      pptokens.emplace_back(pp_token_category::newline, std::move(nl));
+
+      CHECK_UNARY(pp.line(*reporter, pptokens));
+
+      const auto& [linenum, filename] = pp.get_state();
+
+      CHECK_EQ(5678, linenum);
+      CHECK_EQ(filename, "replace_filename.hpp");
+
+      auto&& str = report::test_out::extract_string();
+      CHECK_UNARY(str.empty());
+    }
+
+    //あとマクロ展開した上で#lineディレクティブ実行する場合のテストが必要、マクロ実装後
   }
 
 } // namespace kusabira_test::preprocessor

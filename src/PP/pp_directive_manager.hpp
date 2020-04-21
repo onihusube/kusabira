@@ -199,8 +199,12 @@ namespace kusabira::PP {
 
     pp_directive_manager(const fs::path& filename)
       : m_filename{filename}
-      , m_replace_filename{filename}
+      , m_replace_filename{filename.filename()}
     {}
+
+    fn get_state() const -> std::pair<std::size_t, const fs::path&> {
+      return {m_line, m_replace_filename};
+    }
 
     void newline() {
       ++m_line;
@@ -283,7 +287,7 @@ namespace kusabira::PP {
           m_replace_filename = str;
 
           ++it;
-          if (it != end or (*it).category != pp_token_category::newline) {
+          if (it == end or (*it).category != pp_token_category::newline) {
             //ここにきた場合は未定義に当たるはずなので、警告出して継続する
             reporter.pp_err_report(m_filename, (*it).lextokens.front(), pp_parse_context::ControlLine_Line_ManyToken, report::report_category::warning);
           }
