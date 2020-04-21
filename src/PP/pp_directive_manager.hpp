@@ -2,6 +2,7 @@
 
 #include <charconv>
 #include <functional>
+#include <algorithm>
 
 #include "../common.hpp"
 #include "../report_output.hpp"
@@ -202,10 +203,6 @@ namespace kusabira::PP {
       , m_replace_filename{filename.filename()}
     {}
 
-    fn get_state() const -> std::pair<std::size_t, const fs::path&> {
-      return {m_line, m_replace_filename};
-    }
-
     void newline() {
       ++m_line;
     }
@@ -219,11 +216,18 @@ namespace kusabira::PP {
 
     template<typename Reporter, typename PPTokenRange>
     fn define(Reporter& reporter, std::u8string_view macro_name, PPTokenRange&& token_range) -> bool {
+      using std::begin;
+      using std::end;
+
       //オブジェクトマクロを登録する
       if (m_objmacros.contains(macro_name)) {
         //すでに登録されている場合
         //登録済みのトークン列の同一性を判定する
-        if (token_range == m_objmacros[macro_name]) return true;
+        //if (token_range == m_objmacros[macro_name]) return true;
+
+        auto& replist = m_objmacros[macro_name];
+        bool is_eq = std::lexicographical_compare(begin(token_range), end(token_range), begin(replist), end(replist));
+        if (is_eq) return true;
 
         //トークンが一致していなければエラー
         //reporter.pp_err_report(m_filename, (*it).lextokens.front(), pp_parse_context::Define_Duplicate);
@@ -364,6 +368,13 @@ namespace kusabira::PP {
       do {
         ++it;
       } while (it != end and (*it).kind == pp_tokenize_status::Whitespaces);
+    }
+
+    /**
+    * @brief 現在のファイル名と行番号を取得する、テスト用
+    */
+    fn get_state() const -> std::pair<std::size_t, const fs::path&> {
+      return {m_line, m_replace_filename};
     }
 
   };  

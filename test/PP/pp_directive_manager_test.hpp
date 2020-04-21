@@ -210,4 +210,41 @@ namespace kusabira_test::preprocessor
     //あとマクロ展開した上で#lineディレクティブ実行する場合のテストが必要、マクロ実装後
   }
 
+  TEST_CASE("object lile macro test") {
+
+    using kusabira::PP::lex_token;
+    using kusabira::PP::logical_line;
+    using kusabira::PP::pp_token;
+    using kusabira::PP::pp_token_category;
+    using kusabira::PP::pp_tokenize_result;
+    using kusabira::PP::pp_tokenize_status;
+    using namespace std::literals;
+
+    //論理行保持コンテナ
+    std::pmr::forward_list<logical_line> ll{};
+    //PPトークン列
+    std::vector<pp_token> pptokens{};
+    pptokens.reserve(20);
+    //エラー出力先
+    auto reporter = kusabira::report::reporter_factory<report::test_out>::create();
+    //プリプロセッサ
+    kusabira::PP::pp_directive_manager pp{"/kusabira/test_line_directive.hpp"};
+
+    auto pos = ll.before_begin();
+    pos = ll.emplace_after(pos, 0);
+    (*pos).line = u8"#define N 3";
+
+    //行数のみの変更
+    {
+      //字句トークン
+      lex_token lt1{pp_tokenize_result{.status = pp_tokenize_status::Identifier}, u8"N", 8, pos};
+      lex_token lt2{pp_tokenize_result{.status = pp_tokenize_status::NumberLiteral}, u8"1", 10, pos};
+
+      //PPトークン列
+      pptokens.emplace_back(pp_token_category::pp_number, std::move(lt2));
+
+      CHECK_UNARY(pp.define(*reporter, lt1.token, pptokens));
+    }
+  }
+
 } // namespace kusabira_test::preprocessor
