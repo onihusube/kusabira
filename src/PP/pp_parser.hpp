@@ -528,7 +528,6 @@ namespace kusabira::PP {
           {
             auto&& oppunc_list = longest_match_exception_handling(it, end);
             if (0u < oppunc_list.size()) {
-              //auto pptokens_end = --std::end(list);
               list.splice(std::end(list), std::move(oppunc_list));
             }
             if (it == end) {

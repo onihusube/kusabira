@@ -9,7 +9,6 @@
 
 namespace kusabira::PP {
 
-
   /**
   * @brief 文字列リテラルトークンから文字列そのものを抽出する
   * @param tokenstr 文字列リテラル全体のトークン（リテラルサフィックス付いててもいい）
@@ -214,20 +213,21 @@ namespace kusabira::PP {
       return {};
     }
 
-    template<typename Reporter, typename PPTokenRange>
-    fn define(Reporter& reporter, std::u8string_view macro_name, PPTokenRange&& token_range) -> bool {
+    /**
+    * @brief オブジェクトマクロを登録する
+    * @param macro_name マクロ名
+    * @param token_range 置換リスト
+    * @return 登録が恙なく完了したかどうか
+    */
+    template<typename Reporter, typename PPTokenRange = std::pmr::list<pp_token>>
+    fn define(Reporter&, std::u8string_view macro_name, PPTokenRange&& token_range) -> bool {
       using std::begin;
       using std::end;
 
-      //オブジェクトマクロを登録する
       if (m_objmacros.contains(macro_name)) {
         //すでに登録されている場合
-        //登録済みのトークン列の同一性を判定する
-        //if (token_range == m_objmacros[macro_name]) return true;
-
-        auto& replist = m_objmacros[macro_name];
-        bool is_eq = std::lexicographical_compare(begin(token_range), end(token_range), begin(replist), end(replist));
-        if (is_eq) return true;
+        //登録済みの置換リストとの同一性を判定する
+        if (token_range == m_objmacros[macro_name]) return true;
 
         //トークンが一致していなければエラー
         //reporter.pp_err_report(m_filename, (*it).lextokens.front(), pp_parse_context::Define_Duplicate);
@@ -235,11 +235,22 @@ namespace kusabira::PP {
       }
 
       //なければそのまま登録
-      m_objmacros.emplace(std::forward<PPTokenRange>(token_range));
+      m_objmacros.emplace(macro_name, std::forward<PPTokenRange>(token_range));
       return true;
     }
 
-    template<typename Reporter, typename ArgList, typename ReplacementList>
+    /**
+    * @brief マクロによる置換リストを取得する
+    * @param macro_name 識別子トークン名
+    * @return 置換リストのoptional、無効地なら置換対象ではなかった
+    */
+    fn objmacro(std::u8string_view macro_name) -> std::optional<std::pmr::list<pp_token>> {
+      if (not m_objmacros.contains(macro_name)) return std::nullopt;
+      //コピーして返す
+      return std::optional<std::pmr::list<pp_token>>{std::in_place, m_objmacros[macro_name], pmralloc(&kusabira::def_mr)};
+    }
+
+    template<typename Reporter, typename ArgList, typename ReplacementList = std::pmr::list<pp_token>>
     fn define(Reporter& reporter, std::u8string_view macro_name, ArgList&& args, ReplacementList&& tokenlist) -> bool {
       //関数マクロを登録する
       return true;

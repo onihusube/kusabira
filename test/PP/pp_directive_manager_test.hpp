@@ -210,7 +210,7 @@ namespace kusabira_test::preprocessor
     //あとマクロ展開した上で#lineディレクティブ実行する場合のテストが必要、マクロ実装後
   }
 
-  TEST_CASE("object lile macro test") {
+  TEST_CASE("object like macro test") {
 
     using kusabira::PP::lex_token;
     using kusabira::PP::logical_line;
@@ -222,9 +222,6 @@ namespace kusabira_test::preprocessor
 
     //論理行保持コンテナ
     std::pmr::forward_list<logical_line> ll{};
-    //PPトークン列
-    std::vector<pp_token> pptokens{};
-    pptokens.reserve(20);
     //エラー出力先
     auto reporter = kusabira::report::reporter_factory<report::test_out>::create();
     //プリプロセッサ
@@ -234,17 +231,61 @@ namespace kusabira_test::preprocessor
     pos = ll.emplace_after(pos, 0);
     (*pos).line = u8"#define N 3";
 
-    //行数のみの変更
+    //単純な定数定義
     {
+      //PPトークン列
+      std::pmr::list<pp_token> pptokens{&kusabira::def_mr};
+
       //字句トークン
       lex_token lt1{pp_tokenize_result{.status = pp_tokenize_status::Identifier}, u8"N", 8, pos};
-      lex_token lt2{pp_tokenize_result{.status = pp_tokenize_status::NumberLiteral}, u8"1", 10, pos};
+      lex_token lt2{pp_tokenize_result{.status = pp_tokenize_status::NumberLiteral}, u8"3", 10, pos};
 
       //PPトークン列
       pptokens.emplace_back(pp_token_category::pp_number, std::move(lt2));
 
       CHECK_UNARY(pp.define(*reporter, lt1.token, pptokens));
+
+      auto list = pp.objmacro(lt1.token);
+
+      CHECK_UNARY(bool(list));
+      CHECK_EQ(list->size(), 1u);
+      CHECK_EQ(pptokens, *list);
     }
+
+    pos = ll.emplace_after(pos, 1);
+    (*pos).line = u8"#define MACRO macro replacement test";
+
+    //長めの置換リスト
+    {
+      //PPトークン列
+      std::pmr::list<pp_token> pptokens{&kusabira::def_mr};
+
+      //字句トークン
+      lex_token lt1{pp_tokenize_result{.status = pp_tokenize_status::Identifier}, u8"MACRO", 8, pos};
+      lex_token lt2{pp_tokenize_result{.status = pp_tokenize_status::Identifier}, u8"macro", 14, pos};
+      lex_token lt3{pp_tokenize_result{.status = pp_tokenize_status::Identifier}, u8"replacement", 20, pos};
+      lex_token lt4{pp_tokenize_result{.status = pp_tokenize_status::Identifier}, u8"test", 32, pos};
+
+      //PPトークン列
+      pptokens.emplace_back(pp_token_category::identifier, std::move(lt2));
+      pptokens.emplace_back(pp_token_category::identifier, std::move(lt3));
+      pptokens.emplace_back(pp_token_category::identifier, std::move(lt4));
+
+      CHECK_UNARY(pp.define(*reporter, lt1.token, pptokens));
+
+      auto list = pp.objmacro(lt1.token);
+
+      CHECK_UNARY(bool(list));
+      CHECK_EQ(list->size(), 3u);
+      CHECK_EQ(pptokens, *list);
+    }
+
+    //適当なトークンを投げてみる
+    CHECK_EQ(pp.objmacro(u8"M"), std::nullopt);
+    CHECK_EQ(pp.objmacro(u8"NN"), std::nullopt);
+    CHECK_EQ(pp.objmacro(u8"TEST"), std::nullopt);
+    CHECK_EQ(pp.objmacro(u8"NUMBER"), std::nullopt);
+    CHECK_EQ(pp.objmacro(u8"MACRO_"), std::nullopt);
   }
 
 } // namespace kusabira_test::preprocessor
