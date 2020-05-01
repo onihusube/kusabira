@@ -131,9 +131,9 @@ namespace kusabira::PP
     {}
 
     logical_line(std::size_t line_num)
-        : line{u8_pmralloc{&kusabira::def_mr}}
+        : line{&kusabira::def_mr}
         , phisic_line{line_num}
-        , line_offset{u8_pmralloc{&kusabira::def_mr}}
+        , line_offset{&kusabira::def_mr}
     {}
 
     //論理1行の文字列
@@ -251,13 +251,13 @@ namespace kusabira::PP
 
     pp_token(pp_token_category cat)
       : category{ cat }
-      , lextokens{ std::pmr::polymorphic_allocator<lex_token>(&kusabira::def_mr) }
+      , lextokens{ &kusabira::def_mr}
     {}
 
     pp_token(pp_token_category cat, lex_token&& ltoken)
       : category{ cat }
       , token{ ltoken.token }
-      , lextokens{ std::pmr::polymorphic_allocator<lex_token>(&kusabira::def_mr) }
+      , lextokens{ &kusabira::def_mr}
     {
       lextokens.emplace_front(std::move(ltoken));
     }

@@ -89,11 +89,15 @@ namespace kusabira::PP {
 
   public:
     template <typename T = std::pmr::vector<std::u8string_view>, typename U = std::pmr::list<pp_token>>
-    func_like_macro(T &&args, U &&tokens, bool is_va)
-        : m_params{std::forward<T>(args)}
+    func_like_macro(T &&params, U &&tokens, bool is_va)
+        : m_params{std::forward<T>(params)}
         , m_tokens{std::forward<U>(tokens)}
         , m_is_va{is_va}
     {}
+
+    fn is_identical(const std::pmr::vector<std::u8string_view>& params, const std::pmr::list<pp_token>& tokens) -> bool {
+      return m_params == params and m_tokens == tokens;
+    }
 
     fn check_args_num(const std::pmr::list<pp_token>& args) const noexcept -> bool {
       if (m_is_va == true) {
@@ -188,12 +192,13 @@ namespace kusabira::PP {
   struct pp_directive_manager {
 
     using macro_map = std::pmr::unordered_map<std::u8string_view, std::pmr::list<pp_token>>;
-    using pmralloc = typename macro_map::allocator_type;
+    using funcmacro_map = std::pmr::unordered_map<std::u8string_view, func_like_macro>;
 
     std::size_t m_line = 1;
     fs::path m_filename{};
     fs::path m_replace_filename{};
-    macro_map m_objmacros{pmralloc(&kusabira::def_mr)};
+    macro_map m_objmacros{&kusabira::def_mr};
+    funcmacro_map m_funcmacros{&kusabira::def_mr};
 
     pp_directive_manager() = default;
 
@@ -247,12 +252,25 @@ namespace kusabira::PP {
     fn objmacro(std::u8string_view macro_name) -> std::optional<std::pmr::list<pp_token>> {
       if (not m_objmacros.contains(macro_name)) return std::nullopt;
       //コピーして返す
-      return std::optional<std::pmr::list<pp_token>>{std::in_place, m_objmacros[macro_name], pmralloc(&kusabira::def_mr)};
+      return std::optional<std::pmr::list<pp_token>>{std::in_place, m_objmacros[macro_name], &kusabira::def_mr};
     }
 
-    template<typename Reporter, typename ArgList, typename ReplacementList = std::pmr::list<pp_token>>
-    fn define(Reporter& reporter, std::u8string_view macro_name, ArgList&& args, ReplacementList&& tokenlist) -> bool {
+    template<typename Reporter, typename ParamList = std::pmr::vector<std::u8string_view>, typename ReplacementList = std::pmr::list<pp_token>>
+    fn define(Reporter&, std::u8string_view macro_name, ParamList&& params, ReplacementList&& tokenlist, bool is_va) -> bool {
       //関数マクロを登録する
+      using std::begin;
+      using std::end;
+
+      if (m_funcmacros.contains(macro_name)) {
+        //登録済みなら重複を調べる
+        if (m_funcmacros[macro_name].is_identical(params, tokenlist)) return true;
+
+        //仮引数列と置換リストが一致していなければエラー
+        //reporter.pp_err_report(m_filename, (*it).lextokens.front(), pp_parse_context::Define_Duplicate);
+        return false;
+      }
+
+      m_funcmacros.emplace(macro_name, std::forward<ParamList>(params), std::forward<ReplacementList>(tokenlist), is_va);
       return true;
     }
 

@@ -78,7 +78,7 @@ namespace pp_automaton_test
   TEST_CASE("punct test") {
     kusabira::PP::pp_tokenizer_sm sm{};
 
-    std::u8string onechar = u8"{}[]##()~,?:.=!+-*/%^&|<>;";
+    std::u8string onechar = u8"{}[]#()~,?:.=!+-*/%^&|<>;";
     
     //1文字記号の受理
     CHECK_UNARY_FALSE(sm.input_char(onechar.at(0)));
@@ -94,7 +94,7 @@ namespace pp_automaton_test
     CHECK_UNARY(semicolon);
     CHECK_EQ(semicolon, kusabira::PP::pp_tokenize_status::OPorPunc);
 
-    std::u8string_view twochar[] = { u8"<: ", u8":> ", u8"<% ", u8"%> ", u8"%: "/*, u8":: "*/, u8".* ", u8"-> ", u8"+= ", u8"-= ", u8"*= ", u8"/= ", u8"%= ", u8"^= ", u8"&= ", u8"|= ", u8"== ", u8"!= ", u8"<= ", u8">= ", u8"&& ", u8"|| ", u8"<< ", u8">> " };
+    std::u8string_view twochar[] = { u8"<: ", u8":> ", u8"<% ", u8"%> ", u8"%: "/*, u8":: "*/, u8".* ", u8"-> ", u8"+= ", u8"-= ", u8"*= ", u8"/= ", u8"%= ", u8"^= ", u8"&= ", u8"|= ", u8"== ", u8"!= ", u8"<= ", u8">= ", u8"&& ", u8"|| ", u8"<< ", u8">> ", u8"## " };
 
     //2文字記号の受理
     for (auto op : twochar) {

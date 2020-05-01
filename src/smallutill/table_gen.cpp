@@ -4,7 +4,7 @@
 
 //1文字目の入力に対するテーブル生成
 int table0(unsigned char c) {
-  if (c == '{' || c == '}' || c == '[' || c == ']' || c == '#' || c == '(' || c == ')' || c == ';' || c == '?' || c == ',' || c == '~') {
+  if (c == '{' || c == '}' || c == '[' || c == ']' || c == '(' || c == ')' || c == ';' || c == '?' || c == ',' || c == '~') {
     //1文字記号
     return 0;
   } else if (c == '=' || c == '*' || c == '/' || c == '^' || c == '!' ) {
@@ -37,6 +37,9 @@ int table0(unsigned char c) {
   } else if (c == '.') {
     //.から始まる記号
     return 10;
+  } else if (c == '#') {
+    // # or ##
+    return 14;
   } else {
     //その他の記号
     return -1;
@@ -201,6 +204,17 @@ int table13(unsigned char c) {
   }
 }
 
+//#,##のテーブル
+int table14(unsigned char c) {
+  if (c == '#') {
+    //##
+    return 0;
+  } else {
+    //その他の記号
+    return -1;
+  }
+}
+
 void table_generate(int(*table)(unsigned char), int tilde = -1) {
   std::cout << "{";
   //制御文字33文字を飛ばす、!からスタート
@@ -248,4 +262,6 @@ int main()
   table_generate(table12);
   std::cout << "," << std::endl;
   table_generate(table13);
+  std::cout << "," << std::endl;
+  table_generate(table14);
 }

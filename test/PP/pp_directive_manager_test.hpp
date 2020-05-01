@@ -288,4 +288,23 @@ namespace kusabira_test::preprocessor
     CHECK_EQ(pp.objmacro(u8"MACRO_"), std::nullopt);
   }
 
+
+  TEST_CASE("function like macro") {
+
+    using kusabira::PP::lex_token;
+    using kusabira::PP::logical_line;
+    using kusabira::PP::pp_token;
+    using kusabira::PP::pp_token_category;
+    using kusabira::PP::pp_tokenize_result;
+    using kusabira::PP::pp_tokenize_status;
+    using namespace std::literals;
+
+    //論理行保持コンテナ
+    std::pmr::forward_list<logical_line> ll{};
+    //エラー出力先
+    auto reporter = kusabira::report::reporter_factory<report::test_out>::create();
+    //プリプロセッサ
+    kusabira::PP::pp_directive_manager pp{"/kusabira/test_funcmacro.hpp"};
+  }
+
 } // namespace kusabira_test::preprocessor

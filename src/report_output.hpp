@@ -161,7 +161,7 @@ namespace kusabira::report {
     * @details これをオーバライドすることで、多言語対応する（やるかはともかく・・・
     */
     [[nodiscard]]
-    virtual auto pp_context_to_message(PP::pp_parse_context context) const -> std::u8string_view {
+    virtual auto pp_context_to_message_impl(PP::pp_parse_context context) const -> std::u8string_view {
       using std::end;
 
       auto it = pp_err_message_en.find(context);
@@ -170,6 +170,16 @@ namespace kusabira::report {
       assert(it != end(pp_err_message_en));
 
       return (*it).second;
+    }
+
+    [[nodiscard]]
+    auto pp_context_to_message(PP::pp_parse_context context) const -> std::u8string_view {
+      auto message = this->pp_context_to_message_impl(context);
+      if (message.empty()) {
+        //英語メッセージにフォールバック
+        message = ireporter::pp_err_message_en.at(context);
+      }
+      return message;
     }
 
   public:
@@ -234,14 +244,13 @@ namespace kusabira::report {
       {PP::pp_parse_context::ControlLine_Line_ManyToken , u8"#lineディレクティブの後に不要なトークンがあります。"}
     };
 
-    fn pp_context_to_message(PP::pp_parse_context context) const -> std::u8string_view override {
+    fn pp_context_to_message_impl(PP::pp_parse_context context) const -> std::u8string_view override {
       using std::end;
 
-      //日本語メッセージがなければ英語メッセージを取得
       if (auto it = pp_err_message_ja.find(context); it != end(pp_err_message_ja)) {
         return (*it).second;
       } else {
-        return ireporter<Destination>::pp_err_message_en.at(context);
+        return {};
       }
     }
   };
