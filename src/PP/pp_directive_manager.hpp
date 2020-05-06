@@ -107,27 +107,42 @@ namespace kusabira::PP {
       }
     }
 
-    fn operator()(const std::pmr::list<pp_token>& args) const -> std::pmr::list<pp_token> {
-
-      using namespace std::string_view_literals;
-
-      //置換対象のトークンシーケンス
-      std::pmr::list<pp_token> result_list{m_tokens, std::pmr::polymorphic_allocator<pp_token>(&kusabira::def_mr)};
-      
+    template<typename F>
+    fn func_macro_impl(const std::pmr::list<pp_token>& args, F&& find_param_index) const -> std::pmr::list<pp_token> {
+      //置換対象のトークンシーケンスをコピー（終了後そのまま置換結果となる）
+      std::pmr::list<pp_token> result_list{ m_tokens, &kusabira::def_mr };
       //実引数リストの先頭
       const auto arg_first = std::begin(args);
 
-      //仮引数名に対応する実引数リスト上の位置を求める
-      auto find_param_index = [&arglist = m_params](auto token_str) -> std::pair<bool, std::size_t> {
-        for (auto i = 0u; i < arglist.size(); ++i) {
-          if (arglist[i] == token_str) {
-            return {true, i};
-          }
-        }
-        return {false, 0};
-      };
+      //result_listを先頭から見て、仮引数名が現れたら対応する位置の実引数へと置換する
+      for (auto& rep_token : result_list) {
+        //識別子だけを見る
+        if (rep_token.category != pp_token_category::identifier) continue;
 
-      //置換対象リストのトークン列から仮引数を見つけて置換する
+        const auto [ismatch, index] = find_param_index(rep_token.token.to_view());
+        //仮引数名ではないから次
+        if (not ismatch) continue;
+
+        //対応する実引数を指すイテレータを取得
+        auto arg_it = std::next(arg_first, index);
+        //トークン文字列とカテゴリを置換
+        rep_token.token = (*arg_it).token;
+        rep_token.category = (*arg_it).category;
+      }
+
+      return result_list;
+    }
+
+    template<typename F>
+    fn va_macro_impl(const std::pmr::list<pp_token>& args, F&& find_param_index) const -> std::pmr::list<pp_token> {
+      using namespace std::string_view_literals;
+
+      //置換対象のトークンシーケンスをコピー（終了後そのまま置換結果となる）
+      std::pmr::list<pp_token> result_list{ m_tokens, std::pmr::polymorphic_allocator<pp_token>(&kusabira::def_mr) };
+      //実引数リストの先頭
+      const auto arg_first = std::begin(args);
+
+      //result_listを先頭から見て、仮引数名が現れたら対応する位置の実引数へと置換する
       const auto last = std::end(result_list);
       for (auto it = std::begin(result_list); it != last; ++it) {
         auto& idtoken = *it;
@@ -136,14 +151,14 @@ namespace kusabira::PP {
         if (idtoken.category != pp_token_category::identifier) continue;
 
         //可変長マクロだったら・・・？
-        if (m_is_va and idtoken.token.to_view() == u8"__VA_ARGS__") {
+        if (idtoken.token.to_view() == u8"__VA_ARGS__") {
           auto [ismatch, index] = find_param_index(u8"...");
           if (ismatch) {
             //可変長実引数の先頭イテレータ
             auto arg_it = std::next(arg_first, index);
             //可変長実引数の置換リスト
             std::pmr::list<pp_token> va_list{ std::pmr::polymorphic_allocator<pp_token>(&kusabira::def_mr) };
-            
+
             //可変長引数部分をコピーしつつカンマを登録
             const auto arg_last = std::end(args);
             for (; arg_it != arg_last; ++arg_it) {
@@ -153,7 +168,7 @@ namespace kusabira::PP {
               auto& comma = va_list.emplace_back(pp_token_category::op_or_punc);
               comma.token = vocabulary::whimsy_str_view{ u8","sv };
             }
-            
+
             //#演算子の処理がいる？
             //__VA_OPT__の処理？？
 
@@ -168,21 +183,29 @@ namespace kusabira::PP {
             //チェックは登録時にやってほしい
             assert(false);
           }
-        } else {
-          //普通の関数マクロとして処理
-          const auto [ismatch, index] = find_param_index(idtoken.token.to_view());
-          if (ismatch) {
-            auto arg_it = std::next(arg_first, index);
-            //トークン文字列とカテゴリを置換
-            idtoken.token = (*arg_it).token;
-            idtoken.category = (*arg_it).category;
-
-          }
-          //見つからないという事は関数マクロの仮引数ではなかったということ
         }
       }
-      
-      //#,##演算子の処理？
+
+      return result_list;
+    }
+
+    fn operator()(const std::pmr::list<pp_token>& args) const -> std::pmr::list<pp_token> {
+      //仮引数名に対応する実引数リスト上の位置を求めるやつ
+      auto find_param_index = [&arglist = m_params](auto token_str) -> std::pair<bool, std::size_t> {
+        for (auto i = 0u; i < arglist.size(); ++i) {
+          if (arglist[i] == token_str) {
+            return {true, i};
+          }
+        }
+        return {false, 0};
+      };
+
+      //可変引数マクロと処理を分ける
+      if (m_is_va) {
+        return this->va_macro_impl(args, find_param_index);
+      } else {
+        return this->func_macro_impl(args, find_param_index);
+      }
     }
   };
 
