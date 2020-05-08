@@ -254,12 +254,13 @@ namespace kusabira::PP
       , lextokens{ &kusabira::def_mr}
     {}
 
-    pp_token(pp_token_category cat, lex_token&& ltoken)
+    template<typename Token = lex_token>
+    pp_token(pp_token_category cat, Token&& ltoken)
       : category{ cat }
       , token{ ltoken.token }
       , lextokens{ &kusabira::def_mr}
     {
-      lextokens.emplace_front(std::move(ltoken));
+      lextokens.emplace_front(std::forward<Token>(ltoken));
     }
 
     /**
