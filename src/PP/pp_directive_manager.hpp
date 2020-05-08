@@ -95,7 +95,7 @@ namespace kusabira::PP {
         , m_is_va{is_va}
     {}
 
-    fn is_identical(const std::pmr::vector<std::u8string_view>& params, const std::pmr::list<pp_token>& tokens) -> bool {
+    fn is_identical(const std::pmr::vector<std::u8string_view>& params, const std::pmr::list<pp_token>& tokens) const -> bool {
       return m_params == params and m_tokens == tokens;
     }
 
@@ -247,23 +247,18 @@ namespace kusabira::PP {
     * @param token_range 置換リスト
     * @return 登録が恙なく完了したかどうか
     */
-    template<typename Reporter, typename PPTokenRange = std::pmr::list<pp_token>>
-    fn define(Reporter&, std::u8string_view macro_name, PPTokenRange&& token_range) -> bool {
-      using std::begin;
-      using std::end;
+    template<typename Reporter, typename ReplacementList = std::pmr::list<pp_token>>
+    fn define(Reporter&, std::u8string_view macro_name, ReplacementList&& tokenlist) -> bool {
+      const auto [pos, is_registered] = m_objmacros.try_emplace(macro_name, std::forward<ReplacementList>(tokenlist));
 
-      if (m_objmacros.contains(macro_name)) {
-        //すでに登録されている場合
-        //登録済みの置換リストとの同一性を判定する
-        if (token_range == m_objmacros[macro_name]) return true;
-
+      if (not is_registered) {
+        //すでに登録されている場合、登録済みの置換リストとの同一性を判定する
+        if ((*pos).second == tokenlist) return true;
         //トークンが一致していなければエラー
         //reporter.pp_err_report(m_filename, (*it).lextokens.front(), pp_parse_context::Define_Duplicate);
         return false;
       }
 
-      //なければそのまま登録
-      m_objmacros.emplace(macro_name, std::forward<PPTokenRange>(token_range));
       return true;
     }
 
@@ -273,28 +268,50 @@ namespace kusabira::PP {
     * @return 置換リストのoptional、無効地なら置換対象ではなかった
     */
     fn objmacro(std::u8string_view macro_name) -> std::optional<std::pmr::list<pp_token>> {
-      if (not m_objmacros.contains(macro_name)) return std::nullopt;
+      using std::end;
+      const auto pos = m_objmacros.find(macro_name);
+      if (pos == end(m_objmacros)) return std::nullopt;
       //コピーして返す
-      return std::optional<std::pmr::list<pp_token>>{std::in_place, m_objmacros[macro_name], &kusabira::def_mr};
+      return std::optional<std::pmr::list<pp_token>>{std::in_place, (*pos).second, &kusabira::def_mr};
     }
 
     template<typename Reporter, typename ParamList = std::pmr::vector<std::u8string_view>, typename ReplacementList = std::pmr::list<pp_token>>
     fn define(Reporter&, std::u8string_view macro_name, ParamList&& params, ReplacementList&& tokenlist, bool is_va) -> bool {
       //関数マクロを登録する
-      using std::begin;
-      using std::end;
+      const auto [pos, is_registered] = m_funcmacros.try_emplace(macro_name, std::forward<ParamList>(params), std::forward<ReplacementList>(tokenlist), is_va);
 
-      if (m_funcmacros.contains(macro_name)) {
-        //登録済みなら重複を調べる
-        if (m_funcmacros[macro_name].is_identical(params, tokenlist)) return true;
-
+      if (not is_registered) {
+        if ((*pos).second.is_identical(params, tokenlist)) return true;
         //仮引数列と置換リストが一致していなければエラー
         //reporter.pp_err_report(m_filename, (*it).lextokens.front(), pp_parse_context::Define_Duplicate);
         return false;
       }
 
-      m_funcmacros.emplace(macro_name, std::forward<ParamList>(params), std::forward<ReplacementList>(tokenlist), is_va);
       return true;
+    }
+
+    /**
+    * @brief 関数マクロによる置換リストを取得する
+    * @param macro_name マクロ名
+    * @param args 関数マクロの実引数トークン列
+    * @return {仮引数の数と実引数の数があったか否か, 置換リストのoptional}
+    */
+    fn funcmacro(std::u8string_view macro_name, const std::pmr::list<pp_token>& args) -> std::pair<bool, std::optional<std::pmr::list<pp_token>>> {
+      using std::end;
+
+      const auto pos = m_funcmacros.find(macro_name);
+      if (pos == end(m_funcmacros)) return {true, std::nullopt};
+
+      const auto& funcmacro = (*pos).second;
+
+      //引数長さのチェック、ここでエラーにしたい
+      if (not funcmacro.check_args_num(args)) return {false, std::nullopt};
+
+      //置換結果取得
+      auto&& result = funcmacro(args);
+
+      //optionalで包んで返す
+      return {true, std::optional<std::pmr::list<pp_token>>{std::in_place, std::move(result), &kusabira::def_mr}};
     }
 
     /**

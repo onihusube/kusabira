@@ -305,6 +305,51 @@ namespace kusabira_test::preprocessor
     auto reporter = kusabira::report::reporter_factory<report::test_out>::create();
     //プリプロセッサ
     kusabira::PP::pp_directive_manager pp{"/kusabira/test_funcmacro.hpp"};
+
+    auto pos = ll.before_begin();
+    pos = ll.emplace_after(pos, 0);
+    (*pos).line = u8"#define max(a, b) ((a) > (b) ? (a) : (b))";
+    pos = ll.emplace_after(pos, 1);
+    (*pos).line = u8"max(1, 2)";
+
+    {
+      //仮引数列と置換リスト
+      std::pmr::vector<std::u8string_view> params{&kusabira::def_mr};
+      std::pmr::list<pp_token> rep_list{&kusabira::def_mr};
+
+      //字句トークン
+      lex_token lt1{pp_tokenize_result{.status = pp_tokenize_status::Identifier}, u8"func", 8, pos};
+      //lex_token lt2{pp_tokenize_result{.status = pp_tokenize_status::OPorPunc}, u8"(", 12, pos};
+      lex_token lt3{pp_tokenize_result{.status = pp_tokenize_status::NumberLiteral}, u8"arg", 13, pos};
+     // lex_token lt4{pp_tokenize_result{.status = pp_tokenize_status::OPorPunc}, u8")", 16, pos};
+      lex_token lt5{pp_tokenize_result{.status = pp_tokenize_status::Identifier}, u8"arg", 18, pos};
+
+      //マクロ仮引数
+      params.emplace_back(lt3.token);
+      //置換リスト
+      rep_list.emplace_back(pp_token_category::identifier, std::move(lt5));
+
+      //関数マクロ登録
+      CHECK_UNARY(pp.define(*reporter, lt1.token, params, rep_list, false));
+
+      //実引数リスト
+      std::pmr::list<pp_token> args{&kusabira::def_mr};
+      args.emplace_back(
+        pp_token_category::pp_number,
+        lex_token{pp_tokenize_result{.status = pp_tokenize_status::NumberLiteral}, u8"1", 5, pos}
+      );
+
+      //関数マクロ実行
+      const auto [is_success, result] = pp.funcmacro(lt1.token, args);
+
+      CHECK_UNARY(is_success);
+      REQUIRE_UNARY(bool(result));
+      CHECK_EQ(1u, result->size());
+
+      auto res1 = result->front();
+      CHECK_EQ(res1.category, pp_token_category::pp_number);
+      CHECK_UNARY(res1.token == u8"1"sv);
+    }
   }
 
 } // namespace kusabira_test::preprocessor
