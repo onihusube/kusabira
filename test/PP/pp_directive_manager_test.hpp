@@ -319,11 +319,11 @@ namespace kusabira_test::preprocessor
       //lex_token lt{ pp_tokenize_result{.status = pp_tokenize_status::OPorPunc}, u8"#", 0, pos };
       //lex_token lt0{ pp_tokenize_result{.status = pp_tokenize_status::Identifier}, u8"define", 1, pos };
       lex_token lt1 { pp_tokenize_result{.status = pp_tokenize_status::Identifier}, u8"max", 8, pos};
-      lex_token lt2 { pp_tokenize_result{.status = pp_tokenize_status::OPorPunc}, u8"(", 11, pos};
+      //lex_token lt2 { pp_tokenize_result{.status = pp_tokenize_status::OPorPunc}, u8"(", 11, pos};
       lex_token lt3 { pp_tokenize_result{.status = pp_tokenize_status::Identifier}, u8"a", 12, pos };
-      lex_token lt4 { pp_tokenize_result{.status = pp_tokenize_status::OPorPunc}, u8",", 13, pos };
+      //lex_token lt4 { pp_tokenize_result{.status = pp_tokenize_status::OPorPunc}, u8",", 13, pos };
       lex_token lt5 { pp_tokenize_result{.status = pp_tokenize_status::Identifier}, u8"b", 15, pos};
-      lex_token lt6 { pp_tokenize_result{.status = pp_tokenize_status::OPorPunc}, u8")", 16, pos};
+      //lex_token lt6 { pp_tokenize_result{.status = pp_tokenize_status::OPorPunc}, u8")", 16, pos};
       lex_token lt7 { pp_tokenize_result{.status = pp_tokenize_status::OPorPunc}, u8"(", 18, pos };
       lex_token lt8 { pp_tokenize_result{.status = pp_tokenize_status::OPorPunc}, u8"(", 19, pos };
       lex_token lt9 { pp_tokenize_result{.status = pp_tokenize_status::Identifier}, u8"a", 20, pos };
@@ -418,6 +418,10 @@ namespace kusabira_test::preprocessor
 
       //一部でも違うと失敗
       params.pop_back();
+      CHECK_UNARY_FALSE(pp.define(*reporter, lt1.token, params, rep_list, false));
+
+      params.emplace_back(lt5.token);
+      rep_list.pop_back();
       CHECK_UNARY_FALSE(pp.define(*reporter, lt1.token, params, rep_list, false));
     }
 

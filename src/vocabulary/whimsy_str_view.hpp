@@ -9,7 +9,7 @@ namespace kusabira::vocabulary {
 
   /**
   * @brief 基本は文字列を参照し、必要なら所有権を保有する、そんな文字列型
-  * @detail 基本的に初期化後に書き換えることは考えないので、メンバ関数は最小限
+  * @details 基本的に初期化後に書き換えることは考えないので、メンバ関数は最小限
   */
   template<typename CharT = char8_t, typename Allocator = std::pmr::polymorphic_allocator<CharT>>
   class whimsy_str_view {
@@ -65,7 +65,7 @@ namespace kusabira::vocabulary {
     /**
     * @brief stringからのコピーコンストラクタ
     */
-    whimsy_str_view(const string_t& str) noexcept(std::is_nothrow_copy_constructible_v<string_t>) : m_string(str), m_is_view(false) {}
+    explicit whimsy_str_view(const string_t& str) noexcept(std::is_nothrow_copy_constructible_v<string_t>) : m_string(str), m_is_view(false) {}
 
     /**
     * @brief stringからのムーブコンストラクタ
@@ -109,6 +109,27 @@ namespace kusabira::vocabulary {
       if (this != &other) {
         swap(*this, other);
       }
+
+      return *this;
+    }
+
+    whimsy_str_view& operator=(whimsy_str_view::strview_t view) & {
+      whimsy_str_view copy{ view };
+      swap(*this, copy);
+
+      return *this;
+    }
+
+    whimsy_str_view& operator=(const whimsy_str_view::string_t& str) & {
+      whimsy_str_view copy{ str };
+      swap(*this, copy);
+
+      return *this;
+    }
+
+    whimsy_str_view& operator=(whimsy_str_view::string_t&& str) & noexcept {
+      whimsy_str_view move{ std::move(str) };
+      swap(*this, move);
 
       return *this;
     }
@@ -192,7 +213,7 @@ namespace kusabira::vocabulary {
 
     /**
     * @brief 2つのwhimsy_str_viewを入れ替える
-    * @detail std::stringのコピー操作が入らないので例外は投げないはず・・・
+    * @details std::stringのコピー操作が入らないので例外は投げないはず・・・
     */
     friend void swap(whimsy_str_view& lhs, whimsy_str_view& rhs) noexcept {
       if (lhs.m_is_view) {
@@ -286,6 +307,15 @@ namespace kusabira::vocabulary {
     [[nodiscard]] friend auto operator==(const whimsy_str_view& lhs, const whimsy_str_view& rhs) noexcept -> bool {
       return lhs.to_view() == rhs;
     }
+
+    [[nodiscard]] friend auto operator==(const whimsy_str_view& lhs, const whimsy_str_view::string_t& rhs) noexcept -> bool {
+      return lhs.to_view() == rhs;
+    }
+
+    [[nodiscard]] friend auto operator==(const whimsy_str_view& lhs, whimsy_str_view::strview_t rhs) noexcept -> bool {
+      return lhs.to_view() == rhs;
+    }
+
 
 //#ifdef __cpp_impl_three_way_comparison
 //

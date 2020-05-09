@@ -90,8 +90,8 @@ namespace kusabira::PP {
   public:
     template <typename T = std::pmr::vector<std::u8string_view>, typename U = std::pmr::list<pp_token>>
     func_like_macro(T &&params, U &&tokens, bool is_va)
-        : m_params{std::forward<T>(params)}
-        , m_tokens{std::forward<U>(tokens)}
+        : m_params{ std::forward<T>(params), &kusabira::def_mr }
+        , m_tokens{ std::forward<U>(tokens), &kusabira::def_mr }
         , m_is_va{is_va}
     {}
 
@@ -107,6 +107,20 @@ namespace kusabira::PP {
       }
     }
 
+    template<typename It, typename F>
+    static void normal_token_replace(PP::pp_token& rep_token, const It arg_first, F&& find_param_index) {
+
+      const auto [ismatch, index] = find_param_index(rep_token.token.to_view());
+      //仮引数名ではないから次
+      if (not ismatch) return;
+
+      //対応する実引数を指すイテレータを取得
+      auto arg_it = std::next(arg_first, index);
+      //トークン文字列とカテゴリを置換
+      rep_token.token = (*arg_it).token;
+      rep_token.category = (*arg_it).category;
+    }
+
     template<typename F>
     fn func_macro_impl(const std::pmr::list<pp_token>& args, F&& find_param_index) const -> std::pmr::list<pp_token> {
       //置換対象のトークンシーケンスをコピー（終了後そのまま置換結果となる）
@@ -118,16 +132,8 @@ namespace kusabira::PP {
       for (auto& rep_token : result_list) {
         //識別子だけを見る
         if (rep_token.category != pp_token_category::identifier) continue;
-
-        const auto [ismatch, index] = find_param_index(rep_token.token.to_view());
-        //仮引数名ではないから次
-        if (not ismatch) continue;
-
-        //対応する実引数を指すイテレータを取得
-        auto arg_it = std::next(arg_first, index);
-        //トークン文字列とカテゴリを置換
-        rep_token.token = (*arg_it).token;
-        rep_token.category = (*arg_it).category;
+        //1つトークンの置換
+        normal_token_replace(rep_token, arg_first, find_param_index);
       }
 
       return result_list;
@@ -145,13 +151,13 @@ namespace kusabira::PP {
       //result_listを先頭から見て、仮引数名が現れたら対応する位置の実引数へと置換する
       const auto last = std::end(result_list);
       for (auto it = std::begin(result_list); it != last; ++it) {
-        auto& idtoken = *it;
+        auto& rep_token = *it;
 
         //識別子だけを相手にする
-        if (idtoken.category != pp_token_category::identifier) continue;
+        if (rep_token.category != pp_token_category::identifier) continue;
 
         //可変長マクロだったら・・・？
-        if (idtoken.token.to_view() == u8"__VA_ARGS__") {
+        if (rep_token.token.to_view() == u8"__VA_ARGS__") {
           auto [ismatch, index] = find_param_index(u8"...");
           if (ismatch) {
             //可変長実引数の先頭イテレータ
@@ -166,7 +172,7 @@ namespace kusabira::PP {
               va_list.emplace_back(*arg_it);
               //カンマの追加
               auto& comma = va_list.emplace_back(pp_token_category::op_or_punc);
-              comma.token = vocabulary::whimsy_str_view{ u8","sv };
+              comma.token = u8","sv;
             }
 
             //#演算子の処理がいる？
@@ -183,6 +189,9 @@ namespace kusabira::PP {
             //チェックは登録時にやってほしい
             assert(false);
           }
+        } else {
+          //VA_ARGS以外の置換処理
+          normal_token_replace(rep_token, arg_first, find_param_index);
         }
       }
 
@@ -267,7 +276,7 @@ namespace kusabira::PP {
     * @param macro_name 識別子トークン名
     * @return 置換リストのoptional、無効地なら置換対象ではなかった
     */
-    fn objmacro(std::u8string_view macro_name) -> std::optional<std::pmr::list<pp_token>> {
+    fn objmacro(std::u8string_view macro_name) const -> std::optional<std::pmr::list<pp_token>> {
       using std::end;
       const auto pos = m_objmacros.find(macro_name);
       if (pos == end(m_objmacros)) return std::nullopt;
@@ -296,7 +305,7 @@ namespace kusabira::PP {
     * @param args 関数マクロの実引数トークン列
     * @return {仮引数の数と実引数の数があったか否か, 置換リストのoptional}
     */
-    fn funcmacro(std::u8string_view macro_name, const std::pmr::list<pp_token>& args) -> std::pair<bool, std::optional<std::pmr::list<pp_token>>> {
+    fn funcmacro(std::u8string_view macro_name, const std::pmr::list<pp_token>& args) const -> std::pair<bool, std::optional<std::pmr::list<pp_token>>> {
       using std::end;
 
       const auto pos = m_funcmacros.find(macro_name);
