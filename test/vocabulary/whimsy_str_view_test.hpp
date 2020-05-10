@@ -6,7 +6,7 @@
 namespace kusabira::whimsy_str_view_test {
 
   using u8whimsy_str_view = kusabira::vocabulary::whimsy_str_view<>;
-  using namespace std::literals;
+  using namespace std::string_view_literals;
 
   TEST_CASE("construct test") {
     {
@@ -90,6 +90,88 @@ namespace kusabira::whimsy_str_view_test {
       CHECK_UNARY(bool(string));
 
       CHECK_UNARY(string == u8"test move string to string"sv);
+    }
+  }
+
+  TEST_CASE("assignment test") {
+
+    const std::pmr::u8string str = u8"assignment test";
+    std::u8string_view view{ str };
+
+    //コピー代入
+    {
+      u8whimsy_str_view tmp(str);
+      u8whimsy_str_view copy{};
+
+      copy = tmp;
+
+      CHECK_UNARY(copy.has_own_string());
+      CHECK_UNARY(bool(copy));
+
+      CHECK_UNARY(copy == str);
+
+      tmp = view;
+      copy = tmp;
+
+      CHECK_UNARY_FALSE(copy.has_own_string());
+      CHECK_UNARY_FALSE(bool(copy));
+
+      CHECK_UNARY(copy == view);
+    }
+
+    //ムーブ代入
+    {
+      u8whimsy_str_view move{};
+
+      move = u8whimsy_str_view(str);
+
+      CHECK_UNARY(move.has_own_string());
+      CHECK_UNARY(bool(move));
+
+      CHECK_UNARY(move == str);
+
+      move = u8whimsy_str_view(view);
+
+      CHECK_UNARY_FALSE(move.has_own_string());
+      CHECK_UNARY_FALSE(bool(move));
+
+      CHECK_UNARY(move == view);
+    }
+
+    //std::stringのコピー代入
+    {
+      u8whimsy_str_view copy{};
+
+      copy = str;
+
+      CHECK_UNARY(copy.has_own_string());
+      CHECK_UNARY(bool(copy));
+
+      CHECK_UNARY(copy == str);
+    }
+
+    //std::stringのムーブ代入
+    {
+      u8whimsy_str_view move{};
+
+      move = std::pmr::u8string{ str };
+
+      CHECK_UNARY(move.has_own_string());
+      CHECK_UNARY(bool(move));
+
+      CHECK_UNARY(move == str);
+    }
+
+    //std::string_viewの代入
+    {
+      u8whimsy_str_view copy{};
+
+      copy = view;
+
+      CHECK_UNARY_FALSE(copy.has_own_string());
+      CHECK_UNARY_FALSE(bool(copy));
+
+      CHECK_UNARY(copy == str);
     }
   }
 
@@ -237,6 +319,22 @@ namespace kusabira::whimsy_str_view_test {
       }
 
     }
+  }
+
+  TEST_CASE("comparison test") {
+    const std::pmr::u8string str = u8"comparison test";
+    const std::u8string_view view{ str };
+    const u8whimsy_str_view wview{ str };
+
+    CHECK_UNARY(wview == str);
+    CHECK_UNARY(wview == view);
+    CHECK_UNARY(wview == wview);
+
+    const u8whimsy_str_view neq{u8"comparison test not equal"sv};
+
+    CHECK_UNARY_FALSE(neq == str);
+    CHECK_UNARY_FALSE(neq == view);
+    CHECK_UNARY_FALSE(neq == wview);
   }
 
 }

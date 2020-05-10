@@ -308,10 +308,6 @@ namespace kusabira::vocabulary {
       return lhs.to_view() == rhs;
     }
 
-    [[nodiscard]] friend auto operator==(const whimsy_str_view& lhs, const whimsy_str_view::string_t& rhs) noexcept -> bool {
-      return lhs.to_view() == rhs;
-    }
-
     [[nodiscard]] friend auto operator==(const whimsy_str_view& lhs, whimsy_str_view::strview_t rhs) noexcept -> bool {
       return lhs.to_view() == rhs;
     }

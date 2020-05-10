@@ -443,4 +443,79 @@ namespace kusabira_test::preprocessor
     }
   }
 
+  TEST_CASE("VA macro") {
+    using kusabira::PP::lex_token;
+    using kusabira::PP::logical_line;
+    using kusabira::PP::pp_token;
+    using kusabira::PP::pp_token_category;
+    using kusabira::PP::pp_tokenize_result;
+    using kusabira::PP::pp_tokenize_status;
+    using namespace std::literals;
+
+    //論理行保持コンテナ
+    std::pmr::forward_list<logical_line> ll{};
+    //エラー出力先
+    auto reporter = kusabira::report::reporter_factory<report::test_out>::create();
+    //プリプロセッサ
+    kusabira::PP::pp_directive_manager pp{ "/kusabira/test_vamacro.hpp" };
+
+    auto pos = ll.before_begin();
+    pos = ll.emplace_after(pos, 0);
+    (*pos).line = u8"#define F(...) f(__VA_ARGS__)";
+
+    {
+      //仮引数列と置換リスト
+      std::pmr::vector<std::u8string_view> params{ &kusabira::def_mr };
+      std::pmr::list<pp_token> rep_list{ &kusabira::def_mr };
+
+      //字句トークン
+      lex_token lt0{ pp_tokenize_result{.status = pp_tokenize_status::OPorPunc}, u8"#", 0, pos };
+      lex_token lt1{ pp_tokenize_result{.status = pp_tokenize_status::Identifier}, u8"define", 1, pos };
+      lex_token lt2{ pp_tokenize_result{.status = pp_tokenize_status::Identifier}, u8"F", 8, pos };
+      lex_token lt3{ pp_tokenize_result{.status = pp_tokenize_status::OPorPunc}, u8"(", 9, pos};
+      lex_token lt4{ pp_tokenize_result{.status = pp_tokenize_status::OPorPunc}, u8"...", 10, pos };
+      lex_token lt5{ pp_tokenize_result{.status = pp_tokenize_status::OPorPunc}, u8")", 13, pos};
+      lex_token lt6{ pp_tokenize_result{.status = pp_tokenize_status::Identifier}, u8"f", 15, pos };
+      lex_token lt7{ pp_tokenize_result{.status = pp_tokenize_status::OPorPunc}, u8"(", 16, pos };
+      lex_token lt8{ pp_tokenize_result{.status = pp_tokenize_status::Identifier}, u8"__VA_ARGS__", 17, pos };
+      lex_token lt9{ pp_tokenize_result{.status = pp_tokenize_status::OPorPunc}, u8")", 28, pos };
+
+      //マクロ仮引数トークン列
+      params.emplace_back(lt4.token);
+      //置換リスト
+      rep_list.emplace_back(pp_token_category::op_or_punc, lt6);
+      rep_list.emplace_back(pp_token_category::op_or_punc, lt7);
+      rep_list.emplace_back(pp_token_category::op_or_punc, lt8);
+      rep_list.emplace_back(pp_token_category::op_or_punc, lt9);
+
+      //関数マクロ登録
+      CHECK_UNARY(pp.define(*reporter, lt2.token, params, rep_list, true));
+
+      //実引数リスト作成
+      pos = ll.emplace_after(pos, 1);
+      (*pos).line = u8"F(x, 1, 0, a + b)";
+
+      lex_token arg1{ pp_tokenize_result{.status = pp_tokenize_status::Identifier}, u8"x", 4, pos };
+      lex_token arg2{ pp_tokenize_result{.status = pp_tokenize_status::OPorPunc}, u8",", 0, pos };
+      lex_token arg3{ pp_tokenize_result{.status = pp_tokenize_status::NumberLiteral}, u8"1", 7, pos };
+      lex_token arg4{ pp_tokenize_result{.status = pp_tokenize_status::OPorPunc}, u8",", 0, pos };
+      lex_token arg5{ pp_tokenize_result{.status = pp_tokenize_status::NumberLiteral}, u8"0", 7, pos };
+      lex_token arg6{ pp_tokenize_result{.status = pp_tokenize_status::OPorPunc}, u8",", 0, pos };
+      lex_token arg7{ pp_tokenize_result{.status = pp_tokenize_status::Identifier}, u8"a", 7, pos };
+      lex_token arg8{ pp_tokenize_result{.status = pp_tokenize_status::OPorPunc}, u8"+", 0, pos };
+      lex_token arg9{ pp_tokenize_result{.status = pp_tokenize_status::Identifier}, u8"b", 7, pos };
+
+      std::pmr::list<pp_token> args{ &kusabira::def_mr };
+      args.emplace_back(pp_token_category::pp_number, arg1);
+      args.emplace_back(pp_token_category::pp_number, arg2);
+      args.emplace_back(pp_token_category::pp_number, arg3);
+      args.emplace_back(pp_token_category::pp_number, arg4);
+      args.emplace_back(pp_token_category::pp_number, arg5);
+      args.emplace_back(pp_token_category::pp_number, arg6);
+      args.emplace_back(pp_token_category::pp_number, arg7);
+      args.emplace_back(pp_token_category::pp_number, arg8);
+      args.emplace_back(pp_token_category::pp_number, arg9);
+    }
+  }
+
 } // namespace kusabira_test::preprocessor
