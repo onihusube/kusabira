@@ -113,6 +113,9 @@ namespace kusabira::vocabulary {
       return *this;
     }
 
+    /**
+    * @brief string_viewの代入演算子
+    */
     whimsy_str_view& operator=(whimsy_str_view::strview_t view) & {
       whimsy_str_view copy{ view };
       swap(*this, copy);
@@ -120,6 +123,9 @@ namespace kusabira::vocabulary {
       return *this;
     }
 
+    /**
+    * @brief stringのコピー代入演算子
+    */
     whimsy_str_view& operator=(const whimsy_str_view::string_t& str) & {
       whimsy_str_view copy{ str };
       swap(*this, copy);
@@ -127,6 +133,9 @@ namespace kusabira::vocabulary {
       return *this;
     }
 
+    /**
+    * @brief stringのムーブ代入演算子
+    */
     whimsy_str_view& operator=(whimsy_str_view::string_t&& str) & noexcept {
       whimsy_str_view move{ std::move(str) };
       swap(*this, move);

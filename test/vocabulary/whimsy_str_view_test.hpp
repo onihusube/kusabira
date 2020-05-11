@@ -354,7 +354,7 @@ namespace kusabira::whimsy_str_view_test {
 
     //stringからのムーブ構築時
     {
-      u8whimsy_str_view move{ std::move(str) };
+      u8whimsy_str_view move{ std::pmr::u8string(str, &mr) };
 
       CHECK_UNARY(expect_alloc == move.to_string().get_allocator());
 
@@ -373,7 +373,7 @@ namespace kusabira::whimsy_str_view_test {
 
     //stringを所有する奴からのムーブ構築時
     {
-      u8whimsy_str_view move{ std::move(str) };
+      u8whimsy_str_view move{ std::pmr::u8string(str, &mr) };
       u8whimsy_str_view another = std::move(move);
 
       auto&& tmpstr = std::move(another).to_string();
