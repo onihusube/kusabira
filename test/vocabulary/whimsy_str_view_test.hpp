@@ -337,4 +337,48 @@ namespace kusabira::whimsy_str_view_test {
     CHECK_UNARY_FALSE(neq == wview);
   }
 
+  TEST_CASE("propagate allocator test") {
+    std::pmr::monotonic_buffer_resource mr{};
+    const std::pmr::u8string str{u8"comparison test", &mr};
+    auto expect_alloc = str.get_allocator();
+
+    //stringからのコピー構築時
+    {
+      u8whimsy_str_view copy{ str };
+
+      CHECK_UNARY(expect_alloc == copy.to_string().get_allocator());
+
+      auto&& tmpstr = std::move(copy).to_string();
+      CHECK_UNARY(expect_alloc == tmpstr.get_allocator());
+    }
+
+    //stringからのムーブ構築時
+    {
+      u8whimsy_str_view move{ std::move(str) };
+
+      CHECK_UNARY(expect_alloc == move.to_string().get_allocator());
+
+      auto&& tmpstr = std::move(move).to_string();
+      CHECK_UNARY(expect_alloc == tmpstr.get_allocator());
+    }
+
+    //stringを所有する奴からのコピー構築時
+    {
+      u8whimsy_str_view copy{ str };
+      u8whimsy_str_view another = copy;
+
+      auto&& tmpstr = std::move(another).to_string();
+      CHECK_UNARY(expect_alloc == tmpstr.get_allocator());
+    }
+
+    //stringを所有する奴からのムーブ構築時
+    {
+      u8whimsy_str_view move{ std::move(str) };
+      u8whimsy_str_view another = std::move(move);
+
+      auto&& tmpstr = std::move(another).to_string();
+      CHECK_UNARY(expect_alloc == tmpstr.get_allocator());
+    }
+  }
+
 }

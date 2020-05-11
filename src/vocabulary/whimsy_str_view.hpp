@@ -37,7 +37,7 @@ namespace kusabira::vocabulary {
         if constexpr (std::is_rvalue_reference_v<decltype(other)>) {
           new (&m_string) string_t(std::move(other.m_string)); //ムーブする
         } else {
-          new (&m_string) string_t(other.m_string); //例外を投げるとしたらここ
+          new (&m_string) string_t(other.m_string, other.m_string.get_allocator()); //例外を投げるとしたらここ
         }
         m_is_view = other.m_is_view;
       }
@@ -65,7 +65,7 @@ namespace kusabira::vocabulary {
     /**
     * @brief stringからのコピーコンストラクタ
     */
-    explicit whimsy_str_view(const string_t& str) noexcept(std::is_nothrow_copy_constructible_v<string_t>) : m_string(str), m_is_view(false) {}
+    explicit whimsy_str_view(const string_t& str) noexcept(std::is_nothrow_copy_constructible_v<string_t>) : m_string(str, str.get_allocator()), m_is_view(false) {}
 
     /**
     * @brief stringからのムーブコンストラクタ
@@ -195,7 +195,7 @@ namespace kusabira::vocabulary {
       if (m_is_view) {
         return string_t{ m_strview };
       } else {
-        return m_string;
+        return {m_string, m_string.get_allocator()};
       }
     }
 
