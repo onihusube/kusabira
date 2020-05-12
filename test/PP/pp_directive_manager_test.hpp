@@ -373,10 +373,14 @@ namespace kusabira_test::preprocessor
 
       lex_token arg1{ pp_tokenize_result{.status = pp_tokenize_status::NumberLiteral}, u8"1", 4, pos };
       lex_token arg2{ pp_tokenize_result{.status = pp_tokenize_status::NumberLiteral}, u8"2", 7, pos };
+      std::pmr::list<pp_token> token1{ &kusabira::def_mr };
+      token1.emplace_back(pp_token_category::pp_number, arg1);
+      std::pmr::list<pp_token> token2{ &kusabira::def_mr };
+      token2.emplace_back(pp_token_category::pp_number, arg2);
 
-      std::pmr::list<pp_token> args{&kusabira::def_mr};
-      args.emplace_back(pp_token_category::pp_number,arg1);
-      args.emplace_back(pp_token_category::pp_number,arg2);
+      std::pmr::vector<std::pmr::list<pp_token>> args{&kusabira::def_mr};
+      args.emplace_back(std::move(token1));
+      args.emplace_back(std::move(token2));
 
       //関数マクロ実行
       const auto [is_success, result] = pp.funcmacro(lt1.token, args);
