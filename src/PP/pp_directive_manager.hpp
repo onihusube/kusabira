@@ -178,13 +178,17 @@ namespace kusabira::PP {
           assert(ismatch);
 
           //可変長引数部分をコピーしつつカンマを登録
-          for (std::size_t index = va_start_index; index < args.size(); ++index) {
+          auto N = args.size();
+          for (std::size_t index = va_start_index; index < N; ++index) {
             //対応する実引数のトークン列をコピー
             std::pmr::list<pp_token> arg_list{ args[index], &kusabira::def_mr };
 
-            //カンマの追加
-            auto& comma = arg_list.emplace_back(pp_token_category::op_or_punc);
-            comma.token = u8","sv;
+            //最後の引数にはカンマをつけない
+            if (index != (N - 1)) {
+              //カンマの追加
+              auto& comma = arg_list.emplace_back(pp_token_category::op_or_punc);
+              comma.token = u8","sv;
+            }
 
             //結果リストにsplice
             result_list.splice(it, std::move(arg_list));

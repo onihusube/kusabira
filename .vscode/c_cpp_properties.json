@@ -12,6 +12,10 @@
             "includePath": [ 
                 "${kusabiraDefaultIncludePath}" 
             ],
+            "macFrameworkPath": [
+                "/System/Library/Frameworks",
+                "/Library/Frameworks"
+            ],
             "defines": [],
             "compilerPath": "/usr/local/bin/g++-9",
             "cStandard": "c11",
