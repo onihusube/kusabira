@@ -33,8 +33,9 @@ namespace kusabira::PP {
     IfGroup_Mistake, // #ifから始まるifdef,ifndefではない間違ったトークン
     IfGroup_Invalid, // 1つの定数式・識別子の前後、改行までの間に不正なトークンが現れている
     ControlLine,
-    Define_No_Identifier,       //#defineの後に識別子が現れなかった
-    Define_Duplicate,           //#defineの後に識別子が現れなかった
+    Define_No_Identifier,       // #defineの後に識別子が現れなかった
+    Define_Duplicate,           // 異なるマクロ再定義
+    Define_Redfined,            // 異なる形式のマクロの再定義
     Define_Func_Disappointing_Token,
     ControlLine_Line_Num,       // #lineディレクティブの行数指定が符号なし整数値として読み取れない
     ControlLine_Line_ManyToken, // #lineディレクティブの後ろに不要なトークンが付いてる（警告）
@@ -120,6 +121,7 @@ namespace kusabira::report {
     {
       {PP::pp_parse_context::Define_No_Identifier, u8"#define directive is followed by no identifier to replace."},
       {PP::pp_parse_context::Define_Duplicate, u8"A macro with the same name has been redefined with a different definition."},
+      {PP::pp_parse_context::Define_Redfined, u8"A different type of macro has been redefined."},
       {PP::pp_parse_context::ControlLine_Line_Num , u8"The number specified for the #LINE directive is incorrect. Please specify a number in the range of std::size_t."},
       {PP::pp_parse_context::ControlLine_Line_ManyToken, u8"There is an unnecessary token after the #line directive."}
     };
@@ -240,6 +242,7 @@ namespace kusabira::report {
     {
       {PP::pp_parse_context::Define_No_Identifier, u8"#defineディレクティブの後に置換対象の識別子がありません。"},
       {PP::pp_parse_context::Define_Duplicate, u8"同じ名前のマクロが異なる定義で再定義されました。"},
+      {PP::pp_parse_context::Define_Redfined, u8"同じ名前で異なる形式のマクロが再定義されました。"},
       {PP::pp_parse_context::ControlLine_Line_Num , u8"#lineディレクティブに指定された数値が不正です。std::size_tの範囲内の数値を指定してください。"},
       {PP::pp_parse_context::ControlLine_Line_ManyToken , u8"#lineディレクティブの後に不要なトークンがあります。"}
     };

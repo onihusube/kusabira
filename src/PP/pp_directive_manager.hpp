@@ -95,6 +95,9 @@ namespace kusabira::PP {
         , m_is_va{is_va}
     {}
 
+    func_like_macro(func_like_macro&&) = default;
+    func_like_macro& operator=(func_like_macro&&) = default;
+
     fn is_identical(const std::pmr::vector<std::u8string_view>& params, const std::pmr::list<pp_token>& tokens) const -> bool {
       return m_params == params and m_tokens == tokens;
     }
@@ -273,20 +276,27 @@ namespace kusabira::PP {
 
     /**
     * @brief オブジェクトマクロを登録する
+    * @param reporter メッセージ出力器
     * @param macro_name マクロ名
-    * @param token_range 置換リスト
+    * @param tokenlist 置換リスト
     * @return 登録が恙なく完了したかどうか
     */
     template<typename Reporter, typename ReplacementList = std::pmr::list<pp_token>>
-    fn define(Reporter&, std::u8string_view macro_name, ReplacementList&& tokenlist) -> bool {
-      const auto [pos, is_registered] = m_objmacros.try_emplace(macro_name, std::forward<ReplacementList>(tokenlist));
+    fn define(Reporter& reporter, const PP::lex_token& macro_name, ReplacementList&& tokenlist) -> bool {
+      const auto [pos, is_registered] = m_objmacros.try_emplace(macro_name.token, std::forward<ReplacementList>(tokenlist));
 
       if (not is_registered) {
         //すでに登録されている場合、登録済みの置換リストとの同一性を判定する
         if ((*pos).second == tokenlist) return true;
         //トークンが一致していなければエラー
-        //reporter.pp_err_report(m_filename, (*it).lextokens.front(), pp_parse_context::Define_Duplicate);
+        reporter.pp_err_report(m_filename, macro_name, pp_parse_context::Define_Duplicate);
         return false;
+      }
+
+      //関数マクロが重複していれば消す
+      if (auto n = m_funcmacros.erase(macro_name.token); n != 0) {
+        //警告表示
+        reporter.pp_err_report(m_filename, macro_name, pp_parse_context::Define_Redfined, report::report_category::warning);
       }
 
       return true;
@@ -305,16 +315,31 @@ namespace kusabira::PP {
       return std::optional<std::pmr::list<pp_token>>{std::in_place, (*pos).second, &kusabira::def_mr};
     }
 
+    /**
+    * @brief 関数マクロを登録する
+    * @param reporter メッセージ出力器
+    * @param macro_name マクロ名
+    * @param params 仮引数リスト
+    * @param tokenlist 置換リスト
+    * @param is_va 可変引数であるか否か
+    * @return 登録が恙なく完了したかどうか
+    */
     template<typename Reporter, typename ParamList = std::pmr::vector<std::u8string_view>, typename ReplacementList = std::pmr::list<pp_token>>
-    fn define(Reporter&, std::u8string_view macro_name, ParamList&& params, ReplacementList&& tokenlist, bool is_va) -> bool {
+    fn define(Reporter& reporter, const PP::lex_token& macro_name, ParamList&& params, ReplacementList&& tokenlist, bool is_va) -> bool {
       //関数マクロを登録する
-      const auto [pos, is_registered] = m_funcmacros.try_emplace(macro_name, std::forward<ParamList>(params), std::forward<ReplacementList>(tokenlist), is_va);
+      const auto [pos, is_registered] = m_funcmacros.try_emplace(macro_name.token, std::forward<ParamList>(params), std::forward<ReplacementList>(tokenlist), is_va);
 
       if (not is_registered) {
         if ((*pos).second.is_identical(params, tokenlist)) return true;
         //仮引数列と置換リストが一致していなければエラー
-        //reporter.pp_err_report(m_filename, (*it).lextokens.front(), pp_parse_context::Define_Duplicate);
+        reporter.pp_err_report(m_filename, macro_name, pp_parse_context::Define_Duplicate);
         return false;
+      }
+
+      //オブジェクトマクロが重複していれば消す
+      if (auto n = m_objmacros.erase(macro_name.token); n != 0) {
+        //警告表示
+        reporter.pp_err_report(m_filename, macro_name, pp_parse_context::Define_Duplicate, report::report_category::warning);
       }
 
       return true;
@@ -342,6 +367,24 @@ namespace kusabira::PP {
 
       //optionalで包んで返す
       return {true, std::optional<std::pmr::list<pp_token>>{std::in_place, std::move(result), &kusabira::def_mr}};
+    }
+
+    /**
+    * @brief 識別子がマクロ名であるかをチェックする
+    * @param identifier 識別子の文字列
+    * @return {オブジェクトマクロであるか？, 関数マクロであるか？}
+    */
+    fn is_macro(std::u8string_view identifier) const -> std::pair<bool, bool> {
+      return {m_objmacros.contains(identifier), m_funcmacros.contains(identifier)};
+    }
+
+    /**
+    * @brief #undefディレクティブを実行する
+    */
+    void undef(std::u8string_view macro_name) {
+      //消す、登録してあったかは関係ない
+      m_objmacros.erase(macro_name);
+      m_funcmacros.erase(macro_name);
     }
 
     /**

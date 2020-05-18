@@ -44,6 +44,8 @@ namespace kusabira_test::report
     using kusabira::PP::pp_tokenize_status;
     using kusabira::PP::pp_tokenize_result;
 
+    // 現在の出力状態をリセットする
+    void(test_out::extract_string());
 
     //論理行保持コンテナ
     std::pmr::forward_list<logical_line> ll{};
