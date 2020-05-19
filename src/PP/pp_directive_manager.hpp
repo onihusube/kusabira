@@ -7,6 +7,35 @@
 #include "../common.hpp"
 #include "../report_output.hpp"
 
+namespace kusabira {
+  inline namespace views {
+
+    template<typename Range>
+    auto reverse(Range& rng) noexcept {
+      using std::rbegin;
+      using std::rend;
+
+      using begin_it = decltype(rbegin(rng));
+      using end_it = decltype(rend(rng));
+
+      struct revrse_impl {
+        begin_it it;
+        end_it sentinel;
+
+        auto begin() const noexcept {
+          return it;
+        }
+
+        auto end() const noexcept {
+          return sentinel;
+        }
+      };
+
+      return revrse_impl{.it = rbegin(rng), .sentinel = rend(rng)};
+    }
+  }
+}
+
 namespace kusabira::PP {
 
   /**
@@ -86,6 +115,37 @@ namespace kusabira::PP {
     std::pmr::list<pp_token> m_tokens;
     //可変長マクロですか？
     bool m_is_va = false;
+    //置換リストに現れる仮引数名のインデックスに対応する実引数のインデックス
+    std::pmr::vector<std::pair<std::size_t, std::size_t>> m_correspond;
+
+    void make_id_to_param_pair() {
+      //仮引数名に対応する実引数リスト上の位置を求めるやつ
+      auto find_param_index = [&arglist = m_params](auto token_str) -> std::pair<bool, std::size_t> {
+        for (auto i = 0ull; i < arglist.size(); ++i) {
+          if (arglist[i] == token_str) {
+            return {true, i};
+          }
+        }
+        return {false, 0};
+      };
+
+      // 置換対象トークン数
+      const auto N = m_tokens.size();
+
+      m_correspond.reserve(N);
+
+      auto it = m_tokens.begin();
+      for (auto index = 0ull; index < N; ++index, ++it) {
+        //識別子だけを見る
+        if ((*it).category != pp_token_category::identifier) continue;
+
+        const auto [ismatch, param_index] = find_param_index((*it).token.to_view());
+        //仮引数名ではないから次
+        if (not ismatch) continue;
+
+        m_correspond.emplace_back(index, param_index);
+      }
+    }
 
   public:
     template <typename T = std::pmr::vector<std::u8string_view>, typename U = std::pmr::list<pp_token>>
@@ -93,6 +153,7 @@ namespace kusabira::PP {
         : m_params{ std::forward<T>(params), &kusabira::def_mr }
         , m_tokens{ std::forward<U>(tokens), &kusabira::def_mr }
         , m_is_va{is_va}
+        , m_correspond{ &kusabira::def_mr }
     {}
 
     func_like_macro(func_like_macro&&) = default;
@@ -108,20 +169,6 @@ namespace kusabira::PP {
       } else {
         return m_params.size() == args.size();
       }
-    }
-
-    template<typename It, typename F>
-    static void normal_token_replace(PP::pp_token& rep_token, const It arg_first, F&& find_param_index) {
-
-      const auto [ismatch, index] = find_param_index(rep_token.token.to_view());
-      //仮引数名ではないから次
-      if (not ismatch) return;
-
-      //対応する実引数を指すイテレータを取得
-      auto arg_it = std::next(arg_first, index);
-      //トークン文字列とカテゴリを置換
-      rep_token.token = (*arg_it).token;
-      rep_token.category = (*arg_it).category;
     }
 
     template<typename F>
