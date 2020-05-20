@@ -3,6 +3,7 @@
 #include <charconv>
 #include <functional>
 #include <algorithm>
+#include <tuple>
 
 #include "../common.hpp"
 #include "../report_output.hpp"
@@ -107,7 +108,6 @@ namespace kusabira::PP {
     }
   }
 
-
   class func_like_macro {
     //仮引数リスト
     std::pmr::vector<std::u8string_view> m_params;
@@ -115,9 +115,10 @@ namespace kusabira::PP {
     std::pmr::list<pp_token> m_tokens;
     //可変長マクロですか？
     bool m_is_va = false;
-    //置換リストに現れる仮引数名のインデックスに対応する実引数のインデックス
-    std::pmr::vector<std::pair<std::size_t, std::size_t>> m_correspond;
+    //{置換リストに現れる仮引数名のインデックス, 対応する実引数のインデックス, __VA_ARGS__?, __VA_OPT__?}
+    std::pmr::vector<std::tuple<std::size_t, std::size_t, bool, bool>> m_correspond;
 
+    template<bool Is_VA>
     void make_id_to_param_pair() {
       //仮引数名に対応する実引数リスト上の位置を求めるやつ
       auto find_param_index = [&arglist = m_params](auto token_str) -> std::pair<bool, std::size_t> {
@@ -139,11 +140,31 @@ namespace kusabira::PP {
         //識別子だけを見る
         if ((*it).category != pp_token_category::identifier) continue;
 
+        bool is_vaopt = false;
+
+        if constexpr (Is_VA) {
+          //可変引数参照のチェック
+          if ((*it).token.to_view() == u8"__VA_ARGS__") {
+            const auto [ismatch, va_start_index] = find_param_index(u8"...");
+
+            //可変長マクロでは無いのに__VA_ARGS__が参照された?
+            assert(ismatch);
+
+            //置換リストの要素番号に対して、対応する実引数位置を保存
+            m_correspond.emplace_back(index, va_start_index, true, false);
+            continue;
+          } else if ((*it).token.to_view() == u8"__VA_OPT__")) {
+            //__VA_OPT__を見つけておく
+            m_correspond.emplace_back(index, 0, false, true);
+          }
+        }
+
         const auto [ismatch, param_index] = find_param_index((*it).token.to_view());
         //仮引数名ではないから次
         if (not ismatch) continue;
 
-        m_correspond.emplace_back(index, param_index);
+        //置換リストの要素番号に対して、対応する実引数位置を保存
+        m_correspond.emplace_back(index, param_index, false, false);
       }
     }
 
@@ -154,7 +175,13 @@ namespace kusabira::PP {
         , m_tokens{ std::forward<U>(tokens), &kusabira::def_mr }
         , m_is_va{is_va}
         , m_correspond{ &kusabira::def_mr }
-    {}
+    {
+      if (is_va) {
+        this->make_id_to_param_pair<true>();
+      } else {
+        this->make_id_to_param_pair<false>();
+      }
+    }
 
     func_like_macro(func_like_macro&&) = default;
     func_like_macro& operator=(func_like_macro&&) = default;
@@ -171,120 +198,84 @@ namespace kusabira::PP {
       }
     }
 
-    template<typename F>
-    fn func_macro_impl(const std::pmr::vector<std::pmr::list<pp_token>>& args, F&& find_param_index) const -> std::pmr::list<pp_token> {
+    fn func_macro_impl(const std::pmr::vector<std::pmr::list<pp_token>>& args) const -> std::pmr::list<pp_token> {
       //置換対象のトークンシーケンスをコピー（終了後そのまま置換結果となる）
       std::pmr::list<pp_token> result_list{ m_tokens, &kusabira::def_mr };
 
-      //result_listを先頭から見て、仮引数名が現れたら対応する位置の実引数へと置換する
-      const auto last = std::end(result_list);
-      for (auto it = std::begin(result_list); it != last; ++it) {
-        //識別子だけを見る
-        if ((*it).category != pp_token_category::identifier) continue;
+      //置換リストの起点となる先頭位置
+      const auto head = std::begin(result_list);
 
-        const auto [ismatch, index] = find_param_index((*it).token.to_view());
-        //仮引数名ではないから次
-        if (not ismatch) continue;
+      //置換リスト-引数リスト対応を後ろから処理
+      for (const auto[token_index, arg_index, ignore] : views::reverse(m_correspond)) {
+        //置換リストのトークン位置
+        const auto it = std::next(head, token_index);
 
         //対応する実引数のトークン列をコピー
-        std::pmr::list<pp_token> arg_list{ args[index], &kusabira::def_mr };
+        std::pmr::list<pp_token> arg_list{args[arg_index], &kusabira::def_mr};
 
         //結果リストにsplice
         result_list.splice(it, std::move(arg_list));
 
-        auto del = it;
-        //消す要素の1つ前、置換したトークン列の最後に移動
-        --it;
-
         //置換済みトークンを消す
-        result_list.erase(del);
+        result_list.erase(it);
       }
 
       return result_list;
     }
 
-    template<typename F>
-    fn va_macro_impl(const std::pmr::vector<std::pmr::list<pp_token>>& args, F&& find_param_index) const -> std::pmr::list<pp_token> {
+    fn va_macro_impl(const std::pmr::vector<std::pmr::list<pp_token>>& args) const -> std::pmr::list<pp_token> {
       using namespace std::string_view_literals;
 
       //置換対象のトークンシーケンスをコピー（終了後そのまま置換結果となる）
-      std::pmr::list<pp_token> result_list{ m_tokens, std::pmr::polymorphic_allocator<pp_token>(&kusabira::def_mr) };
-      //実引数リストの先頭
-      const auto arg_first = std::begin(args);
+      std::pmr::list<pp_token> result_list{ m_tokens, &kusabira::def_mr };
 
-      //result_listを先頭から見て、仮引数名が現れたら対応する位置の実引数へと置換する
-      const auto last = std::end(result_list);
-      for (auto it = std::begin(result_list); it != last; ++it) {
-        auto& rep_token = *it;
+      //置換リストの起点となる先頭位置
+      const auto head = std::begin(result_list);
 
-        //識別子だけを相手にする
-        if (rep_token.category != pp_token_category::identifier) continue;
+      //置換リスト-引数リスト対応を後ろから処理
+      for (const auto[token_index, arg_index, va_args] : views::reverse(m_correspond)) {
+        //置換リストのトークン位置
+        const auto it = std::next(head, token_index);
 
-        //可変長マクロだったら・・・？
-        if (rep_token.token.to_view() == u8"__VA_ARGS__") {
-          auto [ismatch, va_start_index] = find_param_index(u8"...");
-          
-          //可変長マクロでは無いのに__VA_ARGS__が参照された?
-          assert(ismatch);
-
+        if (va_args) {
           //可変長引数部分をコピーしつつカンマを登録
-          auto N = args.size();
-          for (std::size_t index = va_start_index; index < N; ++index) {
+          const auto N = args.size();
+          for (std::size_t va_index = arg_index; va_index < N; ++va_index) {
             //対応する実引数のトークン列をコピー
-            std::pmr::list<pp_token> arg_list{ args[index], &kusabira::def_mr };
+            std::pmr::list<pp_token> arg_list{args[va_index], &kusabira::def_mr};
 
             //最後の引数にはカンマをつけない
-            if (index != (N - 1)) {
+            if (va_index != (N - 1)) {
               //カンマの追加
               auto& comma = arg_list.emplace_back(pp_token_category::op_or_punc);
               comma.token = u8","sv;
+              //エラーメッセージのためにコンテキストを補う必要がある？
             }
 
             //結果リストにsplice
             result_list.splice(it, std::move(arg_list));
           }
-
         } else {
-          //VA_ARGS以外の普通の置換処理
-
-          const auto [ismatch, index] = find_param_index((*it).token.to_view());
-          //仮引数名ではないから次
-          if (not ismatch) continue;
-
           //対応する実引数のトークン列をコピー
-          std::pmr::list<pp_token> arg_list{ args[index], &kusabira::def_mr };
+          std::pmr::list<pp_token> arg_list{args[arg_index], &kusabira::def_mr};
 
           //結果リストにsplice
           result_list.splice(it, std::move(arg_list));
         }
 
-        auto del = it;
-        //消す要素の1つ前、置換したトークン列の最後に移動
-        --it;
-
         //置換済みトークンを消す
-        result_list.erase(del);
+        result_list.erase(it);
       }
 
       return result_list;
     }
 
     fn operator()(const std::pmr::vector<std::pmr::list<pp_token>>& args) const -> std::pmr::list<pp_token> {
-      //仮引数名に対応する実引数リスト上の位置を求めるやつ
-      auto find_param_index = [&arglist = m_params](auto token_str) -> std::pair<bool, std::size_t> {
-        for (auto i = 0u; i < arglist.size(); ++i) {
-          if (arglist[i] == token_str) {
-            return {true, i};
-          }
-        }
-        return {false, 0};
-      };
-
       //可変引数マクロと処理を分ける
       if (m_is_va) {
-        return this->va_macro_impl(args, find_param_index);
+        return this->va_macro_impl(args);
       } else {
-        return this->func_macro_impl(args, find_param_index);
+        return this->func_macro_impl(args);
       }
     }
   };
