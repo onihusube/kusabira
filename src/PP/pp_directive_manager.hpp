@@ -108,6 +108,27 @@ namespace kusabira::PP {
     }
   }
 
+
+  template<typename Iterator, typename Sentinel>
+  ifn search_close_parenthesis(Iterator it, Sentinel end) -> Iterator {
+    using namespace std::string_view_literals;
+
+    //間に現れている開きかっこの数
+    std::size_t inner_paren_depth = 0;
+
+    for (; it != end; ++it) {
+      if ((*it).token == u8")"sv) {
+        //開きかっこが現れる前に閉じればそれ
+        if (inner_paren_depth == 0) return ++it;
+        --inner_paren_depth;
+      } else if ((*it).token == u8"("sv) {
+        ++inner_paren_depth;
+      }
+    }
+    return end;
+  }
+
+
   class func_like_macro {
     //仮引数リスト
     std::pmr::vector<std::u8string_view> m_params;
@@ -140,8 +161,6 @@ namespace kusabira::PP {
         //識別子だけを見る
         if ((*it).category != pp_token_category::identifier) continue;
 
-        bool is_vaopt = false;
-
         if constexpr (Is_VA) {
           //可変引数参照のチェック
           if ((*it).token.to_view() == u8"__VA_ARGS__") {
@@ -153,9 +172,10 @@ namespace kusabira::PP {
             //置換リストの要素番号に対して、対応する実引数位置を保存
             m_correspond.emplace_back(index, va_start_index, true, false);
             continue;
-          } else if ((*it).token.to_view() == u8"__VA_OPT__")) {
+          } else if ((*it).token.to_view() == u8"__VA_OPT__") {
             //__VA_OPT__を見つけておく
             m_correspond.emplace_back(index, 0, false, true);
+            continue;
           }
         }
 
@@ -206,7 +226,7 @@ namespace kusabira::PP {
       const auto head = std::begin(result_list);
 
       //置換リスト-引数リスト対応を後ろから処理
-      for (const auto[token_index, arg_index, ignore] : views::reverse(m_correspond)) {
+      for (const auto[token_index, arg_index, ignore1, ignore2] : views::reverse(m_correspond)) {
         //置換リストのトークン位置
         const auto it = std::next(head, token_index);
 
@@ -233,13 +253,14 @@ namespace kusabira::PP {
       const auto head = std::begin(result_list);
 
       //置換リスト-引数リスト対応を後ろから処理
-      for (const auto[token_index, arg_index, va_args] : views::reverse(m_correspond)) {
+      for (const auto[token_index, arg_index, va_args, va_opt] : views::reverse(m_correspond)) {
         //置換リストのトークン位置
         const auto it = std::next(head, token_index);
+        //引数の数
+        const auto N = args.size();
 
         if (va_args) {
           //可変長引数部分をコピーしつつカンマを登録
-          const auto N = args.size();
           for (std::size_t va_index = arg_index; va_index < N; ++va_index) {
             //対応する実引数のトークン列をコピー
             std::pmr::list<pp_token> arg_list{args[va_index], &kusabira::def_mr};
@@ -255,6 +276,36 @@ namespace kusabira::PP {
             //結果リストにsplice
             result_list.splice(it, std::move(arg_list));
           }
+        } else if (va_opt) {
+          //__VA_OPT__の処理
+
+          const auto replist_end = std::end(result_list);
+          //開きかっこの位置を探索
+          auto open_paren_pos_next = it;
+          for (++open_paren_pos_next; open_paren_pos_next != replist_end; ++open_paren_pos_next) {
+            if ((*open_paren_pos_next).token.to_view() == u8"(") break;
+          }
+          //開きかっこの"次"の位置
+          ++open_paren_pos_next;
+          //対応する閉じ括弧の位置を探索
+          auto vaopt_end = search_close_parenthesis(open_paren_pos_next, replist_end);
+
+          if (N < m_params.size()) {
+            //可変長部分が空ならばVA_OPT全体を削除
+
+            //VAOPTの全体を結果トークン列から取り除く
+            result_list.erase(it, ++vaopt_end);
+          } else {
+            //可変長部分が空でないならば、VA_OPTと対応するかっこだけを削除
+
+            //まずは後ろの閉じ括弧を削除（イテレータが無効化するのを回避するため）
+            result_list.erase(vaopt_end);
+            //次に開きかっことVA_OPT本体を削除
+            result_list.erase(it, open_paren_pos_next);
+          }
+
+          //itに対応するトークンを消してしまっているので次に行く
+          continue;
         } else {
           //対応する実引数のトークン列をコピー
           std::pmr::list<pp_token> arg_list{args[arg_index], &kusabira::def_mr};
