@@ -119,7 +119,7 @@ namespace kusabira::PP {
     for (; it != end; ++it) {
       if ((*it).token == u8")"sv) {
         //開きかっこが現れる前に閉じればそれ
-        if (inner_paren_depth == 0) return ++it;
+        if (inner_paren_depth == 0) return it;
         --inner_paren_depth;
       } else if ((*it).token == u8"("sv) {
         ++inner_paren_depth;
@@ -279,16 +279,24 @@ namespace kusabira::PP {
         } else if (va_opt) {
           //__VA_OPT__の処理
 
+          //事前条件
+          assert((*it).token.to_view() == u8"__VA_OPT__");
+
           const auto replist_end = std::end(result_list);
-          //開きかっこの位置を探索
-          auto open_paren_pos_next = it;
-          for (++open_paren_pos_next; open_paren_pos_next != replist_end; ++open_paren_pos_next) {
-            if ((*open_paren_pos_next).token.to_view() == u8"(") break;
-          }
+          //__VA_OPT__の開きかっこの位置を探索
+          auto open_paren_pos_next = std::find_if(std::next(it), replist_end, [](auto &pptoken) {
+            return pptoken.token == u8"("sv;
+          });
+
+          assert(open_paren_pos_next != replist_end);
           //開きかっこの"次"の位置
           ++open_paren_pos_next;
+
           //対応する閉じ括弧の位置を探索
           auto vaopt_end = search_close_parenthesis(open_paren_pos_next, replist_end);
+
+          // 対応する閉じかっこの存在は構文解析で保証する
+          assert(vaopt_end != replist_end);
 
           if (N < m_params.size()) {
             //可変長部分が空ならばVA_OPT全体を削除

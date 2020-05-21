@@ -224,6 +224,7 @@ namespace kusabira::PP
   */
   enum class pp_token_category : std::uint8_t {
     newline = 0,
+    whitespace,
 
     header_name,
     import_keyword,
