@@ -108,7 +108,13 @@ namespace kusabira::PP {
     }
   }
 
-
+  /**
+  * @brief トークンリスト上の最初の対応する閉じ括弧")"の位置を探索する
+  * @details 開きかっこ"("の次のトークンから始めるものとして、間に現れているかっこのペアを無視する
+  * @param it 探索開始位置のイテレータ
+  * @param end 探索範囲の終端（[it, end)
+  * @return 見つかった位置を指すイテレータ
+  */
   template<typename Iterator, typename Sentinel>
   ifn search_close_parenthesis(Iterator it, Sentinel end) -> Iterator {
     using namespace std::string_view_literals;
@@ -128,7 +134,9 @@ namespace kusabira::PP {
     return end;
   }
 
-
+  /**
+  * @brief 関数マクロ1つを表現する型
+  */
   class func_like_macro {
     //仮引数リスト
     std::pmr::vector<std::u8string_view> m_params;
@@ -139,6 +147,10 @@ namespace kusabira::PP {
     //{置換リストに現れる仮引数名のインデックス, 対応する実引数のインデックス, __VA_ARGS__?, __VA_OPT__?}
     std::pmr::vector<std::tuple<std::size_t, std::size_t, bool, bool>> m_correspond;
 
+    /**
+    * @brief 置換リスト上の仮引数を見つけて、仮引数の番号との対応を取っておく
+    * @tparam Is_VA 可変長マクロか否か
+    */
     template<bool Is_VA>
     void make_id_to_param_pair() {
       //仮引数名に対応する実引数リスト上の位置を求めるやつ
@@ -188,36 +200,11 @@ namespace kusabira::PP {
       }
     }
 
-  public:
-    template <typename T = std::pmr::vector<std::u8string_view>, typename U = std::pmr::list<pp_token>>
-    func_like_macro(T &&params, U &&tokens, bool is_va)
-        : m_params{ std::forward<T>(params), &kusabira::def_mr }
-        , m_tokens{ std::forward<U>(tokens), &kusabira::def_mr }
-        , m_is_va{is_va}
-        , m_correspond{ &kusabira::def_mr }
-    {
-      if (is_va) {
-        this->make_id_to_param_pair<true>();
-      } else {
-        this->make_id_to_param_pair<false>();
-      }
-    }
-
-    func_like_macro(func_like_macro&&) = default;
-    func_like_macro& operator=(func_like_macro&&) = default;
-
-    fn is_identical(const std::pmr::vector<std::u8string_view>& params, const std::pmr::list<pp_token>& tokens) const -> bool {
-      return m_params == params and m_tokens == tokens;
-    }
-
-    fn check_args_num(const std::pmr::vector<std::pmr::list<pp_token>>& args) const noexcept -> bool {
-      if (m_is_va == true) {
-        return (m_params.size() - 1u) <= args.size();
-      } else {
-        return m_params.size() == args.size();
-      }
-    }
-
+    /**
+    * @brief 通常の関数マクロの処理の実装
+    * @param args 実引数列（カンマ区切り毎のトークン列のvector
+    * @return マクロ置換後のトークンリスト
+    */
     fn func_macro_impl(const std::pmr::vector<std::pmr::list<pp_token>>& args) const -> std::pmr::list<pp_token> {
       //置換対象のトークンシーケンスをコピー（終了後そのまま置換結果となる）
       std::pmr::list<pp_token> result_list{ m_tokens, &kusabira::def_mr };
@@ -243,6 +230,11 @@ namespace kusabira::PP {
       return result_list;
     }
 
+    /**
+    * @brief 可変引数関数マクロの処理の実装
+    * @param args 実引数列（カンマ区切り毎のトークン列のvector
+    * @return マクロ置換後のトークンリスト
+    */
     fn va_macro_impl(const std::pmr::vector<std::pmr::list<pp_token>>& args) const -> std::pmr::list<pp_token> {
       using namespace std::string_view_literals;
 
@@ -329,6 +321,60 @@ namespace kusabira::PP {
       return result_list;
     }
 
+
+  public:
+
+    /**
+    * @brief コンストラクタ
+    * @param params 仮引数列
+    * @param is_va 可変引数マクロであるか否か
+    */
+    template <typename T = std::pmr::vector<std::u8string_view>, typename U = std::pmr::list<pp_token>>
+    func_like_macro(T &&params, U &&tokens, bool is_va)
+        : m_params{ std::forward<T>(params), &kusabira::def_mr }
+        , m_tokens{ std::forward<U>(tokens), &kusabira::def_mr }
+        , m_is_va{is_va}
+        , m_correspond{ &kusabira::def_mr }
+    {
+      if (is_va) {
+        this->make_id_to_param_pair<true>();
+      } else {
+        this->make_id_to_param_pair<false>();
+      }
+    }
+
+    func_like_macro(func_like_macro&&) = default;
+    func_like_macro& operator=(func_like_macro&&) = default;
+
+    /**
+    * @brief 仮引数列と置換リストから別のマクロとの同一性を判定する
+    * @param params 仮引数列
+    * @param tokens 置換リスト
+    * @return マクロとして同一であるか否か
+    */
+    fn is_identical(const std::pmr::vector<std::u8string_view>& params, const std::pmr::list<pp_token>& tokens) const -> bool {
+      return m_params == params and m_tokens == tokens;
+    }
+
+    /**
+    * @brief 実引数の数が正しいかを調べる
+    * @param args 実引数列
+    * @details 可変引数マクロなら仮引数の数-1以上、それ以外の場合は仮引数の数と同一である場合に引数の数が合っているとみなす
+    * @return 実引数の数が合っているか否か
+    */
+    fn validate_argnum(const std::pmr::vector<std::pmr::list<pp_token>>& args) const noexcept -> bool {
+      if (m_is_va == true) {
+        return (m_params.size() - 1u) <= args.size();
+      } else {
+        return m_params.size() == args.size();
+      }
+    }
+
+    /**
+    * @brief 関数マクロを実行する
+    * @param args 実引数列
+    * @return 置換結果のトークンリスト
+    */
     fn operator()(const std::pmr::vector<std::pmr::list<pp_token>>& args) const -> std::pmr::list<pp_token> {
       //可変引数マクロと処理を分ける
       if (m_is_va) {
@@ -457,7 +503,7 @@ namespace kusabira::PP {
       const auto& funcmacro = (*pos).second;
 
       //引数長さのチェック、ここでエラーにしたい
-      if (not funcmacro.check_args_num(args)) return {false, std::nullopt};
+      if (not funcmacro.validate_argnum(args)) return {false, std::nullopt};
 
       //置換結果取得
       auto&& result = funcmacro(args);
