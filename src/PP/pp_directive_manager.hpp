@@ -291,11 +291,11 @@ namespace kusabira::PP {
           assert(vaopt_end != replist_end);
 
           //可変長引数が純粋に空の時の条件
-          bool flag = N < m_params.size();
-          //F(arg1, ...)なマクロに対して、F(0,)の様に呼び出した時のケア
-          flag |= (N == m_params.size()) and (args.back().size() == 0ull);
+          bool is_va_empty = N < m_params.size();
+          //F(arg1, ...)なマクロに対して、F(0,)の様に呼び出した時のケア（F(0,,)は引数ありとみなされる）
+          is_va_empty |= (N == m_params.size()) and (args.back().size() == 0ull);
 
-          if (flag) {
+          if (is_va_empty) {
             //可変長部分が空ならばVA_OPT全体を削除
 
             //VAOPTの全体を結果トークン列から取り除く
