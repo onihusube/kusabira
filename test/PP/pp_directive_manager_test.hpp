@@ -852,6 +852,32 @@ namespace kusabira_test::preprocessor
       //結果の比較
       CHECK_EQ(expect, *result);
     }
+
+    //引数なし呼び出し2（F(,)みたいな呼び出し
+    //ただしこれは引数ありとみなされる（clangとGCCで試した限りは
+    {
+      //空の引数
+      std::pmr::vector<std::pmr::list<pp_token>> args{&kusabira::def_mr};
+      args.emplace_back(std::pmr::list<pp_token>{&kusabira::def_mr});
+      args.emplace_back(std::pmr::list<pp_token>{&kusabira::def_mr});
+
+      //関数マクロ実行
+      const auto [is_success, result] = pp.funcmacro(u8"F", args);
+
+      CHECK_UNARY(is_success);
+      REQUIRE_UNARY(bool(result));
+      CHECK_EQ(6ull, result->size());
+
+      std::pmr::list<pp_token> expect{&kusabira::def_mr};
+      expect.emplace_back(pp_token_category::identifier, lex_token{pp_tokenize_result{pp_tokenize_status::Identifier}, u8"f", 15, pos});
+      expect.emplace_back(pp_token_category::op_or_punc, lex_token{pp_tokenize_result{pp_tokenize_status::OPorPunc}, u8"(", 16, pos});
+      expect.emplace_back(pp_token_category::pp_number, lex_token{pp_tokenize_result{pp_tokenize_status::NumberLiteral}, u8"0", 17, pos});
+      expect.emplace_back(pp_token_category::op_or_punc).token = u8","sv;
+      expect.emplace_back(pp_token_category::op_or_punc).token = u8","sv;
+      expect.emplace_back(pp_token_category::op_or_punc, lex_token{pp_tokenize_result{pp_tokenize_status::OPorPunc}, u8")", 28, pos});
+      //結果の比較
+      CHECK_EQ(expect, *result);
+    }
   }
 
   TEST_CASE("__VA_OPT__ test2") {
@@ -996,6 +1022,21 @@ namespace kusabira_test::preprocessor
       expect.emplace_back(pp_token_category::identifier, lex_token{pp_tokenize_result{pp_tokenize_status::Identifier}, u8"foo", 5, pos2});
       //結果の比較
       CHECK_EQ(expect, *result);
+
+      //SDEF(foo,) みたいな呼び出し
+      {
+        args.emplace_back(std::pmr::list<pp_token>{&kusabira::def_mr});
+
+        //関数マクロ実行
+        const auto [is_success, result] = pp.funcmacro(u8"SDEF", args);
+
+        CHECK_UNARY(is_success);
+        REQUIRE_UNARY(bool(result));
+
+        //引数なしだとみなされる
+        CHECK_EQ(2ull, result->size());
+        CHECK_EQ(expect, *result);
+      }
     }
   }
 

@@ -243,13 +243,13 @@ namespace kusabira::PP {
 
       //置換リストの起点となる先頭位置
       const auto head = std::begin(result_list);
+      //引数の数
+      const auto N = args.size();
 
       //置換リスト-引数リスト対応を後ろから処理
       for (const auto[token_index, arg_index, va_args, va_opt] : views::reverse(m_correspond)) {
         //置換リストのトークン位置
         const auto it = std::next(head, token_index);
-        //引数の数
-        const auto N = args.size();
 
         if (va_args) {
           //可変長引数部分をコピーしつつカンマを登録
@@ -290,7 +290,12 @@ namespace kusabira::PP {
           // 対応する閉じかっこの存在は構文解析で保証する
           assert(vaopt_end != replist_end);
 
-          if (N < m_params.size()) {
+          //可変長引数が純粋に空の時の条件
+          bool flag = N < m_params.size();
+          //F(arg1, ...)なマクロに対して、F(0,)の様に呼び出した時のケア
+          flag |= (N == m_params.size()) and (args.back().size() == 0ull);
+
+          if (flag) {
             //可変長部分が空ならばVA_OPT全体を削除
 
             //VAOPTの全体を結果トークン列から取り除く
