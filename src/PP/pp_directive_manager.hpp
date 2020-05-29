@@ -135,15 +135,18 @@ namespace kusabira::PP {
   }
 
   /**
-  * @brief 関数マクロ1つを表現する型
+  * @brief マクロ1つを表現する型
+  * @details 構築に使用されたコンストラクタによってオブジェクトマクロと関数マクロを切り替える
   */
-  class func_like_macro {
+  class unified_macro {
     //仮引数リスト
     std::pmr::vector<std::u8string_view> m_params;
     //置換トークンのリスト
     std::pmr::list<pp_token> m_tokens;
     //可変長マクロですか？
     bool m_is_va = false;
+    //関数マクロですか？
+    bool m_is_func = true;
     //{置換リストに現れる仮引数名のインデックス, 対応する実引数のインデックス, __VA_ARGS__?, __VA_OPT__?}
     std::pmr::vector<std::tuple<std::size_t, std::size_t, bool, bool>> m_correspond;
 
@@ -330,16 +333,18 @@ namespace kusabira::PP {
   public:
 
     /**
-    * @brief コンストラクタ
+    * @brief 関数マクロの構築
     * @param params 仮引数列
+    * @param replist 置換リスト
     * @param is_va 可変引数マクロであるか否か
     */
     template <typename T = std::pmr::vector<std::u8string_view>, typename U = std::pmr::list<pp_token>>
-    func_like_macro(T &&params, U &&tokens, bool is_va)
-        : m_params{ std::forward<T>(params), &kusabira::def_mr }
-        , m_tokens{ std::forward<U>(tokens), &kusabira::def_mr }
-        , m_is_va{is_va}
-        , m_correspond{ &kusabira::def_mr }
+    unified_macro(T &&params, U &&replist, bool is_va)
+      : m_params{ std::forward<T>(params), &kusabira::def_mr }
+      , m_tokens{ std::forward<U>(replist), &kusabira::def_mr }
+      , m_is_va{is_va}
+      , m_is_func{true}
+      , m_correspond{ &kusabira::def_mr }
     {
       if (is_va) {
         this->make_id_to_param_pair<true>();
@@ -348,8 +353,22 @@ namespace kusabira::PP {
       }
     }
 
-    func_like_macro(func_like_macro&&) = default;
-    func_like_macro& operator=(func_like_macro&&) = default;
+    /**
+    * @brief オブジェクトマクロの構築
+    * @param replist 置換リスト
+    */
+    template <typename U = std::pmr::list<pp_token>>
+    unified_macro(U &&replist)
+      : m_params{ &kusabira::def_mr }
+      , m_tokens{ std::forward<U>(replist), &kusabira::def_mr }
+      , m_is_va{false}
+      , m_is_func{false}
+      , m_correspond{ &kusabira::def_mr }
+    {
+    }
+
+    unified_macro(unified_macro&&) = default;
+    unified_macro& operator=(unified_macro&&) = default;
 
     /**
     * @brief 仮引数列と置換リストから別のマクロとの同一性を判定する
@@ -359,6 +378,14 @@ namespace kusabira::PP {
     */
     fn is_identical(const std::pmr::vector<std::u8string_view>& params, const std::pmr::list<pp_token>& tokens) const -> bool {
       return m_params == params and m_tokens == tokens;
+    }
+
+    /**
+    * @brief 関数マクロであるかを調べる
+    * @return 関数マクロならtrue
+    */
+    fn is_function() const -> bool {
+      return m_is_func;
     }
 
     /**
@@ -395,13 +422,11 @@ namespace kusabira::PP {
   */
   struct pp_directive_manager {
 
-    using macro_map = std::pmr::unordered_map<std::u8string_view, std::pmr::list<pp_token>>;
-    using funcmacro_map = std::pmr::unordered_map<std::u8string_view, func_like_macro>;
+    using funcmacro_map = std::pmr::unordered_map<std::u8string_view, unified_macro>;
 
     std::size_t m_line = 1;
     fs::path m_filename{};
     fs::path m_replace_filename{};
-    macro_map m_objmacros{&kusabira::def_mr};
     funcmacro_map m_funcmacros{&kusabira::def_mr};
 
     pp_directive_manager() = default;
@@ -423,32 +448,75 @@ namespace kusabira::PP {
     }
 
     /**
-    * @brief オブジェクトマクロを登録する
+    * @brief マクロを登録する
     * @param reporter メッセージ出力器
     * @param macro_name マクロ名
     * @param tokenlist 置換リスト
+    * @param is_va 可変引数であるか否か（関数マクロのみ）
+    * @param params 仮引数リスト（関数マクロのみ）
+    * @details 後ろ2つの引数の有無でオブジェクトマクロと関数マクロを識別して登録する
     * @return 登録が恙なく完了したかどうか
     */
-    template<typename Reporter, typename ReplacementList = std::pmr::list<pp_token>>
-    fn define(Reporter& reporter, const PP::lex_token& macro_name, ReplacementList&& tokenlist) -> bool {
-      const auto [pos, is_registered] = m_objmacros.try_emplace(macro_name.token, std::forward<ReplacementList>(tokenlist));
+    template <typename Reporter, typename ReplacementList = std::pmr::list<pp_token>, typename ParamList = std::nullptr_t>
+    fn define(Reporter &reporter, const PP::lex_token& macro_name, ReplacementList &&tokenlist, [[maybe_unused]] ParamList&& params = {}, [[maybe_unused]] bool is_va = false) -> bool {
 
-      if (not is_registered) {
-        //すでに登録されている場合、登録済みの置換リストとの同一性を判定する
-        if ((*pos).second == tokenlist) return true;
-        //トークンが一致していなければエラー
+      bool error = false;
+
+      if constexpr (std::is_same_v<ParamList, std::nullptr_t>) {
+        //オブジェクトマクロの登録
+        const auto [pos, is_registered] = m_funcmacros.try_emplace(macro_name.token, std::forward<ReplacementList>(tokenlist));
+
+        if (not is_registered) {
+          if ((*pos).second.is_identical({}, tokenlist)) return true;
+          //置換リストが一致していなければエラー
+          error = true;
+        }
+      } else {
+        static_assert([] { return false; }() || std::is_same_v<std::remove_cvref_t<ParamList>, std::pmr::vector<std::u8string_view>>, "ParamList must be std::pmr::vector<std::u8string_view>.");
+        //関数マクロの登録
+        const auto [pos, is_registered] = m_funcmacros.try_emplace(macro_name.token, std::forward<ParamList>(params), std::forward<ReplacementList>(tokenlist), is_va);
+
+        if (not is_registered) {
+          if ((*pos).second.is_identical(params, tokenlist)) return true;
+          //仮引数列と置換リストが一致していなければエラー
+          error = true;
+        }
+      }
+
+      if (error) {
+        //同名の異なる定義のマクロが登録された、エラー
         reporter.pp_err_report(m_filename, macro_name, pp_parse_context::Define_Duplicate);
         return false;
       }
 
-      //関数マクロが重複していれば消す
-      if (auto n = m_funcmacros.erase(macro_name.token); n != 0) {
-        //警告表示
-        reporter.pp_err_report(m_filename, macro_name, pp_parse_context::Define_Redfined, report::report_category::warning);
-      }
-
       return true;
     }
+
+  private:
+
+    /**
+    * @brief 対応するマクロを取り出す
+    * @param macro_name マクロ名
+    * @param found_op マクロが見つかった時の処理
+    * @param nofound_val 見つからなかった時に返すもの
+    * @return {見つかったか否か, マクロを指すイテレータ}
+    */
+    template<typename Found, typename NotFound>
+    fn fetch_macro(std::u8string_view macro_name, Found&& found_op, NotFound&& nofound_val) const {
+      using std::end;
+
+      const auto pos = m_funcmacros.find(macro_name);
+
+      //見つからなかったら、その時用の戻り値を返す
+      if (pos == end(m_funcmacros)) {
+        return nofound_val;
+      }
+
+      //見つかったらその要素を与えて処理を実行
+      return found_op((*pos).second);
+    }
+
+  public:
 
     /**
     * @brief マクロによる置換リストを取得する
@@ -456,41 +524,12 @@ namespace kusabira::PP {
     * @return 置換リストのoptional、無効地なら置換対象ではなかった
     */
     fn objmacro(std::u8string_view macro_name) const -> std::optional<std::pmr::list<pp_token>> {
-      using std::end;
-      const auto pos = m_objmacros.find(macro_name);
-      if (pos == end(m_objmacros)) return std::nullopt;
-      //コピーして返す
-      return std::optional<std::pmr::list<pp_token>>{std::in_place, (*pos).second, &kusabira::def_mr};
-    }
-
-    /**
-    * @brief 関数マクロを登録する
-    * @param reporter メッセージ出力器
-    * @param macro_name マクロ名
-    * @param params 仮引数リスト
-    * @param tokenlist 置換リスト
-    * @param is_va 可変引数であるか否か
-    * @return 登録が恙なく完了したかどうか
-    */
-    template<typename Reporter, typename ParamList = std::pmr::vector<std::u8string_view>, typename ReplacementList = std::pmr::list<pp_token>>
-    fn define(Reporter& reporter, const PP::lex_token& macro_name, ParamList&& params, ReplacementList&& tokenlist, bool is_va) -> bool {
-      //関数マクロを登録する
-      const auto [pos, is_registered] = m_funcmacros.try_emplace(macro_name.token, std::forward<ParamList>(params), std::forward<ReplacementList>(tokenlist), is_va);
-
-      if (not is_registered) {
-        if ((*pos).second.is_identical(params, tokenlist)) return true;
-        //仮引数列と置換リストが一致していなければエラー
-        reporter.pp_err_report(m_filename, macro_name, pp_parse_context::Define_Duplicate);
-        return false;
-      }
-
-      //オブジェクトマクロが重複していれば消す
-      if (auto n = m_objmacros.erase(macro_name.token); n != 0) {
-        //警告表示
-        reporter.pp_err_report(m_filename, macro_name, pp_parse_context::Define_Duplicate, report::report_category::warning);
-      }
-
-      return true;
+      return fetch_macro(macro_name, [&mr = kusabira::def_mr](const auto& macro) {
+        //置換結果取得
+        auto&& result = macro({});
+        //optionalで包んで返す
+        return std::optional<std::pmr::list<pp_token>>{std::in_place, std::move(result), &mr};
+      }, std::optional<std::pmr::list<pp_token>>{});
     }
 
     /**
@@ -500,30 +539,27 @@ namespace kusabira::PP {
     * @return {仮引数の数と実引数の数があったか否か, 置換リストのoptional}
     */
     fn funcmacro(std::u8string_view macro_name, const std::pmr::vector<std::pmr::list<pp_token>>& args) const -> std::pair<bool, std::optional<std::pmr::list<pp_token>>> {
-      using std::end;
+      return fetch_macro(macro_name, [&mr = kusabira::def_mr, &args](const auto& macro) -> std::pair<bool, std::optional<std::pmr::list<pp_token>>> {
+        //引数長さのチェック、ここでエラーにしたい
+        if (not macro.validate_argnum(args)) return {false, std::nullopt};
 
-      const auto pos = m_funcmacros.find(macro_name);
-      if (pos == end(m_funcmacros)) return {true, std::nullopt};
+        //置換結果取得
+        auto&& result = macro(args);
 
-      const auto& funcmacro = (*pos).second;
-
-      //引数長さのチェック、ここでエラーにしたい
-      if (not funcmacro.validate_argnum(args)) return {false, std::nullopt};
-
-      //置換結果取得
-      auto&& result = funcmacro(args);
-
-      //optionalで包んで返す
-      return {true, std::optional<std::pmr::list<pp_token>>{std::in_place, std::move(result), &kusabira::def_mr}};
+        //optionalで包んで返す
+        return {true, std::optional<std::pmr::list<pp_token>>{std::in_place, std::move(result), &mr}};
+      }, std::make_pair(true, std::optional<std::pmr::list<pp_token>>{}));
     }
 
     /**
-    * @brief 識別子がマクロ名であるかをチェックする
+    * @brief 識別子がマクロ名であるか、また関数形式かをチェックする
     * @param identifier 識別子の文字列
-    * @return {オブジェクトマクロであるか？, 関数マクロであるか？}
+    * @return マクロでないなら無効値、関数マクロならtrue
     */
-    fn is_macro(std::u8string_view identifier) const -> std::pair<bool, bool> {
-      return {m_objmacros.contains(identifier), m_funcmacros.contains(identifier)};
+    fn is_macro(std::u8string_view identifier) const -> std::optional<bool> {
+      return fetch_macro(identifier, [](const auto& macro) -> std::optional<bool> {
+        return macro.is_function();
+      }, std::optional<bool>{});
     }
 
     /**
@@ -531,7 +567,6 @@ namespace kusabira::PP {
     */
     void undef(std::u8string_view macro_name) {
       //消す、登録してあったかは関係ない
-      m_objmacros.erase(macro_name);
       m_funcmacros.erase(macro_name);
     }
 

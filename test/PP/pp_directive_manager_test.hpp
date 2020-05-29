@@ -247,9 +247,9 @@ namespace kusabira_test::preprocessor
       CHECK_UNARY(pp.define(*reporter, lt1, pptokens));
 
       //登録のチェック
-      const auto [is_obj, is_func] = pp.is_macro(lt1.token);
-      CHECK_UNARY(is_obj);
-      CHECK_UNARY_FALSE(is_func);
+      const auto is_func = pp.is_macro(lt1.token);
+      REQUIRE_UNARY(bool(is_func));
+      CHECK_UNARY_FALSE(*is_func);
 
       auto list = pp.objmacro(lt1.token);
 
@@ -280,9 +280,9 @@ namespace kusabira_test::preprocessor
       CHECK_UNARY(pp.define(*reporter, lt1, pptokens));
 
       //登録のチェック
-      const auto [is_obj, is_func] = pp.is_macro(lt1.token);
-      CHECK_UNARY(is_obj);
-      CHECK_UNARY_FALSE(is_func);
+      const auto is_func = pp.is_macro(lt1.token);
+      REQUIRE_UNARY(bool(is_func));
+      CHECK_UNARY_FALSE(*is_func);
 
       auto list = pp.objmacro(lt1.token);
 
@@ -302,17 +302,15 @@ namespace kusabira_test::preprocessor
       pp.undef(u8"N"sv);
 
       //登録のチェック
-      const auto [is_obj, is_func] = pp.is_macro(u8"N"sv);
-      CHECK_UNARY_FALSE(is_obj);
-      CHECK_UNARY_FALSE(is_func);
+      const auto is_macro = pp.is_macro(u8"N"sv);
+      CHECK_UNARY_FALSE(bool(is_macro));
     }
     {
       pp.undef(u8"MACRO"sv);
 
       //登録のチェック
-      const auto [is_obj, is_func] = pp.is_macro(u8"MACRO"sv);
-      CHECK_UNARY_FALSE(is_obj);
-      CHECK_UNARY_FALSE(is_func);
+      const auto is_macro = pp.is_macro(u8"MACRO"sv);
+      CHECK_UNARY_FALSE(bool(is_macro));
     }
   }
 
@@ -392,12 +390,12 @@ namespace kusabira_test::preprocessor
       rep_list.emplace_back(pp_token_category::op_or_punc, lt23);
 
       //関数マクロ登録
-      CHECK_UNARY(pp.define(*reporter, lt1, params, rep_list, false));
+      CHECK_UNARY(pp.define(*reporter, lt1, rep_list, params, false));
 
       //登録のチェック
-      const auto [is_obj, is_func] = pp.is_macro(lt1.token);
-      CHECK_UNARY_FALSE(is_obj);
-      CHECK_UNARY(is_func);
+      const auto is_func = pp.is_macro(lt1.token);
+      REQUIRE_UNARY(bool(is_func));
+      CHECK_UNARY(*is_func);
 
       //実引数リスト作成
       pos = ll.emplace_after(pos, 1);
@@ -450,15 +448,15 @@ namespace kusabira_test::preprocessor
       CHECK_EQ(null_result, std::nullopt);
 
       //再登録、成功する（登録は行われない）
-      CHECK_UNARY(pp.define(*reporter, lt1, params, rep_list, false));
+      CHECK_UNARY(pp.define(*reporter, lt1, rep_list, params, false));
   
       //一部でも違うと失敗
       params.pop_back();
-      CHECK_UNARY_FALSE(pp.define(*reporter, lt1, params, rep_list, false));
+      CHECK_UNARY_FALSE(pp.define(*reporter, lt1, rep_list, params, false));
 
       params.emplace_back(lt5.token);
       rep_list.pop_back();
-      CHECK_UNARY_FALSE(pp.define(*reporter, lt1, params, rep_list, false));
+      CHECK_UNARY_FALSE(pp.define(*reporter, lt1, rep_list, params, false));
     }
 
     // 引数に複数のトークン列を含む
@@ -545,9 +543,8 @@ namespace kusabira_test::preprocessor
       pp.undef(u8"max"sv);
 
       //登録のチェック
-      const auto [is_obj, is_func] = pp.is_macro(u8"max"sv);
-      CHECK_UNARY_FALSE(is_obj);
-      CHECK_UNARY_FALSE(is_func);
+      const auto is_macro = pp.is_macro(u8"max"sv);
+      CHECK_UNARY_FALSE(bool(is_macro));
     }
   }
 
@@ -597,12 +594,12 @@ namespace kusabira_test::preprocessor
       rep_list.emplace_back(pp_token_category::op_or_punc, lt9);
 
       //関数マクロ登録
-      CHECK_UNARY(pp.define(*reporter, lt2, params, rep_list, true));
+      CHECK_UNARY(pp.define(*reporter, lt2, rep_list, params, true));
 
       //登録のチェック
-      const auto [is_obj, is_func] = pp.is_macro(lt2.token);
-      CHECK_UNARY_FALSE(is_obj);
-      CHECK_UNARY(is_func);
+      const auto is_func = pp.is_macro(lt2.token);
+      REQUIRE_UNARY(bool(is_func));
+      CHECK_UNARY(*is_func);
 
       //実引数リスト作成
       auto pos2 = ll.emplace_after(pos, 1);
@@ -684,9 +681,8 @@ namespace kusabira_test::preprocessor
       pp.undef(u8"F"sv);
 
       //登録のチェック
-      const auto [is_obj, is_func] = pp.is_macro(u8"F"sv);
-      CHECK_UNARY_FALSE(is_obj);
-      CHECK_UNARY_FALSE(is_func);
+      const auto is_macro = pp.is_macro(u8"F"sv);
+      CHECK_UNARY_FALSE(bool(is_macro));
     }
   }
 
@@ -790,7 +786,7 @@ namespace kusabira_test::preprocessor
       rep_list.emplace_back(pp_token_category::op_or_punc, lt16);
 
       //関数マクロ登録
-      CHECK_UNARY(pp.define(*reporter, lt2, params, rep_list, true));
+      CHECK_UNARY(pp.define(*reporter, lt2, rep_list, params, true));
 
       //実引数リスト作成
       auto pos2 = ll.emplace_after(pos, 1);
@@ -941,7 +937,7 @@ namespace kusabira_test::preprocessor
       rep_list.emplace_back(pp_token_category::op_or_punc, lt16);
 
       //関数マクロ登録
-      CHECK_UNARY(pp.define(*reporter, lt2, params, rep_list, true));
+      CHECK_UNARY(pp.define(*reporter, lt2, rep_list, params, true));
 
       //実引数リスト作成
       auto pos2 = ll.emplace_after(pos, 1);
