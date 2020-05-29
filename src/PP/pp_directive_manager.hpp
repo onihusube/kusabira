@@ -140,13 +140,13 @@ namespace kusabira::PP {
   */
   class unified_macro {
     //仮引数リスト
-    std::pmr::vector<std::u8string_view> m_params;
+    const std::pmr::vector<std::u8string_view> m_params;
     //置換トークンのリスト
     std::pmr::list<pp_token> m_tokens;
     //可変長マクロですか？
-    bool m_is_va = false;
+    const bool m_is_va = false;
     //関数マクロですか？
-    bool m_is_func = true;
+    const bool m_is_func = true;
     //{置換リストに現れる仮引数名のインデックス, 対応する実引数のインデックス, __VA_ARGS__?, __VA_OPT__?}
     std::pmr::vector<std::tuple<std::size_t, std::size_t, bool, bool>> m_correspond;
 
@@ -329,6 +329,29 @@ namespace kusabira::PP {
       return result_list;
     }
 
+    /**
+    * @brief オブジェクトマクロの置換リスト中の##トークンを処理する
+    */
+    void objmacro_token_concat() {
+      using namespace std::string_view_literals;
+
+      auto it = std::begin(m_tokens);
+      auto end = std::end(m_tokens);
+
+      for (; it != end; ++it) {
+        if ((*it).category != pp_token_category::op_or_punc) continue;
+        if ((*it).token != u8"##"sv) continue;
+
+        //一つ前のイテレータを得ておく
+        auto prev = it;
+        --prev;
+
+        //とりあえずは##を消すだけ
+        m_tokens.erase(it);
+
+        it = prev;
+      }
+    }
 
   public:
 
@@ -365,6 +388,7 @@ namespace kusabira::PP {
       , m_is_func{false}
       , m_correspond{ &kusabira::def_mr }
     {
+      this->objmacro_token_concat();
     }
 
     unified_macro(unified_macro&&) = default;
