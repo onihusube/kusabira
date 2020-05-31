@@ -140,15 +140,17 @@ namespace kusabira::PP {
   */
   class unified_macro {
     //仮引数リスト
-    const std::pmr::vector<std::u8string_view> m_params;
+    std::pmr::vector<std::u8string_view> m_params;
     //置換トークンのリスト
     std::pmr::list<pp_token> m_tokens;
     //可変長マクロですか？
     const bool m_is_va = false;
     //関数マクロですか？
     const bool m_is_func = true;
+    //#トークンが仮引数名の前に来なかった
+    bool m_is_sharp_op_err = false;
     //{置換リストに現れる仮引数名のインデックス, 対応する実引数のインデックス, __VA_ARGS__?, __VA_OPT__?}
-    std::pmr::vector<std::tuple<std::size_t, std::size_t, bool, bool>> m_correspond;
+    std::pmr::vector<std::tuple<std::size_t, std::size_t, bool, bool, std::optional<bool>>> m_correspond;
 
     /**
     * @brief 置換リスト上の仮引数を見つけて、仮引数の番号との対応を取っておく
@@ -156,6 +158,8 @@ namespace kusabira::PP {
     */
     template<bool Is_VA>
     void make_id_to_param_pair() {
+      using namespace std::string_view_literals;
+
       //仮引数名に対応する実引数リスト上の位置を求めるやつ
       auto find_param_index = [&arglist = m_params](auto token_str) -> std::pair<bool, std::size_t> {
         for (auto i = 0ull; i < arglist.size(); ++i) {
@@ -171,10 +175,43 @@ namespace kusabira::PP {
 
       m_correspond.reserve(N);
 
+      //##の出現をマークする
+      //# = true, ## = false
+      std::optional<bool> is_sharp_op{};
+
       auto it = m_tokens.begin();
       for (auto index = 0ull; index < N; ++index, ++it) {
-        //識別子だけを見る
-        if ((*it).category != pp_token_category::identifier) continue;
+        //#,##をチェック
+        if ((*it).category == pp_token_category::op_or_punc) {
+          if ((*it).token == u8"#"sv) {
+            //#も##も現れていないときだけ#を識別、#に対して#するのはエラー
+            if (not bool(is_sharp_op)) {
+              is_sharp_op = true;
+              continue;
+            }
+          } else if ((*it).token == u8"##"sv) {
+            //#や##が現れた後でも、それらは無かったことにする
+            //##の後に##が現れるケースはケアしない（未定義動作に含まれるはず）
+            is_sharp_op = false;
+            continue;
+          }
+        }
+
+        //識別子以外なら##の処理だけする
+        if ((*it).category != pp_token_category::identifier) {
+          if (bool(is_sharp_op)) {
+            if (*is_sharp_op == false) {
+              //##をマーク
+              m_correspond.emplace_back(index, 0, false, false, is_sharp_op);
+            } else {
+              //#が仮引数名の前にないためエラー
+              m_is_sharp_op_err = true;
+              break;
+            }
+          }
+          is_sharp_op = std::nullopt;
+          continue;
+        }
 
         if constexpr (Is_VA) {
           //可変引数参照のチェック
@@ -185,21 +222,32 @@ namespace kusabira::PP {
             assert(ismatch);
 
             //置換リストの要素番号に対して、対応する実引数位置を保存
-            m_correspond.emplace_back(index, va_start_index, true, false);
+            m_correspond.emplace_back(index, va_start_index, true, false, is_sharp_op);
+            is_sharp_op = std::nullopt;
             continue;
           } else if ((*it).token.to_view() == u8"__VA_OPT__") {
             //__VA_OPT__を見つけておく
-            m_correspond.emplace_back(index, 0, false, true);
+            m_correspond.emplace_back(index, 0, false, true, is_sharp_op);
+            is_sharp_op = std::nullopt;
             continue;
           }
         }
 
         const auto [ismatch, param_index] = find_param_index((*it).token.to_view());
         //仮引数名ではないから次
-        if (not ismatch) continue;
+        if (not ismatch) {
+          //#が観測されているのに仮引数名ではない場合
+          if (bool(is_sharp_op) and *is_sharp_op == true) {
+            //エラー
+            m_is_sharp_op_err = true;
+            break;
+          }
+          continue;
+        }
 
         //置換リストの要素番号に対して、対応する実引数位置を保存
-        m_correspond.emplace_back(index, param_index, false, false);
+        m_correspond.emplace_back(index, param_index, false, false, is_sharp_op);
+        is_sharp_op = std::nullopt;
       }
     }
 
@@ -216,7 +264,7 @@ namespace kusabira::PP {
       const auto head = std::begin(result_list);
 
       //置換リスト-引数リスト対応を後ろから処理
-      for (const auto[token_index, arg_index, ignore1, ignore2] : views::reverse(m_correspond)) {
+      for (const auto[token_index, arg_index, ignore1, ignore2, sharp_op] : views::reverse(m_correspond)) {
         //置換リストのトークン位置
         const auto it = std::next(head, token_index);
 
@@ -250,7 +298,7 @@ namespace kusabira::PP {
       const auto N = args.size();
 
       //置換リスト-引数リスト対応を後ろから処理
-      for (const auto[token_index, arg_index, va_args, va_opt] : views::reverse(m_correspond)) {
+      for (const auto[token_index, arg_index, va_args, va_opt, sharp_op] : views::reverse(m_correspond)) {
         //置換リストのトークン位置
         const auto it = std::next(head, token_index);
 
@@ -346,8 +394,21 @@ namespace kusabira::PP {
         auto prev = it;
         --prev;
 
-        //とりあえずは##を消すだけ
-        m_tokens.erase(it);
+        //##を消して次のイテレータを得る
+        auto next = m_tokens.erase(it);
+
+        //2つのイテレータを連結する
+        //この時、不正なトークンのチェックは行わない（規格上では未定義動作とされているため）
+        //カテゴリは前のトークンに合わせる
+        auto&& str = (*prev).token.to_string();
+        str.append((*next).token);
+        //トークンを構成する字句トークンの移動
+        (*prev).token = std::move(str);
+        auto pos = (*next).lextokens.before_begin();
+        //後ろの字句トークン列の先頭に前の字句トークン列をsplice
+        (*next).lextokens.splice_after(pos, std::move((*prev).lextokens));
+        //それを前の字句トークン列のあった所へムーブする
+        (*prev).lextokens = std::move((*next).lextokens);
 
         it = prev;
       }
@@ -483,6 +544,25 @@ namespace kusabira::PP {
     */
     template <typename Reporter, typename ReplacementList = std::pmr::list<pp_token>, typename ParamList = std::nullptr_t>
     fn define(Reporter &reporter, const PP::lex_token& macro_name, ReplacementList &&tokenlist, [[maybe_unused]] ParamList&& params = {}, [[maybe_unused]] bool is_va = false) -> bool {
+      using namespace std::string_view_literals;
+
+      if (tokenlist.size() != 0) {
+        //先頭と末尾の##の出現を調べる、出てきたらエラー
+        pp_token* ptr = nullptr;
+
+        //エラー的にはソースコード上で最初に登場するやつを出したい気がする
+        if (auto& back = tokenlist.back(); back.token == u8"##"sv) ptr = &back;
+        if (auto& front = tokenlist.front(); front.token == u8"##"sv) ptr = &front;
+
+        if (ptr != nullptr) {
+          //まあこれは起こらないと思う
+          assert((*ptr).lextokens.begin() != (*ptr).lextokens.end());
+
+          //##トークンが置換リストの前後に出現している
+          reporter.pp_err_report(m_filename, (*ptr).lextokens.front(), pp_parse_context::Define_Sharp2BothEnd);
+          return false;
+        }
+      }
 
       bool error = false;
 

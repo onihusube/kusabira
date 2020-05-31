@@ -1024,14 +1024,14 @@ namespace kusabira_test::preprocessor
         args.emplace_back(std::pmr::list<pp_token>{&kusabira::def_mr});
 
         //関数マクロ実行
-        const auto [is_success, result] = pp.funcmacro(u8"SDEF", args);
+        const auto [is_success2, result2] = pp.funcmacro(u8"SDEF", args);
 
-        CHECK_UNARY(is_success);
+        CHECK_UNARY(is_success2);
         REQUIRE_UNARY(bool(result));
 
         //引数なしだとみなされる
-        CHECK_EQ(2ull, result->size());
-        CHECK_EQ(expect, *result);
+        CHECK_EQ(2ull, result2->size());
+        CHECK_EQ(expect, *result2);
       }
     }
   }

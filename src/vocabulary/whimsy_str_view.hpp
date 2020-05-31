@@ -176,7 +176,7 @@ namespace kusabira::vocabulary {
     }
 
     /**
-    * @brief 文字列を所有しているか（viewなのかどうか）を取得
+    * @brief 文字列を所有しているか（viewなのかどうか）を取得（これ分かり辛いのでいらないかもしれない
     * @return trueなら文字列を保持している、falseならviewである
     */
     [[nodiscard]] explicit operator bool() const noexcept {
