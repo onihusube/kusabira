@@ -136,45 +136,41 @@ namespace kusabira::PP {
 
   /**
   * @brief プリプロセッシングトークン列の文字列化を行う
-  * @param tokens 文字列化対象のトークン列
+  * @param it 文字列化対象のトークン列の先頭、参照先を変更する
+  * @param end 文字列化対象のトークン列の終端
   * @return 文字列化されたトークン（列）、必ず1要素になる
   */
-  ifn pp_stringize(std::pmr::list<pp_token>&& tokens) -> std::pmr::list<pp_token> {
+  template<typename Iterator, typename Sentinel>
+  ifn pp_stringize(Iterator it, Sentinel end) -> std::pmr::list<pp_token> {
     using namespace std::string_view_literals;
 
-    auto it = std::begin(tokens);
-    const auto end = std::end(tokens);
+    //結果のリスト
+    std::pmr::list<pp_token> result{ &kusabira::def_mr };
+    //文字列トークン
+    pp_token& first = result.emplace_back(PP::pp_token_category::string_literal);
 
-    //先頭要素を書き換える形で行う
-    auto& first = *it;
-    std::pmr::u8string str{u8"\""sv , & kusabira::def_mr};
-    auto&& tmp = first.token.to_string();
-    str.apend(tmp);
+    //トークン列を順に文字列化するための一時文字列
+    std::pmr::u8string str{u8"\""sv , &kusabira::def_mr};
+    //字句トークン列挿入位置
+    auto pos = first.lextokens.before_begin();
 
-    for (++it; it != end; ++it) {
-      auto&& tmp = first.token.to_string();
-      str.apend(tmp);
+    for (; it != end; ++it) {
+      auto&& tmp = (*it).token.to_string();
+      //"と\ をエスケープする必要がある
+      str.append(std::move(tmp));
       
       //カンマの後にスペースを補う
       if ((*it).token == u8","sv) {
-        str.apend(u8" ");
+        str.append(u8" ");
       }
 
       //構成する字句トークン列への参照を保存しておく
-      auto pos = (*it).lextokens.before_begin();
-      //後ろの字句トークン列の先頭に前の字句トークン列をsplice
-      (*it).lextokens.splice_after(pos, std::move(first.lextokens));
-      //それを前の字句トークン列のあった所へムーブする
-      first.lextokens = std::move((*it).lextokens);
+      pos = first.lextokens.insert_after(pos, (*it).lextokens.begin(), (*it).lextokens.end());
     }
 
-    str.apend(u8"\"");
+    str.append(u8"\"");
     first.token = std::move(str);
-    first.category = pp_token_category::string_literal;
 
-    //先頭要素だけを返す
-    std::pmr::list<pp_token> result{&kusabira::def_mr};
-    result.splice(result.end(), tokens.begin());
     return result;
   }
 
@@ -437,7 +433,7 @@ namespace kusabira::PP {
 
         if (need_sharp_proc()) {
           //#演算子の処理、文字列化を行う
-          arg_list = pp_stringize(std::move(arg_list));
+          arg_list = pp_stringize(std::begin(arg_list), std::end(arg_list));
         }
 
         //結果リストにsplice
