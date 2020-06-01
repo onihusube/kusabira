@@ -135,6 +135,50 @@ namespace kusabira::PP {
   }
 
   /**
+  * @brief プリプロセッシングトークン列の文字列化を行う
+  * @param tokens 文字列化対象のトークン列
+  * @return 文字列化されたトークン（列）、必ず1要素になる
+  */
+  ifn pp_stringize(std::pmr::list<pp_token>&& tokens) -> std::pmr::list<pp_token> {
+    using namespace std::string_view_literals;
+
+    auto it = std::begin(tokens);
+    const auto end = std::end(tokens);
+
+    //先頭要素を書き換える形で行う
+    auto& first = *it;
+    std::pmr::u8string str{u8"\""sv , & kusabira::def_mr};
+    auto&& tmp = first.token.to_string();
+    str.apend(tmp);
+
+    for (++it; it != end; ++it) {
+      auto&& tmp = first.token.to_string();
+      str.apend(tmp);
+      
+      //カンマの後にスペースを補う
+      if ((*it).token == u8","sv) {
+        str.apend(u8" ");
+      }
+
+      //構成する字句トークン列への参照を保存しておく
+      auto pos = (*it).lextokens.before_begin();
+      //後ろの字句トークン列の先頭に前の字句トークン列をsplice
+      (*it).lextokens.splice_after(pos, std::move(first.lextokens));
+      //それを前の字句トークン列のあった所へムーブする
+      first.lextokens = std::move((*it).lextokens);
+    }
+
+    str.apend(u8"\"");
+    first.token = std::move(str);
+    first.category = pp_token_category::string_literal;
+
+    //先頭要素だけを返す
+    std::pmr::list<pp_token> result{&kusabira::def_mr};
+    result.splice(result.end(), tokens.begin());
+    return result;
+  }
+
+  /**
   * @brief マクロ1つを表現する型
   * @details 構築に使用されたコンストラクタによってオブジェクトマクロと関数マクロを切り替える
   */
@@ -313,24 +357,11 @@ namespace kusabira::PP {
         //置換リストのトークン位置
         const auto it = std::next(head, token_index);
 
-        if (va_args) {
-          //可変長引数部分をコピーしつつカンマを登録
-          for (std::size_t va_index = arg_index; va_index < N; ++va_index) {
-            //対応する実引数のトークン列をコピー
-            std::pmr::list<pp_token> arg_list{args[va_index], &kusabira::def_mr};
+        auto need_sharp_proc = [&sharp_op]() -> bool {
+          return (bool(sharp_op)) and (*sharp_op) == true;
+        };
 
-            //最後の引数にはカンマをつけない
-            if (va_index != (N - 1)) {
-              //カンマの追加
-              auto& comma = arg_list.emplace_back(pp_token_category::op_or_punc);
-              comma.token = u8","sv;
-              //エラーメッセージのためにコンテキストを補う必要がある？
-            }
-
-            //結果リストにsplice
-            result_list.splice(it, std::move(arg_list));
-          }
-        } else if (va_opt) {
+        if (va_opt) {
           //__VA_OPT__の処理
 
           //事前条件
@@ -362,6 +393,9 @@ namespace kusabira::PP {
 
             //VAOPTの全体を結果トークン列から取り除く
             result_list.erase(it, ++vaopt_end);
+          } else if (need_sharp_proc()) {
+            //#__VA_OPT__(...)、文字列化を行う
+
           } else {
             //可変長部分が空でないならば、VA_OPTと対応するかっこだけを削除
 
@@ -373,14 +407,41 @@ namespace kusabira::PP {
 
           //itに対応するトークンを消してしまっているので次に行く
           continue;
-        } else {
-          //対応する実引数のトークン列をコピー
-          std::pmr::list<pp_token> arg_list{args[arg_index], &kusabira::def_mr};
-
-          //結果リストにsplice
-          result_list.splice(it, std::move(arg_list));
         }
 
+        //実引数リストを構成するためのリスト
+        std::pmr::list<pp_token> arg_list{&kusabira::def_mr};
+
+        //VA_ARGSと通常の置換処理
+        if (va_args) {
+          //spliceしていくための挿入位置
+          const auto pos = std::end(arg_list);
+
+          //可変長引数部分をコピーしつつカンマを登録
+          for (std::size_t va_index = arg_index; va_index < N; ++va_index) {
+            //実引数一つをコピー
+            arg_list.splice(pos, std::pmr::list<pp_token>{args[va_index], &kusabira::def_mr});
+
+            //最後の引数にはカンマをつけない
+            if (va_index != (N - 1)) {
+              //カンマの追加
+              auto& comma = arg_list.emplace_back(pp_token_category::op_or_punc);
+              comma.token = u8","sv;
+              //エラーメッセージのためにコンテキストを補う必要がある？
+            }
+          }
+        } else {
+          //対応する実引数のトークン列をコピー
+          arg_list = args[arg_index];
+        }
+
+        if (need_sharp_proc()) {
+          //#演算子の処理、文字列化を行う
+          arg_list = pp_stringize(std::move(arg_list));
+        }
+
+        //結果リストにsplice
+        result_list.splice(it, std::move(arg_list));
         //置換済みトークンを消す
         result_list.erase(it);
       }
