@@ -18,6 +18,7 @@
 #endif
 
 #include "vocabulary/whimsy_str_view.hpp"
+#include "vocabulary/scope.hpp"
 
 #define  fn [[nodiscard]] auto
 #define sfn [[nodiscard]] static auto

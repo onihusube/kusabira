@@ -149,7 +149,7 @@ namespace kusabira::PP {
     const bool m_is_func = true;
     //#トークンが仮引数名の前に来なかった
     bool m_is_sharp_op_err = false;
-    //{置換リストに現れる仮引数名のインデックス, 対応する実引数のインデックス, __VA_ARGS__?, __VA_OPT__?}
+    //{置換リストに現れる仮引数名のインデックス, 対応する実引数のインデックス, __VA_ARGS__?, __VA_OPT__?, {true = #, false = ##}}
     std::pmr::vector<std::tuple<std::size_t, std::size_t, bool, bool, std::optional<bool>>> m_correspond;
 
     /**
@@ -171,7 +171,7 @@ namespace kusabira::PP {
       };
 
       // 置換対象トークン数
-      const auto N = m_tokens.size();
+      auto N = m_tokens.size();
 
       m_correspond.reserve(N);
 
@@ -183,6 +183,7 @@ namespace kusabira::PP {
       for (auto index = 0ull; index < N; ++index, ++it) {
         //#,##をチェック
         if ((*it).category == pp_token_category::op_or_punc) {
+
           if ((*it).token == u8"#"sv) {
             //#も##も現れていないときだけ#を識別、#に対して#するのはエラー
             if (not bool(is_sharp_op)) {
@@ -197,6 +198,20 @@ namespace kusabira::PP {
           }
         }
 
+        //1つ前の#,##トークンを削除する
+        if (bool(is_sharp_op)) {
+          //1つ前のトークン（すなわち#,##）を消す
+          m_tokens.erase(std::prev(it));
+          //消した分indexとトークン数を修正
+          --index;
+          N = m_tokens.size();
+        }
+
+        //処理終了後状態をリセット
+        vocabulary::scope_exit se = [&is_sharp_op]() {
+          is_sharp_op = std::nullopt;
+        };
+
         //識別子以外なら##の処理だけする
         if ((*it).category != pp_token_category::identifier) {
           if (bool(is_sharp_op)) {
@@ -209,7 +224,6 @@ namespace kusabira::PP {
               break;
             }
           }
-          is_sharp_op = std::nullopt;
           continue;
         }
 
@@ -223,12 +237,10 @@ namespace kusabira::PP {
 
             //置換リストの要素番号に対して、対応する実引数位置を保存
             m_correspond.emplace_back(index, va_start_index, true, false, is_sharp_op);
-            is_sharp_op = std::nullopt;
             continue;
           } else if ((*it).token.to_view() == u8"__VA_OPT__") {
             //__VA_OPT__を見つけておく
             m_correspond.emplace_back(index, 0, false, true, is_sharp_op);
-            is_sharp_op = std::nullopt;
             continue;
           }
         }
@@ -247,7 +259,6 @@ namespace kusabira::PP {
 
         //置換リストの要素番号に対して、対応する実引数位置を保存
         m_correspond.emplace_back(index, param_index, false, false, is_sharp_op);
-        is_sharp_op = std::nullopt;
       }
     }
 
@@ -474,6 +485,15 @@ namespace kusabira::PP {
     }
 
     /**
+    * @brief マクロの実行が可能かを取得、オブジェクトマクロはチェックの必要なし
+    * @details falseの時、#の後に仮引数が続かなかった
+    * @return マクロ実行がいつでも可能ならばtrue
+    */
+    fn is_ready() const -> bool {
+      return m_is_sharp_op_err == false;
+    }
+
+    /**
     * @brief 実引数の数が正しいかを調べる
     * @param args 実引数列
     * @details 可変引数マクロなら仮引数の数-1以上、それ以外の場合は仮引数の数と同一である場合に引数の数が合っているとみなす
@@ -603,7 +623,7 @@ namespace kusabira::PP {
     * @param macro_name マクロ名
     * @param found_op マクロが見つかった時の処理
     * @param nofound_val 見つからなかった時に返すもの
-    * @return {見つかったか否か, マクロを指すイテレータ}
+    * @return found_op()の戻り値かnofound_valを返す
     */
     template<typename Found, typename NotFound>
     fn fetch_macro(std::u8string_view macro_name, Found&& found_op, NotFound&& nofound_val) const {
