@@ -136,11 +136,11 @@ namespace kusabira::PP {
 
   /**
   * @brief プリプロセッシングトークン列の文字列化を行う
-  * @param it 文字列化対象のトークン列の先頭、参照先を変更する
+  * @param it 文字列化対象のトークン列の先頭
   * @param end 文字列化対象のトークン列の終端
   * @return 文字列化されたトークン（列）、必ず1要素になる
   */
-  template<typename Iterator, typename Sentinel>
+  template<bool IsVA, typename Iterator, typename Sentinel>
   ifn pp_stringize(Iterator it, Sentinel end) -> std::pmr::list<pp_token> {
     using namespace std::string_view_literals;
 
@@ -152,20 +152,40 @@ namespace kusabira::PP {
     //トークン列を順に文字列化するための一時文字列
     std::pmr::u8string str{u8"\""sv , &kusabira::def_mr};
     //字句トークン列挿入位置
-    auto pos = first.lextokens.before_begin();
+    auto insert_pos = first.lextokens.before_begin();
 
     for (; it != end; ++it) {
       auto&& tmp = (*it).token.to_string();
+
       //"と\ をエスケープする必要がある
+      if (auto cat = (*it).category; pp_token_category::charcter_literal <= cat and cat <= pp_token_category::user_defined_raw_string_literal) {
+        //バックスラッシュをエスケープする
+        constexpr auto npos = std::u8string::npos;
+        auto bpos = tmp.find(u8'\\');
+        while(bpos != npos) {
+          tmp.replace(bpos, 1, u8R"(\\)");
+          bpos = tmp.find(u8'\\', bpos + 2);
+        }
+
+        if (pp_token_category::string_literal <= cat) {
+          //"をエスケープする
+          auto lpos = tmp.find(u8'"');
+          tmp.replace(lpos, 1, u8R"(\")");
+          auto rpos = tmp.rfind(u8'"');
+          tmp.replace(rpos, 1, u8R"(\")");
+        }
+      }
       str.append(std::move(tmp));
       
-      //カンマの後にスペースを補う
-      if ((*it).token == u8","sv) {
-        str.append(u8" ");
+      if constexpr (IsVA) {
+        //カンマの後にスペースを補う
+        if ((*it).token == u8","sv) {
+          str.append(u8" ");
+        }
       }
 
       //構成する字句トークン列への参照を保存しておく
-      pos = first.lextokens.insert_after(pos, (*it).lextokens.begin(), (*it).lextokens.end());
+      insert_pos = first.lextokens.insert_after(insert_pos, (*it).lextokens.begin(), (*it).lextokens.end());
     }
 
     str.append(u8"\"");
@@ -188,7 +208,7 @@ namespace kusabira::PP {
     //関数マクロですか？
     const bool m_is_func = true;
     //#トークンが仮引数名の前に来なかった
-    bool m_is_sharp_op_err = false;
+    std::optional<pp_token> m_is_sharp_op_err{};
     //{置換リストに現れる仮引数名のインデックス, 対応する実引数のインデックス, __VA_ARGS__?, __VA_OPT__?, {true = #, false = ##}}
     std::pmr::vector<std::tuple<std::size_t, std::size_t, bool, bool, std::optional<bool>>> m_correspond;
 
@@ -260,7 +280,7 @@ namespace kusabira::PP {
               m_correspond.emplace_back(index, 0, false, false, is_sharp_op);
             } else {
               //#が仮引数名の前にないためエラー
-              m_is_sharp_op_err = true;
+              m_is_sharp_op_err = std::move(*it);
               break;
             }
           }
@@ -279,6 +299,12 @@ namespace kusabira::PP {
             m_correspond.emplace_back(index, va_start_index, true, false, is_sharp_op);
             continue;
           } else if ((*it).token.to_view() == u8"__VA_OPT__") {
+            //__VA_OPT__の前に#は来てはならない
+            if (bool(is_sharp_op) and *is_sharp_op == true) {
+              //エラー
+              m_is_sharp_op_err = std::move(*it);
+              break;
+            }
             //__VA_OPT__を見つけておく
             m_correspond.emplace_back(index, 0, false, true, is_sharp_op);
             continue;
@@ -291,7 +317,7 @@ namespace kusabira::PP {
           //#が観測されているのに仮引数名ではない場合
           if (bool(is_sharp_op) and *is_sharp_op == true) {
             //エラー
-            m_is_sharp_op_err = true;
+            m_is_sharp_op_err = std::move(*it);
             break;
           }
           continue;
@@ -389,9 +415,6 @@ namespace kusabira::PP {
 
             //VAOPTの全体を結果トークン列から取り除く
             result_list.erase(it, ++vaopt_end);
-          } else if (need_sharp_proc()) {
-            //#__VA_OPT__(...)、文字列化を行う
-
           } else {
             //可変長部分が空でないならば、VA_OPTと対応するかっこだけを削除
 
@@ -399,6 +422,9 @@ namespace kusabira::PP {
             result_list.erase(vaopt_end);
             //次に開きかっことVA_OPT本体を削除
             result_list.erase(it, open_paren_pos_next);
+
+            //#__VA_OPT__はエラー
+            assert(not need_sharp_proc());
           }
 
           //itに対応するトークンを消してしまっているので次に行く
@@ -433,7 +459,11 @@ namespace kusabira::PP {
 
         if (need_sharp_proc()) {
           //#演算子の処理、文字列化を行う
-          arg_list = pp_stringize(std::begin(arg_list), std::end(arg_list));
+          if (va_args) {
+            arg_list = pp_stringize<true>(std::begin(arg_list), std::end(arg_list));
+          } else {
+            arg_list = pp_stringize<false>(std::begin(arg_list), std::end(arg_list));
+          }
         }
 
         //結果リストにsplice
@@ -477,6 +507,9 @@ namespace kusabira::PP {
         (*next).lextokens.splice_after(pos, std::move((*prev).lextokens));
         //それを前の字句トークン列のあった所へムーブする
         (*prev).lextokens = std::move((*next).lextokens);
+
+        //結合したので次のトークンを消す
+        m_tokens.erase(next);
 
         it = prev;
       }
@@ -546,8 +579,8 @@ namespace kusabira::PP {
     * @details falseの時、#の後に仮引数が続かなかった
     * @return マクロ実行がいつでも可能ならばtrue
     */
-    fn is_ready() const -> bool {
-      return m_is_sharp_op_err == false;
+    fn is_ready() const -> const std::optional<pp_token>& {
+      return m_is_sharp_op_err;
     }
 
     /**
@@ -661,6 +694,12 @@ namespace kusabira::PP {
           if ((*pos).second.is_identical(params, tokenlist)) return true;
           //仮引数列と置換リストが一致していなければエラー
           error = true;
+        } else {
+          if (auto& opt = (*pos).second.is_ready(); bool(opt)) {
+            //#が仮引数の前ではない所に来ていた、エラー
+            reporter.pp_err_report(m_filename, (*opt).lextokens.front(), pp_parse_context::Define_InvalidSharp);
+            return false;
+          }
         }
       }
 
