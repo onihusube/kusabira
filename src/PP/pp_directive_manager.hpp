@@ -341,7 +341,7 @@ namespace kusabira::PP {
       const auto head = std::begin(result_list);
 
       //置換リスト-引数リスト対応を後ろから処理
-      for (const auto[token_index, arg_index, ignore1, ignore2, sharp_op] : views::reverse(m_correspond)) {
+      for (const auto[token_index, arg_index, ignore1, ignore2, ignore3] : views::reverse(m_correspond)) {
         //置換リストのトークン位置
         const auto it = std::next(head, token_index);
 
