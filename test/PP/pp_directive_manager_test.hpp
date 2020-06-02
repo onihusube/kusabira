@@ -1037,7 +1037,7 @@ namespace kusabira_test::preprocessor
     //基本的な文字列化
     {
       pos = ll.emplace_after(pos, 1);
-      (*pos).line = u8"#define to_str(s) # s";
+      (*pos).line = u8R"(#define to_str(s) # s "_append" ;)";
 
       //仮引数列と置換リスト
       std::pmr::vector<std::u8string_view> params{&kusabira::def_mr};
@@ -1052,6 +1052,8 @@ namespace kusabira_test::preprocessor
       lex_token lt7{pp_tokenize_result{.status = pp_tokenize_status::OPorPunc}, u8")", 16, pos};
       lex_token lt8{pp_tokenize_result{.status = pp_tokenize_status::OPorPunc}, u8"#", 18, pos};
       lex_token lt10{pp_tokenize_result{.status = pp_tokenize_status::Identifier}, u8"s", 20, pos};
+      lex_token lt11{pp_tokenize_result{.status = pp_tokenize_status::StringLiteral}, u8R"("_append")", 22, pos};
+      lex_token lt12{pp_tokenize_result{.status = pp_tokenize_status::OPorPunc}, u8";", 32, pos};
 
       //マクロ仮引数トークン列
       params.emplace_back(lt6.token);
@@ -1059,6 +1061,8 @@ namespace kusabira_test::preprocessor
       //置換リスト
       rep_list.emplace_back(pp_token_category::op_or_punc, lt8);
       rep_list.emplace_back(pp_token_category::identifier, lt10);
+      rep_list.emplace_back(pp_token_category::string_literal, lt11);
+      rep_list.emplace_back(pp_token_category::op_or_punc, lt12);
 
       //関数マクロ登録
       CHECK_UNARY(pp.define(*reporter, lt2, rep_list, params, true));
@@ -1091,11 +1095,14 @@ namespace kusabira_test::preprocessor
       CHECK_UNARY(is_success);
       REQUIRE_UNARY(bool(result));
 
-      CHECK_EQ(1u, result->size());
+      CHECK_EQ(3u, result->size());
 
-      const auto &pptoken = result->front();
-      CHECK_EQ(pptoken.category, pp_token_category::string_literal);
-      CHECK_UNARY(pptoken.token == u8R"++("strncmp(\"abc\\0d\", \"abc\", '\\4') == 0")++"sv);
+      std::pmr::list<pp_token> expect{&kusabira::def_mr};
+      expect.emplace_back(pp_token_category::string_literal, lex_token{{pp_tokenize_status::StringLiteral}, u8R"++("strncmp(\"abc\\0d\", \"abc\", '\\4') == 0")++", 0, pos2});
+      expect.emplace_back(pp_token_category::string_literal, lt11);
+      expect.emplace_back(pp_token_category::op_or_punc, lt12);
+
+      CHECK_EQ(expect, *result);
     }
 
     //可変長文字列化
@@ -1159,6 +1166,23 @@ namespace kusabira_test::preprocessor
       const auto& pptoken = result->front();
       CHECK_EQ(pptoken.category, pp_token_category::string_literal);
       CHECK_UNARY(pptoken.token == u8R"("1, \"x\", int, a * b+0")"sv);
+
+      //空で呼ぶ例
+      auto pos3 = ll.emplace_after(pos2, 1);
+      (*pos3).line = u8R"(str())";
+      args.clear();
+
+      //関数マクロ実行
+      const auto [is_success2, result2] = pp.funcmacro(lt2.token, args);
+
+      CHECK_UNARY(is_success2);
+      REQUIRE_UNARY(bool(result2));
+
+      CHECK_EQ(1u, result2->size());
+
+      const auto &empty_token = result2->front();
+      CHECK_EQ(empty_token.category, pp_token_category::string_literal);
+      CHECK_UNARY(empty_token.token == u8R"("")"sv);
     }
 
     //#__VA_OPT__の登録（失敗）
