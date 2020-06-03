@@ -210,7 +210,7 @@ namespace kusabira::PP {
     //#トークンが仮引数名の前に来なかった
     std::optional<pp_token> m_is_sharp_op_err{};
     //{置換リストに現れる仮引数名のインデックス, 対応する実引数のインデックス, __VA_ARGS__?, __VA_OPT__?, {true = #, false = ##}}
-    std::pmr::vector<std::tuple<std::size_t, std::size_t, bool, bool, std::optional<bool>>> m_correspond;
+    std::pmr::vector<std::tuple<std::size_t, std::size_t, bool, bool, bool, bool>> m_correspond;
 
     /**
     * @brief 置換リスト上の仮引数を見つけて、仮引数の番号との対応を取っておく
@@ -235,9 +235,8 @@ namespace kusabira::PP {
 
       m_correspond.reserve(N);
 
-      //##の出現をマークする
-      //# = true, ## = false
-      std::optional<bool> is_sharp_op{};
+      //#の出現をマークする
+      bool is_sharp_op = false;
 
       auto it = m_tokens.begin();
       for (auto index = 0ull; index < N; ++index, ++it) {
@@ -246,7 +245,7 @@ namespace kusabira::PP {
 
           if ((*it).token == u8"#"sv) {
             //#も##も現れていないときだけ#を識別、#に対して#するのはエラー
-            if (not bool(is_sharp_op)) {
+            if (is_sharp_op == false) {
               is_sharp_op = true;
               continue;
             }
@@ -254,12 +253,21 @@ namespace kusabira::PP {
             //#や##が現れた後でも、それらは無かったことにする
             //##の後に##が現れるケースはケアしない（未定義動作に含まれるはず）
             is_sharp_op = false;
+
+            if (auto prev_idx = std::get<0>(m_correspond.back()); prev_idx == (index - 1)) {
+              //1つ前が仮引数名のとき
+
+            } else {
+              //1つ前は普通のトークンの時
+
+            }
+
             continue;
           }
         }
 
         //1つ前の#,##トークンを削除する
-        if (bool(is_sharp_op)) {
+        if (is_sharp_op) {
           //1つ前のトークン（すなわち#,##）を消す
           m_tokens.erase(std::prev(it));
           //消した分indexとトークン数を修正
@@ -269,20 +277,15 @@ namespace kusabira::PP {
 
         //処理終了後状態をリセット
         vocabulary::scope_exit se = [&is_sharp_op]() {
-          is_sharp_op = std::nullopt;
+          is_sharp_op = false;
         };
 
         //識別子以外なら##の処理だけする
         if ((*it).category != pp_token_category::identifier) {
-          if (bool(is_sharp_op)) {
-            if (*is_sharp_op == false) {
-              //##をマーク
-              m_correspond.emplace_back(index, 0, false, false, is_sharp_op);
-            } else {
+          if (is_sharp_op == true) {
               //#が仮引数名の前にないためエラー
               m_is_sharp_op_err = std::move(*it);
               break;
-            }
           }
           continue;
         }
@@ -296,17 +299,17 @@ namespace kusabira::PP {
             assert(ismatch);
 
             //置換リストの要素番号に対して、対応する実引数位置を保存
-            m_correspond.emplace_back(index, va_start_index, true, false, is_sharp_op);
+            m_correspond.emplace_back(index, va_start_index, true, false, is_sharp_op, false);
             continue;
           } else if ((*it).token.to_view() == u8"__VA_OPT__") {
             //__VA_OPT__の前に#は来てはならない
-            if (bool(is_sharp_op) and *is_sharp_op == true) {
+            if (is_sharp_op == true) {
               //エラー
               m_is_sharp_op_err = std::move(*it);
               break;
             }
             //__VA_OPT__を見つけておく
-            m_correspond.emplace_back(index, 0, false, true, is_sharp_op);
+            m_correspond.emplace_back(index, 0, false, true, false, false);
             continue;
           }
         }
@@ -315,7 +318,7 @@ namespace kusabira::PP {
         //仮引数名ではないから次
         if (not ismatch) {
           //#が観測されているのに仮引数名ではない場合
-          if (bool(is_sharp_op) and *is_sharp_op == true) {
+          if (is_sharp_op == true) {
             //エラー
             m_is_sharp_op_err = std::move(*it);
             break;
@@ -324,7 +327,7 @@ namespace kusabira::PP {
         }
 
         //置換リストの要素番号に対して、対応する実引数位置を保存
-        m_correspond.emplace_back(index, param_index, false, false, is_sharp_op);
+        m_correspond.emplace_back(index, param_index, false, false, is_sharp_op, false);
       }
     }
 
@@ -341,7 +344,7 @@ namespace kusabira::PP {
       const auto head = std::begin(result_list);
 
       //置換リスト-引数リスト対応を後ろから処理
-      for (const auto[token_index, arg_index, ignore1, ignore2, ignore3] : views::reverse(m_correspond)) {
+      for (const auto[token_index, arg_index, ignore1, ignore2, ignore3, ignore4] : views::reverse(m_correspond)) {
         //置換リストのトークン位置
         const auto it = std::next(head, token_index);
 
@@ -375,13 +378,9 @@ namespace kusabira::PP {
       const auto N = args.size();
 
       //置換リスト-引数リスト対応を後ろから処理
-      for (const auto[token_index, arg_index, va_args, va_opt, sharp_op] : views::reverse(m_correspond)) {
+      for (const auto[token_index, arg_index, va_args, va_opt, sharp_op, sharp2_op] : views::reverse(m_correspond)) {
         //置換リストのトークン位置
         const auto it = std::next(head, token_index);
-
-        auto need_sharp_proc = [&sharp_op]() -> bool {
-          return (bool(sharp_op)) and (*sharp_op) == true;
-        };
 
         if (va_opt) {
           //__VA_OPT__の処理
@@ -424,7 +423,7 @@ namespace kusabira::PP {
             result_list.erase(it, open_paren_pos_next);
 
             //#__VA_OPT__はエラー
-            assert(not need_sharp_proc());
+            assert(not sharp_op);
           }
 
           //itに対応するトークンを消してしまっているので次に行く
@@ -457,7 +456,7 @@ namespace kusabira::PP {
           arg_list = args[arg_index];
         }
 
-        if (need_sharp_proc()) {
+        if (sharp_op) {
           //#演算子の処理、文字列化を行う
           if (va_args) {
             arg_list = pp_stringize<true>(std::begin(arg_list), std::end(arg_list));
