@@ -256,14 +256,17 @@ namespace kusabira::PP {
             apper_sharp_op = false;
             apper_sharp2_op = true;
 
-            if (auto prev_idx = std::get<0>(m_correspond.back()); prev_idx == (index - 1)) {
-              //1つ前が仮引数名のとき
-              //##の左辺であることをマーク
-              std::get<5>(m_correspond.back()) = true;
-            } else {
-              //1つ前は普通のトークンの時
-              //置換対象リストに連結対象として加える
-              m_correspond.emplace_back(index - 1, std::size_t(-1), false, false, false, true);
+            //バグってる
+            if (not empty(m_correspond)) {
+              if (auto prev_idx = std::get<0>(m_correspond.back()); prev_idx == (index - 1)) {
+                //1つ前が仮引数名のとき
+                //##の左辺であることをマーク
+                std::get<5>(m_correspond.back()) = true;
+              } else {
+                //1つ前は普通のトークンの時
+                //置換対象リストに連結対象として加える
+                m_correspond.emplace_back(index - 1, std::size_t(-1), false, false, false, true);
+              }
             }
 
             continue;
@@ -473,24 +476,14 @@ namespace kusabira::PP {
         //結果リストにsplice
         result_list.splice(it, std::move(arg_list));
         //置換済みトークンを消す
-        auto next = result_list.erase(it);
+        if (arg_index != std::size_t(-1)) {
+          result_list.erase(it);
+        }
 
         if (sharp2_op) {
           //##によるトークンの結合処理
-
-          //2つのイテレータを連結する
-          //この時、不正なトークンのチェックは行わない（規格上では未定義動作とされているため）
-          //カテゴリは前のトークンに合わせる
-          auto &&str = (*it).token.to_string();
-          str.append((*next).token);
-          //トークンを構成する字句トークンの移動
-          (*it).token = std::move(str);
-          auto pos = (*next).lextokens.before_begin();
-          //後ろの字句トークン列の先頭に前の字句トークン列をsplice
-          (*next).lextokens.splice_after(pos, std::move((*prev).lextokens));
-          //それを前の字句トークン列のあった所へムーブする
-          (*it).lextokens = std::move((*next).lextokens);
-
+          auto next = std::next(it);
+          (*it) += std::move(*next);
           //結合したので次のトークンを消す
           result_list.erase(next);
         }
@@ -519,18 +512,7 @@ namespace kusabira::PP {
         //##を消して次のイテレータを得る
         auto next = m_tokens.erase(it);
 
-        //2つのイテレータを連結する
-        //この時、不正なトークンのチェックは行わない（規格上では未定義動作とされているため）
-        //カテゴリは前のトークンに合わせる
-        auto&& str = (*prev).token.to_string();
-        str.append((*next).token);
-        //トークンを構成する字句トークンの移動
-        (*prev).token = std::move(str);
-        auto pos = (*next).lextokens.before_begin();
-        //後ろの字句トークン列の先頭に前の字句トークン列をsplice
-        (*next).lextokens.splice_after(pos, std::move((*prev).lextokens));
-        //それを前の字句トークン列のあった所へムーブする
-        (*prev).lextokens = std::move((*next).lextokens);
+        (*prev) += std::move(*next);
 
         //結合したので次のトークンを消す
         m_tokens.erase(next);

@@ -278,6 +278,40 @@ namespace kusabira::PP
       return lhs.category == rhs.category && lhs.token == rhs.token;
     }
 
+    /**
+    * @brief 2つのプリプロセッシングトークンを結合する
+    * @details 左辺←右辺に結合
+    * @param lhs 結合されるトークン、直接変更される
+    * @param rhs 結合するトークン、ムーブする
+    * @return lhs
+    */
+    friend void operator+=(pp_token& lhs, pp_token&& rhs) {
+      //不正なトークンのチェックは行わない（規格上では未定義動作とされているため）
+      //そのうちチェック実装する（多分
+      /*結合できるのは
+        - 識別子と識別子 -> 識別子
+        - 数値と数値 -> 数値
+        - 記号同士（内容による） -> 記号
+        - 識別子と数値 -> 識別子
+        - 識別子と文字/文字列リテラル -> 文字/文字列リテラル
+        - 文字/文字列リテラルと識別子 -> ユーザー定義文字/文字列リテラル
+        - 数値と識別子 -> ユーザー定義数値リテラル
+        - ユーザー定義文字/文字列リテラルと識別子 -> ユーザー定義文字/文字列リテラル
+        - ユーザー定義数値リテラルと識別子 -> ユーザー定義数値リテラル
+      */
+
+      //カテゴリは前のトークンに合わせる
+      auto&& str = lhs.token.to_string();
+      str.append(rhs.token);
+      //トークンを構成する字句トークンの移動
+      lhs.token = std::move(str);
+      auto pos = rhs.lextokens.before_begin();
+      //後ろの字句トークン列の先頭に前の字句トークン列をsplice
+      rhs.lextokens.splice_after(pos, std::move(lhs.lextokens));
+      //それを前の字句トークン列のあった所へムーブする
+      lhs.lextokens = std::move(rhs.lextokens);
+    }
+
     //プリプロセッシングトークン種別
     pp_token_category category;
     //プリプロセッシングトークン文字列
@@ -285,6 +319,5 @@ namespace kusabira::PP
     //構成する字句トークン列
     std::pmr::forward_list<lex_token> lextokens;
   };
-
 
 } // namespace kusabira::PP
