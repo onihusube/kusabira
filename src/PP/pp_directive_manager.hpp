@@ -209,7 +209,7 @@ namespace kusabira::PP {
     const bool m_is_func = true;
     //#トークンが仮引数名の前に来なかった
     std::optional<pp_token> m_is_sharp_op_err{};
-    //{置換リストに現れる仮引数名のインデックス, 対応する実引数のインデックス, __VA_ARGS__?, __VA_OPT__?, {true = #, false = ##}}
+    //{置換リストに現れる仮引数名のインデックス, 対応する実引数のインデックス, __VA_ARGS__?, __VA_OPT__?, #?, ##?}}
     std::pmr::vector<std::tuple<std::size_t, std::size_t, bool, bool, bool, bool>> m_correspond;
 
     /**
@@ -236,7 +236,8 @@ namespace kusabira::PP {
       m_correspond.reserve(N);
 
       //#の出現をマークする
-      bool is_sharp_op = false;
+      bool apper_sharp_op = false;
+      bool apper_sharp2_op = false;
 
       auto it = m_tokens.begin();
       for (auto index = 0ull; index < N; ++index, ++it) {
@@ -245,21 +246,24 @@ namespace kusabira::PP {
 
           if ((*it).token == u8"#"sv) {
             //#も##も現れていないときだけ#を識別、#に対して#するのはエラー
-            if (is_sharp_op == false) {
-              is_sharp_op = true;
+            if (apper_sharp_op == false and apper_sharp2_op == false) {
+              apper_sharp_op = true;
               continue;
             }
           } else if ((*it).token == u8"##"sv) {
-            //#や##が現れた後でも、それらは無かったことにする
+            //#や##が現れた後でも、それらを無かったことにする
             //##の後に##が現れるケースはケアしない（未定義動作に含まれるはず）
-            is_sharp_op = false;
+            apper_sharp_op = false;
+            apper_sharp2_op = true;
 
             if (auto prev_idx = std::get<0>(m_correspond.back()); prev_idx == (index - 1)) {
               //1つ前が仮引数名のとき
-
+              //##の左辺であることをマーク
+              std::get<5>(m_correspond.back()) = true;
             } else {
               //1つ前は普通のトークンの時
-
+              //置換対象リストに連結対象として加える
+              m_correspond.emplace_back(index - 1, std::size_t(-1), false, false, false, true);
             }
 
             continue;
@@ -267,7 +271,7 @@ namespace kusabira::PP {
         }
 
         //1つ前の#,##トークンを削除する
-        if (is_sharp_op) {
+        if (apper_sharp_op or apper_sharp2_op) {
           //1つ前のトークン（すなわち#,##）を消す
           m_tokens.erase(std::prev(it));
           //消した分indexとトークン数を修正
@@ -276,13 +280,14 @@ namespace kusabira::PP {
         }
 
         //処理終了後状態をリセット
-        vocabulary::scope_exit se = [&is_sharp_op]() {
-          is_sharp_op = false;
+        vocabulary::scope_exit se = [&apper_sharp_op, &apper_sharp2_op]() {
+          apper_sharp_op = false;
+          apper_sharp2_op = false;
         };
 
         //識別子以外なら##の処理だけする
         if ((*it).category != pp_token_category::identifier) {
-          if (is_sharp_op == true) {
+          if (apper_sharp_op == true) {
               //#が仮引数名の前にないためエラー
               m_is_sharp_op_err = std::move(*it);
               break;
@@ -299,11 +304,11 @@ namespace kusabira::PP {
             assert(ismatch);
 
             //置換リストの要素番号に対して、対応する実引数位置を保存
-            m_correspond.emplace_back(index, va_start_index, true, false, is_sharp_op, false);
+            m_correspond.emplace_back(index, va_start_index, true, false, apper_sharp_op, false);
             continue;
           } else if ((*it).token.to_view() == u8"__VA_OPT__") {
             //__VA_OPT__の前に#は来てはならない
-            if (is_sharp_op == true) {
+            if (apper_sharp_op == true) {
               //エラー
               m_is_sharp_op_err = std::move(*it);
               break;
@@ -318,7 +323,7 @@ namespace kusabira::PP {
         //仮引数名ではないから次
         if (not ismatch) {
           //#が観測されているのに仮引数名ではない場合
-          if (is_sharp_op == true) {
+          if (apper_sharp_op == true) {
             //エラー
             m_is_sharp_op_err = std::move(*it);
             break;
@@ -327,7 +332,7 @@ namespace kusabira::PP {
         }
 
         //置換リストの要素番号に対して、対応する実引数位置を保存
-        m_correspond.emplace_back(index, param_index, false, false, is_sharp_op, false);
+        m_correspond.emplace_back(index, param_index, false, false, apper_sharp_op, false);
       }
     }
 
@@ -451,7 +456,7 @@ namespace kusabira::PP {
               //エラーメッセージのためにコンテキストを補う必要がある？
             }
           }
-        } else {
+        } else if (arg_index != std::size_t(-1)) {
           //対応する実引数のトークン列をコピー
           arg_list = args[arg_index];
         }
@@ -468,7 +473,27 @@ namespace kusabira::PP {
         //結果リストにsplice
         result_list.splice(it, std::move(arg_list));
         //置換済みトークンを消す
-        result_list.erase(it);
+        auto next = result_list.erase(it);
+
+        if (sharp2_op) {
+          //##によるトークンの結合処理
+
+          //2つのイテレータを連結する
+          //この時、不正なトークンのチェックは行わない（規格上では未定義動作とされているため）
+          //カテゴリは前のトークンに合わせる
+          auto &&str = (*it).token.to_string();
+          str.append((*next).token);
+          //トークンを構成する字句トークンの移動
+          (*it).token = std::move(str);
+          auto pos = (*next).lextokens.before_begin();
+          //後ろの字句トークン列の先頭に前の字句トークン列をsplice
+          (*next).lextokens.splice_after(pos, std::move((*prev).lextokens));
+          //それを前の字句トークン列のあった所へムーブする
+          (*it).lextokens = std::move((*next).lextokens);
+
+          //結合したので次のトークンを消す
+          result_list.erase(next);
+        }
       }
 
       return result_list;
