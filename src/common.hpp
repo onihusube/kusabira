@@ -243,7 +243,10 @@ namespace kusabira::PP
     user_defined_raw_string_literal,
   
     op_or_punc,
-    other_character
+    other_character,
+
+    //可変引数が空の時の__VA_ARGS__と__VA_OPT__の置換先
+    placemarker_token
   };
 
   /**
@@ -300,16 +303,26 @@ namespace kusabira::PP
         - ユーザー定義数値リテラルと識別子 -> ユーザー定義数値リテラル
       */
 
+      //プレイスメーカートークンが右辺にある時
+      if (rhs.category == pp_token_category::placemarker_token) {
+        //何もしなくていい
+        assert(lhs.category != pp_token_category::placemarker_token);
+        return;
+      }
+      //プレイスメーカートークンが左辺に来るのはVA_ARGSが空で##の左辺にいる時だけ
+      if (lhs.category == pp_token_category::placemarker_token) {
+        lhs = std::move(rhs);
+      }
+
       //カテゴリは前のトークンに合わせる
-      auto&& str = lhs.token.to_string();
+      auto &&str = lhs.token.to_string();
       str.append(rhs.token);
-      //トークンを構成する字句トークンの移動
       lhs.token = std::move(str);
-      auto pos = rhs.lextokens.before_begin();
-      //後ろの字句トークン列の先頭に前の字句トークン列をsplice
-      rhs.lextokens.splice_after(pos, std::move(lhs.lextokens));
-      //それを前の字句トークン列のあった所へムーブする
-      lhs.lextokens = std::move(rhs.lextokens);
+
+      //トークンを構成する字句トークンの連結
+      std::pmr::forward_list<lex_token> tmp = std::move(rhs.lextokens);
+      tmp.splice_after(tmp.before_begin(), std::move(lhs.lextokens));
+      lhs.lextokens = std::move(tmp);
     }
 
     //プリプロセッシングトークン種別

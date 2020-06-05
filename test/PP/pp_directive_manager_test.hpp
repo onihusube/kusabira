@@ -1066,7 +1066,7 @@ namespace kusabira_test::preprocessor
       rep_list.emplace_back(pp_token_category::op_or_punc, lt12);
 
       //関数マクロ登録
-      CHECK_UNARY(pp.define(*reporter, lt2, rep_list, params, true));
+      CHECK_UNARY(pp.define(*reporter, lt2, rep_list, params, false));
 
       //実引数リスト作成
       auto pos2 = ll.emplace_after(pos, 1);
@@ -1308,27 +1308,8 @@ namespace kusabira_test::preprocessor
       //マクロ仮引数トークン列
       params.emplace_back(lt4.token);
 
-      //関数マクロ登録
-      CHECK_UNARY(pp.define(*reporter, lt2, rep_list, params, false));
-
-      //実引数リスト作成
-      auto pos2 = ll.emplace_after(pos, 1);
-      (*pos2).line = u8"hash_hash2(test)";
-
-      std::pmr::list<pp_token> token_list{&kusabira::def_mr};
-      std::pmr::vector<std::pmr::list<pp_token>> args{&kusabira::def_mr};
-      token_list.emplace_back(pp_token_category::identifier, lex_token{{pp_tokenize_status::Identifier}, u8"test"sv, 12, pos2});
-      args.emplace_back(std::move(token_list));
-
-      //マクロ実行
-      const auto [is_success, result] = pp.funcmacro(lt2.token, args);
-
-      CHECK_UNARY(is_success);
-      REQUIRE_UNARY(bool(result));
-      CHECK_EQ(2u, result->size());
-
-      //pp_token expect_token{pp_token_category::op_or_punc, lt6};
-      //CHECK_EQ(expect_token, list->front());
+      //関数マクロ登録、失敗
+      CHECK_UNARY_FALSE(pp.define(*reporter, lt2, rep_list, params, false));
     }
   }
 

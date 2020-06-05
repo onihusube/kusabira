@@ -250,23 +250,20 @@ namespace kusabira::PP {
               apper_sharp_op = true;
               continue;
             }
-          } else if ((*it).token == u8"##"sv) {
-            //#や##が現れた後でも、それらを無かったことにする
-            //##の後に##が現れるケースはケアしない（未定義動作に含まれるはず）
-            apper_sharp_op = false;
+          } else if (not apper_sharp_op and (*it).token == u8"##"sv) {
+            //#の後に##はエラー
+            //##の後に##が現れる場合、それを結合対象にしてしまう（未定義動作に当たるはず）
             apper_sharp2_op = true;
 
-            //バグってる
-            if (not empty(m_correspond)) {
-              if (auto prev_idx = std::get<0>(m_correspond.back()); prev_idx == (index - 1)) {
-                //1つ前が仮引数名のとき
-                //##の左辺であることをマーク
-                std::get<5>(m_correspond.back()) = true;
-              } else {
-                //1つ前は普通のトークンの時
-                //置換対象リストに連結対象として加える
-                m_correspond.emplace_back(index - 1, std::size_t(-1), false, false, false, true);
-              }
+            //最後に登録された対応関係が、1つ前だったかを調べる
+            if (not empty(m_correspond) and std::get<0>(m_correspond.back()) == (index - 1)) {
+              //1つ前が仮引数名のとき
+              //##の左辺であることをマーク
+              std::get<5>(m_correspond.back()) = true;
+            } else {
+              //1つ前は普通のトークン、もしくは空の時
+              //置換対象リストに連結対象として加える
+              m_correspond.emplace_back(index - 1, std::size_t(-1), false, false, false, true);
             }
 
             continue;
@@ -288,7 +285,7 @@ namespace kusabira::PP {
           apper_sharp2_op = false;
         };
 
-        //識別子以外なら##の処理だけする
+        //識別子以外の時、#が前に来ているのをエラーにする
         if ((*it).category != pp_token_category::identifier) {
           if (apper_sharp_op == true) {
               //#が仮引数名の前にないためエラー
@@ -352,18 +349,33 @@ namespace kusabira::PP {
       const auto head = std::begin(result_list);
 
       //置換リスト-引数リスト対応を後ろから処理
-      for (const auto[token_index, arg_index, ignore1, ignore2, ignore3, ignore4] : views::reverse(m_correspond)) {
+      for (const auto[token_index, arg_index, ignore1, ignore2, sharp_op, sharp2_op] : views::reverse(m_correspond)) {
         //置換リストのトークン位置
         const auto it = std::next(head, token_index);
+        auto lhs = it;
 
-        //対応する実引数のトークン列をコピー
-        std::pmr::list<pp_token> arg_list{args[arg_index], &kusabira::def_mr};
+        if (arg_index != std::size_t(-1)) {
+          //対応する実引数のトークン列をコピー
+          std::pmr::list<pp_token> arg_list{args[arg_index], &kusabira::def_mr};
 
-        //結果リストにsplice
-        result_list.splice(it, std::move(arg_list));
+          //文字列化
+          if (sharp_op) {
+            arg_list = pp_stringize<false>(std::begin(arg_list), std::end(arg_list));
+          }
 
-        //置換済みトークンを消す
-        result_list.erase(it);
+          //結果リストにsplice
+          result_list.splice(it, std::move(arg_list));
+
+          //置換済みトークンを消す
+          lhs = --result_list.erase(it);
+        }
+
+        if (sharp2_op) {
+          auto rhs = std::next(lhs);
+          (*lhs) += std::move(*rhs);
+          result_list.erase(rhs);
+        }
+
       }
 
       return result_list;
@@ -384,6 +396,21 @@ namespace kusabira::PP {
       const auto head = std::begin(result_list);
       //引数の数
       const auto N = args.size();
+      //プレイスメーカートークンを挿入したかどうか
+      bool should_remove_placemarker = false;
+
+      //プレイスメーカートークン挿入処理
+      auto insert_placemarker = [&result_list, &should_remove_placemarker](auto pos) {
+        result_list.insert(pos, pp_token{pp_token_category::placemarker_token});
+        should_remove_placemarker = true;
+      };
+      //##によるトークン結合処理
+      auto token_concat = [&result_list](auto rhs_pos) {
+        auto &lhs = *std::prev(rhs_pos);
+        lhs += std::move(*rhs_pos);
+        //結合したので次のトークンを消す
+        result_list.erase(rhs_pos);
+      };
 
       //置換リスト-引数リスト対応を後ろから処理
       for (const auto[token_index, arg_index, va_args, va_opt, sharp_op, sharp2_op] : views::reverse(m_correspond)) {
@@ -421,17 +448,27 @@ namespace kusabira::PP {
             //可変長部分が空ならばVA_OPT全体を削除
 
             //VAOPTの全体を結果トークン列から取り除く
-            result_list.erase(it, ++vaopt_end);
+            auto insert_pos = result_list.erase(it, ++vaopt_end);
+
+            //##の処理のためにplacemarker tokenを置いておく
+            //VA_OPTが##の左辺の時は何もしなくてもいい
+            if (not sharp2_op) insert_placemarker(insert_pos);
+
           } else {
             //可変長部分が空でないならば、VA_OPTと対応するかっこだけを削除
 
             //まずは後ろの閉じ括弧を削除（イテレータが無効化するのを回避するため）
-            result_list.erase(vaopt_end);
+            auto rhs = result_list.erase(vaopt_end);
             //次に開きかっことVA_OPT本体を削除
             result_list.erase(it, open_paren_pos_next);
 
             //#__VA_OPT__はエラー
             assert(not sharp_op);
+
+            if (sharp2_op) {
+              //##によるトークンの結合処理
+              token_concat(rhs);
+            }
           }
 
           //itに対応するトークンを消してしまっているので次に行く
@@ -471,22 +508,32 @@ namespace kusabira::PP {
           } else {
             arg_list = pp_stringize<false>(std::begin(arg_list), std::end(arg_list));
           }
+        } else if (va_args && empty(arg_list)){
+          //文字列化対象ではなく可変長引数が空の時、プレイスメーカートークンを挿入する
+          //文字列化対象の場合は空文字（""）が入っているはず
+          //it（==VA_ARGSトークン）の前に挿入することで、itのトークンが##の左辺にある場合も一貫して処理される
+          insert_placemarker(it);
         }
 
         //結果リストにsplice
         result_list.splice(it, std::move(arg_list));
+
+        auto rhs = it;
         //置換済みトークンを消す
         if (arg_index != std::size_t(-1)) {
-          result_list.erase(it);
+          rhs = result_list.erase(it);
         }
 
         if (sharp2_op) {
           //##によるトークンの結合処理
-          auto next = std::next(it);
-          (*it) += std::move(*next);
-          //結合したので次のトークンを消す
-          result_list.erase(next);
+          token_concat(rhs);
         }
+      }
+
+      if (should_remove_placemarker) {
+        result_list.remove_if([](const auto &pptoken) {
+          return pptoken.category == pp_token_category::placemarker_token;
+        });
       }
 
       return result_list;
