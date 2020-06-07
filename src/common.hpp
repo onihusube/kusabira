@@ -13,12 +13,14 @@
 
 #ifdef __EDG__
   #include "../subprojects/tlexpected/include/tl/expected.hpp"
+  #include <ciso646>
 #else
   #include "tl/expected.hpp"
 #endif
 
 #include "vocabulary/whimsy_str_view.hpp"
 #include "vocabulary/scope.hpp"
+#include "PP/op_and_punc_table.hpp"
 
 #define  fn [[nodiscard]] auto
 #define sfn [[nodiscard]] static auto
@@ -249,6 +251,49 @@ namespace kusabira::PP
     placemarker_token
   };
 
+  auto operator+=(pp_token_category& lhs, pp_token_category rhs) -> bool {
+    
+    assert(pp_token_category::identifier <= lhs and pp_token_category::identifier <= rhs);
+
+    if (lhs == pp_token_category::identifier) {
+      if (rhs == pp_token_category::identifier) {
+        //識別子と識別子 -> 識別子
+        return true;
+      }
+      if (rhs == pp_token_category::pp_number) {
+        //識別子と数値 -> 識別子
+        return true;
+      }
+    }
+
+    if (lhs == pp_token_category::pp_number) {
+      if (rhs == pp_token_category::pp_number) {
+        //数値と数値 -> 数値
+        return true;
+      }
+      if (rhs == pp_token_category::identifier) {
+        //数値と識別子 -> ユーザー定義数値リテラル
+        return true;
+      }
+    }
+
+    if (lhs == pp_token_category::op_or_punc and rhs == pp_token_category::op_or_punc) {
+      //記号同士 -> 記号（妥当性は外でチェック
+      return true;
+    }
+
+    if (pp_token_category::charcter_literal <= lhs and lhs <= pp_token_category::user_defined_raw_string_literal) {
+      if (rhs == pp_token_category::identifier) {
+        //文字/文字列リテラルと識別子 -> ユーザー定義文字/文字列リテラル
+        //ユーザー定義文字/文字列リテラルと識別子 -> ユーザー定義文字/文字列リテラル
+        return true;
+      }
+    }
+
+    //それ以外はとりあえずダメ
+    return false;
+  }
+
   /**
   * @brief プリプロセッシングトークン1つを表現する型
   */
@@ -288,7 +333,7 @@ namespace kusabira::PP
     * @param rhs 結合するトークン、ムーブする
     * @return lhs
     */
-    friend void operator+=(pp_token& lhs, pp_token&& rhs) {
+    friend auto operator+=(pp_token& lhs, pp_token&& rhs) -> bool {
       //不正なトークンのチェックは行わない（規格上では未定義動作とされているため）
       //そのうちチェック実装する（多分
       /*結合できるのは
@@ -296,7 +341,7 @@ namespace kusabira::PP
         - 数値と数値 -> 数値
         - 記号同士（内容による） -> 記号
         - 識別子と数値 -> 識別子
-        - 識別子と文字/文字列リテラル -> 文字/文字列リテラル
+        - 識別子と（ユーザー定義）文字/文字列リテラル -> 文字/文字列リテラル
         - 文字/文字列リテラルと識別子 -> ユーザー定義文字/文字列リテラル
         - 数値と識別子 -> ユーザー定義数値リテラル
         - ユーザー定義文字/文字列リテラルと識別子 -> ユーザー定義文字/文字列リテラル
@@ -306,23 +351,49 @@ namespace kusabira::PP
       //プレイスメーカートークンが右辺にある時
       if (rhs.category == pp_token_category::placemarker_token) {
         //何もしなくていい
-        assert(lhs.category != pp_token_category::placemarker_token);
-        return;
+        return true;
       }
-      //プレイスメーカートークンが左辺に来るのはVA_ARGSが空で##の左辺にいる時だけ
+      //左辺にあるとき
       if (lhs.category == pp_token_category::placemarker_token) {
         lhs = std::move(rhs);
+        return true;
       }
 
-      //カテゴリは前のトークンに合わせる
-      auto &&str = lhs.token.to_string();
-      str.append(rhs.token);
-      lhs.token = std::move(str);
+      auto&& tmp_str = lhs.token.to_string();
+      tmp_str.append(rhs.token);
+      lhs.token = std::move(tmp_str);
+
+      if (bool is_concatenated = lhs.category += rhs.category; not is_concatenated) {
+        //特別扱い
+        if (lhs.category != pp_token_category::identifier) return false;
+        if (not (pp_token_category::charcter_literal <= rhs.category and rhs.category <= pp_token_category::user_defined_raw_string_literal)) return false;
+        
+        //識別子と（ユーザー定義）文字/文字列リテラル -> （ユーザー定義）文字/文字列リテラル
+
+
+      } else if (lhs.category == pp_token_category::op_or_punc) {
+        //記号の妥当性のチェック
+        auto row = 0;
+        const auto str = lhs.token.to_view();
+        auto index = 0ull;
+        do {
+          //オーバーランはしないと思うけど・・
+          assert(index < str.length());
+
+          //トークナイザで使ってるテーブルを引いてチェックする
+          row = table::ref_symbol_table(str[index], row);
+          ++index;
+        } while (0 < row);
+
+        if (row < 0) return false;
+      }
 
       //トークンを構成する字句トークンの連結
       std::pmr::forward_list<lex_token> tmp = std::move(rhs.lextokens);
       tmp.splice_after(tmp.before_begin(), std::move(lhs.lextokens));
       lhs.lextokens = std::move(tmp);
+
+      return true;
     }
 
     //プリプロセッシングトークン種別

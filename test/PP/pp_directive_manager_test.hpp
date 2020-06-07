@@ -1244,9 +1244,114 @@ namespace kusabira_test::preprocessor
     kusabira::PP::pp_directive_manager pp{"/kusabira/test_sharp2.hpp"};
     auto pos = ll.before_begin();
 
-    //変な例1
+    //普通の関数マクロ
     {
       pos = ll.emplace_after(pos, 0);
+      (*pos).line = u8"#define glue(a, b) pre ## a ## b";
+
+      //仮引数列と置換リスト
+      std::pmr::vector<std::u8string_view> params{ &kusabira::def_mr };
+      std::pmr::list<pp_token> rep_list{ &kusabira::def_mr };
+
+      //字句トークン
+      lex_token lt0{ pp_tokenize_result{.status = pp_tokenize_status::OPorPunc}, u8"#", 0, pos };
+      lex_token lt1{ pp_tokenize_result{.status = pp_tokenize_status::Identifier}, u8"define", 1, pos };
+      lex_token lt2{ pp_tokenize_result{.status = pp_tokenize_status::Identifier}, u8"glue", 8, pos };
+      lex_token lt3{ pp_tokenize_result{.status = pp_tokenize_status::OPorPunc}, u8"(", 12, pos };
+      lex_token lt4{ pp_tokenize_result{.status = pp_tokenize_status::Identifier}, u8"a", 13, pos };
+      lex_token lt5{ pp_tokenize_result{.status = pp_tokenize_status::OPorPunc}, u8",", 14, pos };
+      lex_token lt6{ pp_tokenize_result{.status = pp_tokenize_status::Identifier}, u8"b", 16, pos };
+      lex_token lt7{ pp_tokenize_result{.status = pp_tokenize_status::OPorPunc}, u8")", 17, pos };
+      lex_token lt8{ pp_tokenize_result{.status = pp_tokenize_status::Identifier}, u8"pre", 19, pos };
+      lex_token lt9{ pp_tokenize_result{.status = pp_tokenize_status::OPorPunc}, u8"##", 23, pos };
+      lex_token lt10{ pp_tokenize_result{.status = pp_tokenize_status::Identifier}, u8"a", 26, pos };
+      lex_token lt11{ pp_tokenize_result{.status = pp_tokenize_status::OPorPunc}, u8"##", 29, pos };
+      lex_token lt12{ pp_tokenize_result{.status = pp_tokenize_status::Identifier}, u8"b", 31, pos };
+
+      //置換リスト
+      rep_list.emplace_back(pp_token_category::identifier, lt8);
+      rep_list.emplace_back(pp_token_category::op_or_punc, lt9);
+      rep_list.emplace_back(pp_token_category::identifier, lt10);
+      rep_list.emplace_back(pp_token_category::op_or_punc, lt11);
+      rep_list.emplace_back(pp_token_category::identifier, lt12);
+      //マクロ仮引数トークン列
+      params.emplace_back(lt4.token);
+      params.emplace_back(lt6.token);
+
+      //関数マクロ登録
+      CHECK_UNARY(pp.define(*reporter, lt2, rep_list, params, false));
+
+      //実引数リスト作成
+      auto pos2 = ll.emplace_after(pos, 1);
+      (*pos2).line = u8"glue(proce, ssing)";
+
+      std::pmr::list<pp_token> token_list{ &kusabira::def_mr };
+      std::pmr::vector<std::pmr::list<pp_token>> args{ &kusabira::def_mr };
+      token_list.emplace_back(pp_token_category::identifier, lex_token{ {pp_tokenize_status::Identifier}, u8"proce", 5, pos2 });
+      args.emplace_back(std::move(token_list));
+      token_list.emplace_back(pp_token_category::identifier, lex_token{ {pp_tokenize_status::Identifier}, u8"ssing", 12, pos2 });
+      args.emplace_back(std::move(token_list));
+
+      //関数マクロ実行
+      const auto [is_success, result] = pp.funcmacro(lt2.token, args);
+
+      CHECK_UNARY(is_success);
+      REQUIRE_UNARY(bool(result));
+
+      CHECK_EQ(1u, result->size());
+
+      auto& token = result->front();
+
+      CHECK_UNARY(token.token == u8"preprocessing"sv);
+      CHECK_EQ(pp_token_category::identifier, token.category);
+
+      //空で呼び出し
+      auto pos3 = ll.emplace_after(pos2, 1);
+      (*pos3).line = u8R"(glue(,))";
+      args.clear();
+      args.emplace_back(std::pmr::list<pp_token>{ &kusabira::def_mr });
+      args.emplace_back(std::pmr::list<pp_token>{ &kusabira::def_mr });
+
+      //関数マクロ実行
+      const auto [is_success2, result2] = pp.funcmacro(lt2.token, args);
+
+      CHECK_UNARY(is_success2);
+      REQUIRE_UNARY(bool(result2));
+
+      CHECK_EQ(1u, result2->size());
+      CHECK_UNARY(result2->front().token == u8"pre"sv);
+    }
+
+    //可変長マクロの例、右辺
+    {
+      pos = ll.emplace_after(pos, 0);
+      (*pos).line = u8"#define H1R(X, ...) X ## __VA_ARGS__";
+
+      //仮引数列と置換リスト
+      std::pmr::list<pp_token> rep_list{ &kusabira::def_mr };
+
+    }
+
+    //可変長マクロの例、左辺
+    {
+      pos = ll.emplace_after(pos, 0);
+      (*pos).line = u8"#define H1L(X, ...) __VA_ARGS__ ## X";
+
+      //仮引数列と置換リスト
+      std::pmr::list<pp_token> rep_list{ &kusabira::def_mr };
+
+    }
+
+    //VA_OPTの例
+    {
+
+    }
+
+
+
+    //変な例1
+    {
+      pos = ll.emplace_after(pos, 10);
       (*pos).line = u8"#define hash_hash # ## #";
 
       //仮引数列と置換リスト
@@ -1280,7 +1385,7 @@ namespace kusabira_test::preprocessor
 
     //変な例2
     {
-      pos = ll.emplace_after(pos, 0);
+      pos = ll.emplace_after(pos, 11);
       (*pos).line = u8"#define hash_hash2(a) # ## # a";
 
       //仮引数列と置換リスト

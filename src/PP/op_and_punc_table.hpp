@@ -2,14 +2,12 @@
 
 #include <cstdint>
 
-#include "common.hpp"
-
 namespace kusabira::table {
 
   /**
   * @brief 受理可能な記号列を判定するテーブル
   * @detail 1行目は1文字目の判定、その値で次のテーブル番号（行数）を指定
-  * @detail -1は不受理、0は受理
+  * @detail -1は不受理、0は受理、それ以外の数字は次に参照すべきテーブル番号
   */
   inline constexpr std::int8_t op_punc_table[15][94] = {
     {1, -1, 14, -1, 2, 7, -1, 0, 0, 1, 5, 0, 6, 10, 1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 9, 0, 3, 1, 4, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, -1, 0, 1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, 8, 0, 0},
@@ -34,7 +32,8 @@ namespace kusabira::table {
   * @param ch 入力文字
   * @param row_index 参照するテーブル番号
   */
-  cfn ref_symbol_table(char8_t ch, int row_index = 0) -> int {
+  [[nodiscard]]
+  constexpr auto ref_symbol_table(char8_t ch, int row_index = 0) -> int {
     //制御文字は考慮しない
     std::uint8_t index = ch - 33;
 

@@ -68,5 +68,55 @@ namespace kusabira_test::common
     }
   }
 
+  TEST_CASE("pp_token += test") {
+    using kusabira::PP::lex_token;
+    using kusabira::PP::logical_line;
+    using kusabira::PP::pp_token;
+    using kusabira::PP::pp_token_category;
+    using kusabira::PP::pp_tokenize_status;
+    using namespace std::string_view_literals;
+
+    //論理行保持コンテナ
+    std::pmr::forward_list<logical_line> ll{};
+
+    auto pos = ll.before_begin();
+
+    //論理行オブジェクト1
+    pos = ll.emplace_after(pos, 1);
+    (*pos).line = u8R"(R "string" sv)";
+
+    pp_token token1{ pp_token_category::identifier, lex_token{ {pp_tokenize_status::Identifier}, u8"R", 0u, pos } };
+    pp_token token2{ pp_token_category::string_literal, lex_token{ {pp_tokenize_status::StringLiteral}, u8R"("string")", 2u, pos } };
+    pp_token token3{ pp_token_category::identifier, lex_token{ {pp_tokenize_status::Identifier}, u8"sv", 10u, pos } };
+
+    //普通の連結
+    token2 += std::move(token3);
+    token1 += std::move(token2);
+
+    CHECK_UNARY(token1.token == u8R"(R"string"sv)"sv);
+    //CHECK_EQ(pp_token_category::identifier, token1.category);
+    CHECK_EQ(pp_token_category::user_defined_raw_string_literal, token1.category);
+    CHECK_EQ(3, std::distance(token1.lextokens.begin(), token1.lextokens.end()));
+
+    //プレイスメーカートークンの右からの連結
+    pp_token placemaker1{ pp_token_category::placemarker_token };
+    token1 += std::move(placemaker1);
+
+    CHECK_UNARY(token1.token == u8R"(R"string"sv)"sv);
+    //CHECK_EQ(pp_token_category::identifier, token1.category);
+    CHECK_EQ(pp_token_category::user_defined_raw_string_literal, token1.category);
+    CHECK_EQ(3, std::distance(token1.lextokens.begin(), token1.lextokens.end()));
+
+    //プレイスメーカートークンの左からの連結
+    pp_token placemaker2{ pp_token_category::placemarker_token };
+    placemaker2 += std::move(token1);
+
+    CHECK_UNARY(placemaker2.token == u8R"(R"string"sv)"sv);
+    //CHECK_EQ(pp_token_category::identifier, placemaker2.category);
+    CHECK_EQ(pp_token_category::user_defined_raw_string_literal, token1.category);
+    CHECK_EQ(3, std::distance(placemaker2.lextokens.begin(), placemaker2.lextokens.end()));
+
+  }
+
     
 } // namespace kusabira_test::common

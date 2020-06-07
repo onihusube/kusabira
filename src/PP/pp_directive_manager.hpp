@@ -348,11 +348,15 @@ namespace kusabira::PP {
       //置換リストの起点となる先頭位置
       const auto head = std::begin(result_list);
 
+      //プレイスメーカートークンを挿入したかどうか
+      bool should_remove_placemarker = false;
+
       //置換リスト-引数リスト対応を後ろから処理
       for (const auto[token_index, arg_index, ignore1, ignore2, sharp_op, sharp2_op] : views::reverse(m_correspond)) {
         //置換リストのトークン位置
         const auto it = std::next(head, token_index);
-        auto lhs = it;
+        //##による結合時の右辺を指すイテレータ
+        auto rhs = std::next(it);
 
         if (arg_index != std::size_t(-1)) {
           //対応する実引数のトークン列をコピー
@@ -361,21 +365,31 @@ namespace kusabira::PP {
           //文字列化
           if (sharp_op) {
             arg_list = pp_stringize<false>(std::begin(arg_list), std::end(arg_list));
+          } else if (empty(arg_list)) {
+            //文字列化対象ではなく引数が空の時、プレイスメーカートークンを挿入しておく
+            result_list.insert(it, pp_token{ pp_token_category::placemarker_token });
+            should_remove_placemarker = true;
           }
 
           //結果リストにsplice
           result_list.splice(it, std::move(arg_list));
 
           //置換済みトークンを消す
-          lhs = --result_list.erase(it);
+          rhs = result_list.erase(it);
         }
 
         if (sharp2_op) {
-          auto rhs = std::next(lhs);
+          auto lhs = std::prev(rhs);
           (*lhs) += std::move(*rhs);
           result_list.erase(rhs);
         }
 
+      }
+
+      if (should_remove_placemarker) {
+        result_list.remove_if([](const auto& pptoken) {
+          return pptoken.category == pp_token_category::placemarker_token;
+        });
       }
 
       return result_list;
@@ -508,17 +522,17 @@ namespace kusabira::PP {
           } else {
             arg_list = pp_stringize<false>(std::begin(arg_list), std::end(arg_list));
           }
-        } else if (va_args && empty(arg_list)){
-          //文字列化対象ではなく可変長引数が空の時、プレイスメーカートークンを挿入する
+        } else if (empty(arg_list)){
+          //文字列化対象ではない時、プレイスメーカートークンを挿入する
           //文字列化対象の場合は空文字（""）が入っているはず
-          //it（==VA_ARGSトークン）の前に挿入することで、itのトークンが##の左辺にある場合も一貫して処理される
           insert_placemarker(it);
         }
 
         //結果リストにsplice
         result_list.splice(it, std::move(arg_list));
 
-        auto rhs = it;
+        //##による結合時の右辺を指すイテレータ
+        auto rhs = std::next(it);
         //置換済みトークンを消す
         if (arg_index != std::size_t(-1)) {
           rhs = result_list.erase(it);
