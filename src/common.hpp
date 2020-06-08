@@ -384,7 +384,7 @@ namespace kusabira::PP
         auto index = 0ull;
         bool is_rowstr = false;
 
-        if (str[index] === u8'u') {
+        if (str[index] == u8'u') {
           ++index;
           if (str[index] != u8'8') return false;
           ++index;
@@ -406,7 +406,7 @@ namespace kusabira::PP
 
           //生文字列リテラル化
           using enum_int = std::underlying_type_t<pp_token_category>;
-          lhs = static_cast<pp_token_category>(static_cast<enum_int>(rhs) + enum_int(2u));
+          lhs = static_cast<pp_token_category>(static_cast<enum_int>(rhs.category) + enum_int(2u));
         }
       } else if (lhs.category == pp_token_category::op_or_punc) {
         //記号の妥当性のチェック
