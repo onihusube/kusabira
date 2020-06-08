@@ -255,41 +255,52 @@ namespace kusabira::PP
     
     assert(pp_token_category::identifier <= lhs and pp_token_category::identifier <= rhs);
 
-    if (lhs == pp_token_category::identifier) {
-      if (rhs == pp_token_category::identifier) {
-        //識別子と識別子 -> 識別子
-        return true;
-      }
-      if (rhs == pp_token_category::pp_number) {
-        //識別子と数値 -> 識別子
-        return true;
-      }
+    switch (lhs) {
+      case pp_token_category::identifier:
+        if (rhs == pp_token_category::identifier) {
+          //識別子と識別子 -> 識別子
+          return true;
+        }
+        if (rhs == pp_token_category::pp_number) {
+          //識別子と数値 -> 識別子
+          return true;
+        }
+        break;
+      case pp_token_category::pp_number:
+        if (rhs == pp_token_category::pp_number) {
+          //数値と数値 -> 数値
+          return true;
+        }
+        if (rhs == pp_token_category::identifier) {
+          //数値と識別子 -> ユーザー定義数値リテラル
+          return true;
+        }
+        break;
+      case pp_token_category::op_or_punc:
+        if (rhs == pp_token_category::op_or_punc) {
+          //記号同士 -> 記号（妥当性は外でチェック
+          return true;
+        }
+        break;
+      case pp_token_category::charcter_literal: [[fallthrough]];
+      case pp_token_category::string_literal:   [[fallthrough]];
+      case pp_token_category::raw_string_literal:
+        if (rhs == pp_token_category::identifier) {
+          //文字/文字列リテラルと識別子 -> ユーザー定義文字/文字列リテラル
+          using enum_int = std::underlying_type_t<pp_token_category>;
+          lhs = static_cast<pp_token_category>(static_cast<enum_int>(lhs) + enum_int(1u));
+          return true;
+        }
+        break;
+      case pp_token_category::user_defined_charcter_literal:  [[fallthrough]];
+      case pp_token_category::user_defined_string_literal:    [[fallthrough]];
+      case pp_token_category::user_defined_raw_string_literal:
+        if (rhs == pp_token_category::identifier) {
+          //ユーザー定義文字/文字列リテラルと識別子 -> ユーザー定義文字/文字列リテラル
+          return true;
+        }
     }
-
-    if (lhs == pp_token_category::pp_number) {
-      if (rhs == pp_token_category::pp_number) {
-        //数値と数値 -> 数値
-        return true;
-      }
-      if (rhs == pp_token_category::identifier) {
-        //数値と識別子 -> ユーザー定義数値リテラル
-        return true;
-      }
-    }
-
-    if (lhs == pp_token_category::op_or_punc and rhs == pp_token_category::op_or_punc) {
-      //記号同士 -> 記号（妥当性は外でチェック
-      return true;
-    }
-
-    if (pp_token_category::charcter_literal <= lhs and lhs <= pp_token_category::user_defined_raw_string_literal) {
-      if (rhs == pp_token_category::identifier) {
-        //文字/文字列リテラルと識別子 -> ユーザー定義文字/文字列リテラル
-        //ユーザー定義文字/文字列リテラルと識別子 -> ユーザー定義文字/文字列リテラル
-        return true;
-      }
-    }
-
+  
     //それ以外はとりあえずダメ
     return false;
   }
@@ -367,10 +378,36 @@ namespace kusabira::PP
         //特別扱い
         if (lhs.category != pp_token_category::identifier) return false;
         if (not (pp_token_category::charcter_literal <= rhs.category and rhs.category <= pp_token_category::user_defined_raw_string_literal)) return false;
-        
+
         //識別子と（ユーザー定義）文字/文字列リテラル -> （ユーザー定義）文字/文字列リテラル
+        const auto str = lhs.token.to_view();
+        auto index = 0ull;
+        bool is_rowstr = false;
 
+        if (str[index] === u8'u') {
+          ++index;
+          if (str[index] != u8'8') return false;
+          ++index;
+        } else if (str[index] == u8'U') {
+          ++index;
+        } else if (str[index] == u8'L') {
+          ++index;
+        }
+        if (str[index] == u8'R') {
+          ++index;
+          is_rowstr = true;
+        }
+        if (str[index] != u8'"' and str[index] != u8'\'') return false;
+        //文字/文字列リテラルとして妥当だった
 
+        if (is_rowstr) {
+          //文字リテラルが来てたらおかしい
+          assert(pp_token_category::string_literal <= rhs.category);
+
+          //生文字列リテラル化
+          using enum_int = std::underlying_type_t<pp_token_category>;
+          lhs = static_cast<pp_token_category>(static_cast<enum_int>(rhs) + enum_int(2u));
+        }
       } else if (lhs.category == pp_token_category::op_or_punc) {
         //記号の妥当性のチェック
         auto row = 0;
