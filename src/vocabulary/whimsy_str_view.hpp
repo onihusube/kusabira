@@ -48,8 +48,8 @@ namespace kusabira::vocabulary {
     using pointer = value_type*;
     using const_pointer = const value_type*;
     using size_type = std::size_t;
-    using iterator = typename strview_t::iterator;
-    using const_iterator = typename strview_t::const_iterator;
+    using iterator = const_pointer;
+    using const_iterator = iterator;
     using difference_type = std::ptrdiff_t;
 
     /**
@@ -65,7 +65,8 @@ namespace kusabira::vocabulary {
     /**
     * @brief stringからのコピーコンストラクタ
     */
-    explicit whimsy_str_view(const string_t& str) noexcept(std::is_nothrow_copy_constructible_v<string_t>) : m_string(str, str.get_allocator()), m_is_view(false) {}
+    explicit whimsy_str_view(const string_t& str) noexcept(std::is_nothrow_copy_constructible_v<string_t>)
+      : m_string(str, str.get_allocator()), m_is_view(false) {}
 
     /**
     * @brief stringからのムーブコンストラクタ
@@ -116,7 +117,7 @@ namespace kusabira::vocabulary {
     /**
     * @brief string_viewの代入演算子
     */
-    whimsy_str_view& operator=(whimsy_str_view::strview_t view) & {
+    whimsy_str_view& operator=(whimsy_str_view::strview_t view) & noexcept {
       whimsy_str_view copy{ view };
       swap(*this, copy);
 

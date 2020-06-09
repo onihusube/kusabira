@@ -559,12 +559,17 @@ namespace kusabira::PP {
     void objmacro_token_concat() {
       using namespace std::string_view_literals;
 
-      auto it = std::begin(m_tokens);
+      auto first = std::begin(m_tokens);
       auto end = std::end(m_tokens);
 
-      for (; it != end; ++it) {
+      for (auto it = first; it != end; ++it) {
         if ((*it).category != pp_token_category::op_or_punc) continue;
         if ((*it).token != u8"##"sv) continue;
+        if (it == first) {
+          //先頭に##が来ているときは消して次を飛ばす
+          it = m_tokens.erase(it);
+          continue;
+        }
 
         //一つ前のイテレータを得ておく
         auto prev = it;

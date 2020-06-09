@@ -253,9 +253,10 @@ namespace kusabira::PP
 
   /**
   * @brief プリプロセッシングトークンカテゴリを連結する
+  * @details 結果がfalseなら変更されない
   * @return 連結が妥当か否かを示すbool値
   */
-  ifn operator+=(pp_token_category& lhs, pp_token_category rhs) -> bool {
+  cfn operator+=(pp_token_category& lhs, pp_token_category rhs) -> bool {
     
     assert(pp_token_category::identifier <= lhs and pp_token_category::identifier <= rhs);
 

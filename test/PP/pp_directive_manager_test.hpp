@@ -1322,24 +1322,78 @@ namespace kusabira_test::preprocessor
       CHECK_UNARY(result2->front().token == u8"pre"sv);
     }
 
-    //可変長マクロの例、右辺
+    //可変長マクロの例
     {
       pos = ll.emplace_after(pos, 0);
-      (*pos).line = u8"#define H1R(X, ...) X ## __VA_ARGS__";
+      (*pos).line = u8"#define F(X, ...) X ## __VA_ARGS__ ## X";
 
       //仮引数列と置換リスト
-      std::pmr::list<pp_token> rep_list{ &kusabira::def_mr };
+      std::pmr::vector<std::u8string_view> params{&kusabira::def_mr};
+      std::pmr::list<pp_token> rep_list{&kusabira::def_mr};
 
-    }
+      //字句トークン
+      lex_token lt0{{.status = pp_tokenize_status::OPorPunc}, u8"#", 0, pos};
+      lex_token lt1{{.status = pp_tokenize_status::Identifier}, u8"define", 1, pos};
+      lex_token lt2{{.status = pp_tokenize_status::Identifier}, u8"F", 8, pos};
+      lex_token lt3{{.status = pp_tokenize_status::OPorPunc}, u8"(", 12, pos};
+      lex_token lt4{{.status = pp_tokenize_status::Identifier}, u8"X", 13, pos};
+      lex_token lt5{{.status = pp_tokenize_status::OPorPunc}, u8",", 14, pos};
+      lex_token lt6{{.status = pp_tokenize_status::OPorPunc}, u8"...", 16, pos};
+      lex_token lt7{{.status = pp_tokenize_status::OPorPunc}, u8")", 17, pos};
+      lex_token lt8{{.status = pp_tokenize_status::Identifier}, u8"X", 19, pos};
+      lex_token lt9{{.status = pp_tokenize_status::OPorPunc}, u8"##", 23, pos};
+      lex_token lt10{{.status = pp_tokenize_status::Identifier}, u8"__VA_ARGS__", 26, pos};
+      lex_token lt11{{.status = pp_tokenize_status::OPorPunc}, u8"##", 23, pos};
+      lex_token lt12{{.status = pp_tokenize_status::Identifier}, u8"X", 19, pos};
 
-    //可変長マクロの例、左辺
-    {
-      pos = ll.emplace_after(pos, 0);
-      (*pos).line = u8"#define H1L(X, ...) __VA_ARGS__ ## X";
+      //置換リスト
+      rep_list.emplace_back(pp_token_category::identifier, lt8);
+      rep_list.emplace_back(pp_token_category::op_or_punc, lt9);
+      rep_list.emplace_back(pp_token_category::identifier, lt10);
+      rep_list.emplace_back(pp_token_category::op_or_punc, lt11);
+      rep_list.emplace_back(pp_token_category::identifier, lt12);
+      //マクロ仮引数トークン列
+      params.emplace_back(lt4.token);
+      params.emplace_back(lt6.token);
 
-      //仮引数列と置換リスト
-      std::pmr::list<pp_token> rep_list{ &kusabira::def_mr };
+      //関数マクロ登録
+      CHECK_UNARY(pp.define(*reporter, lt2, rep_list, params, true));
 
+      //実引数リスト作成
+      auto pos2 = ll.emplace_after(pos, 1);
+      (*pos2).line = u8"F(a, b, cd, e, fgh)";
+
+      std::pmr::list<pp_token> token_list{&kusabira::def_mr};
+      std::pmr::vector<std::pmr::list<pp_token>> args{&kusabira::def_mr};
+      token_list.emplace_back(pp_token_category::identifier, lex_token{{pp_tokenize_status::Identifier}, u8"a", 2, pos2});
+      args.emplace_back(std::move(token_list));
+      token_list.emplace_back(pp_token_category::identifier, lex_token{{pp_tokenize_status::Identifier}, u8"b", 5, pos2});
+      args.emplace_back(std::move(token_list));
+      token_list.emplace_back(pp_token_category::identifier, lex_token{{pp_tokenize_status::Identifier}, u8"cd", 8, pos2});
+      args.emplace_back(std::move(token_list));
+      token_list.emplace_back(pp_token_category::identifier, lex_token{{pp_tokenize_status::Identifier}, u8"e", 12, pos2});
+      args.emplace_back(std::move(token_list));
+      token_list.emplace_back(pp_token_category::identifier, lex_token{{pp_tokenize_status::Identifier}, u8"fgh", 15, pos2});
+      args.emplace_back(std::move(token_list));
+
+      //関数マクロ実行
+      const auto [is_success, result] = pp.funcmacro(lt2.token, args);
+
+      CHECK_UNARY(is_success);
+      REQUIRE_UNARY(bool(result));
+      CHECK_EQ(7u, result->size());
+
+      std::pmr::list<pp_token> expect{&kusabira::def_mr};
+
+      expect.emplace_back(pp_token_category::identifier, lex_token{{pp_tokenize_status::Identifier}, u8"ab", 2, pos2});
+      expect.emplace_back(pp_token_category::op_or_punc).token = u8","sv;
+      expect.emplace_back(pp_token_category::identifier, lex_token{{pp_tokenize_status::Identifier}, u8"cd", 8, pos2});
+      expect.emplace_back(pp_token_category::op_or_punc).token = u8","sv;
+      expect.emplace_back(pp_token_category::identifier, lex_token{{pp_tokenize_status::Identifier}, u8"e", 12, pos2});
+      expect.emplace_back(pp_token_category::op_or_punc).token = u8","sv;
+      expect.emplace_back(pp_token_category::identifier, lex_token{{pp_tokenize_status::Identifier}, u8"fgha", 15, pos2});
+
+      CHECK_EQ(expect, *result);
     }
 
     //VA_OPTの例

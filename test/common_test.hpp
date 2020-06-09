@@ -68,6 +68,149 @@ namespace kusabira_test::common
     }
   }
 
+  TEST_CASE("pp_token_category += test") {
+    using kusabira::PP::pp_token_category;
+
+    auto lhs = pp_token_category::identifier;
+
+    CHECK_UNARY(lhs += pp_token_category::identifier);
+    CHECK_EQ(pp_token_category::identifier, lhs);
+    CHECK_UNARY(lhs += pp_token_category::pp_number);
+    CHECK_EQ(pp_token_category::identifier, lhs);
+
+    lhs = pp_token_category::pp_number;
+
+    CHECK_UNARY(lhs += pp_token_category::identifier);
+    CHECK_EQ(pp_token_category::pp_number, lhs);
+    CHECK_UNARY(lhs += pp_token_category::pp_number);
+    CHECK_EQ(pp_token_category::pp_number, lhs);
+
+    lhs = pp_token_category::op_or_punc;
+
+    CHECK_UNARY(lhs += pp_token_category::op_or_punc);
+    CHECK_EQ(pp_token_category::op_or_punc, lhs);
+
+    lhs = pp_token_category::charcter_literal;
+
+    CHECK_UNARY(lhs += pp_token_category::identifier);
+    CHECK_EQ(pp_token_category::user_defined_charcter_literal, lhs);
+    CHECK_UNARY(lhs += pp_token_category::identifier);
+    CHECK_EQ(pp_token_category::user_defined_charcter_literal, lhs);
+
+    lhs = pp_token_category::string_literal;
+
+    CHECK_UNARY(lhs += pp_token_category::identifier);
+    CHECK_EQ(pp_token_category::user_defined_string_literal, lhs);
+    CHECK_UNARY(lhs += pp_token_category::identifier);
+    CHECK_EQ(pp_token_category::user_defined_string_literal, lhs);
+
+    lhs = pp_token_category::raw_string_literal;
+
+    CHECK_UNARY(lhs += pp_token_category::identifier);
+    CHECK_EQ(pp_token_category::user_defined_raw_string_literal, lhs);
+    CHECK_UNARY(lhs += pp_token_category::identifier);
+    CHECK_EQ(pp_token_category::user_defined_raw_string_literal, lhs);
+
+    lhs = pp_token_category::identifier;
+
+    CHECK_UNARY_FALSE(lhs += pp_token_category::charcter_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::user_defined_charcter_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::string_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::user_defined_string_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::raw_string_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::user_defined_raw_string_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::op_or_punc);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::other_character);
+
+    lhs = pp_token_category::pp_number;
+
+    CHECK_UNARY_FALSE(lhs += pp_token_category::charcter_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::user_defined_charcter_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::string_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::user_defined_string_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::raw_string_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::user_defined_raw_string_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::op_or_punc);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::other_character);
+
+    lhs = pp_token_category::op_or_punc;
+
+    CHECK_UNARY_FALSE(lhs += pp_token_category::identifier);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::charcter_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::user_defined_charcter_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::string_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::user_defined_string_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::raw_string_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::user_defined_raw_string_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::other_character);
+
+    lhs = pp_token_category::charcter_literal;
+
+    CHECK_UNARY_FALSE(lhs += pp_token_category::charcter_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::user_defined_charcter_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::string_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::user_defined_string_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::raw_string_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::user_defined_raw_string_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::op_or_punc);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::other_character);
+
+    lhs = pp_token_category::user_defined_charcter_literal;
+
+    CHECK_UNARY_FALSE(lhs += pp_token_category::charcter_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::user_defined_charcter_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::string_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::user_defined_string_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::raw_string_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::user_defined_raw_string_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::op_or_punc);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::other_character);
+
+    lhs = pp_token_category::string_literal;
+
+    CHECK_UNARY_FALSE(lhs += pp_token_category::charcter_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::user_defined_charcter_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::string_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::user_defined_string_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::raw_string_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::user_defined_raw_string_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::op_or_punc);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::other_character);
+
+    lhs = pp_token_category::user_defined_string_literal;
+
+    CHECK_UNARY_FALSE(lhs += pp_token_category::charcter_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::user_defined_charcter_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::string_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::user_defined_string_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::raw_string_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::user_defined_raw_string_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::op_or_punc);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::other_character);
+
+    lhs = pp_token_category::raw_string_literal;
+
+    CHECK_UNARY_FALSE(lhs += pp_token_category::charcter_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::user_defined_charcter_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::string_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::user_defined_string_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::raw_string_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::user_defined_raw_string_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::op_or_punc);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::other_character);
+
+    lhs = pp_token_category::user_defined_raw_string_literal;
+
+    CHECK_UNARY_FALSE(lhs += pp_token_category::charcter_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::user_defined_charcter_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::string_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::user_defined_string_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::raw_string_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::user_defined_raw_string_literal);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::op_or_punc);
+    CHECK_UNARY_FALSE(lhs += pp_token_category::other_character);
+  }
+
   TEST_CASE("pp_token += test") {
     using kusabira::PP::lex_token;
     using kusabira::PP::logical_line;
