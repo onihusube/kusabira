@@ -133,7 +133,7 @@ namespace kusabira::PP
         , line_offset{alloc}
     {}
 
-    logical_line(std::size_t line_num)
+    explicit logical_line(std::size_t line_num)
         : line{&kusabira::def_mr}
         , phisic_line{line_num}
         , line_offset{&kusabira::def_mr}
@@ -251,7 +251,11 @@ namespace kusabira::PP
     placemarker_token
   };
 
-  auto operator+=(pp_token_category& lhs, pp_token_category rhs) -> bool {
+  /**
+  * @brief プリプロセッシングトークンカテゴリを連結する
+  * @return 連結が妥当か否かを示すbool値
+  */
+  ifn operator+=(pp_token_category& lhs, pp_token_category rhs) -> bool {
     
     assert(pp_token_category::identifier <= lhs and pp_token_category::identifier <= rhs);
 
@@ -299,8 +303,10 @@ namespace kusabira::PP
           //ユーザー定義文字/文字列リテラルと識別子 -> ユーザー定義文字/文字列リテラル
           return true;
         }
-    }
-  
+      default:
+        break;
+      }
+
     //それ以外はとりあえずダメ
     return false;
   }
@@ -310,7 +316,7 @@ namespace kusabira::PP
   */
   struct pp_token {
 
-    pp_token(pp_token_category cat)
+    explicit pp_token(pp_token_category cat)
       : category{ cat }
       , lextokens{ &kusabira::def_mr}
     {}
@@ -339,15 +345,14 @@ namespace kusabira::PP
 
     /**
     * @brief 2つのプリプロセッシングトークンを結合する
-    * @details 左辺←右辺に結合
+    * @details 左辺←右辺に結合、結合が妥当でなくても引数は変更される
     * @param lhs 結合されるトークン、直接変更される
     * @param rhs 結合するトークン、ムーブする
-    * @return lhs
+    * @return 結合が妥当であるか否か
     */
     friend auto operator+=(pp_token& lhs, pp_token&& rhs) -> bool {
-      //不正なトークンのチェックは行わない（規格上では未定義動作とされているため）
-      //そのうちチェック実装する（多分
-      /*結合できるのは
+      /*不正なトークンの結合は未定義動作、とりあえず戻り値で表現
+        結合できるのは
         - 識別子と識別子 -> 識別子
         - 数値と数値 -> 数値
         - 記号同士（内容による） -> 記号
@@ -370,6 +375,7 @@ namespace kusabira::PP
         return true;
       }
 
+      //構成文字列の連結
       auto&& tmp_str = lhs.token.to_string();
       tmp_str.append(rhs.token);
       lhs.token = std::move(tmp_str);
@@ -406,23 +412,23 @@ namespace kusabira::PP
 
           //生文字列リテラル化
           using enum_int = std::underlying_type_t<pp_token_category>;
-          lhs = static_cast<pp_token_category>(static_cast<enum_int>(rhs.category) + enum_int(2u));
+          lhs.category = static_cast<pp_token_category>(static_cast<enum_int>(rhs.category) + enum_int(2u));
         }
       } else if (lhs.category == pp_token_category::op_or_punc) {
         //記号の妥当性のチェック
         auto row = 0;
         const auto str = lhs.token.to_view();
+        const auto len = str.length();
         auto index = 0ull;
         do {
-          //オーバーランはしないと思うけど・・
-          assert(index < str.length());
-
           //トークナイザで使ってるテーブルを引いてチェックする
           row = table::ref_symbol_table(str[index], row);
           ++index;
-        } while (0 < row);
+        } while (0 < row and index < len);
 
-        if (row < 0) return false;
+        //ここに来る場合は妥当な記号列同士の連結になっているはずで連結結果が妥当なら文字列を全て見ることになる
+        //その上で、テーブル参照結果が0以上なら妥当
+        if (index != len or row < 0) return false;
       }
 
       //トークンを構成する字句トークンの連結

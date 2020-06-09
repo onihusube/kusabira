@@ -85,37 +85,117 @@ namespace kusabira_test::common
     pos = ll.emplace_after(pos, 1);
     (*pos).line = u8R"(R "string" sv)";
 
-    pp_token token1{ pp_token_category::identifier, lex_token{ {pp_tokenize_status::Identifier}, u8"R", 0u, pos } };
-    pp_token token2{ pp_token_category::string_literal, lex_token{ {pp_tokenize_status::StringLiteral}, u8R"("string")", 2u, pos } };
-    pp_token token3{ pp_token_category::identifier, lex_token{ {pp_tokenize_status::Identifier}, u8"sv", 10u, pos } };
+    {
+      pp_token token1{pp_token_category::identifier, lex_token{{pp_tokenize_status::Identifier}, u8"R", 0u, pos}};
+      pp_token token2{pp_token_category::string_literal, lex_token{{pp_tokenize_status::StringLiteral}, u8R"("string")", 2u, pos}};
+      pp_token token3{pp_token_category::identifier, lex_token{{pp_tokenize_status::Identifier}, u8"sv", 10u, pos}};
 
-    //普通の連結
-    token2 += std::move(token3);
-    token1 += std::move(token2);
+      //普通の連結
+      bool is_success = token2 += std::move(token3);
+      is_success &= (token1 += std::move(token2));
 
-    CHECK_UNARY(token1.token == u8R"(R"string"sv)"sv);
-    //CHECK_EQ(pp_token_category::identifier, token1.category);
-    CHECK_EQ(pp_token_category::user_defined_raw_string_literal, token1.category);
-    CHECK_EQ(3, std::distance(token1.lextokens.begin(), token1.lextokens.end()));
+      REQUIRE_UNARY(is_success);
+      CHECK_UNARY(token1.token == u8R"(R"string"sv)"sv);
+      CHECK_EQ(pp_token_category::user_defined_raw_string_literal, token1.category);
+      CHECK_EQ(3, std::distance(token1.lextokens.begin(), token1.lextokens.end()));
 
-    //プレイスメーカートークンの右からの連結
-    pp_token placemaker1{ pp_token_category::placemarker_token };
-    token1 += std::move(placemaker1);
+      //プレイスメーカートークンの右からの連結
+      is_success = token1 += pp_token{pp_token_category::placemarker_token};
 
-    CHECK_UNARY(token1.token == u8R"(R"string"sv)"sv);
-    //CHECK_EQ(pp_token_category::identifier, token1.category);
-    CHECK_EQ(pp_token_category::user_defined_raw_string_literal, token1.category);
-    CHECK_EQ(3, std::distance(token1.lextokens.begin(), token1.lextokens.end()));
+      REQUIRE_UNARY(is_success);
+      CHECK_UNARY(token1.token == u8R"(R"string"sv)"sv);
+      CHECK_EQ(pp_token_category::user_defined_raw_string_literal, token1.category);
+      CHECK_EQ(3, std::distance(token1.lextokens.begin(), token1.lextokens.end()));
 
-    //プレイスメーカートークンの左からの連結
-    pp_token placemaker2{ pp_token_category::placemarker_token };
-    placemaker2 += std::move(token1);
+      //プレイスメーカートークンの左からの連結
+      pp_token placemaker{pp_token_category::placemarker_token};
+      placemaker += std::move(token1);
 
-    CHECK_UNARY(placemaker2.token == u8R"(R"string"sv)"sv);
-    //CHECK_EQ(pp_token_category::identifier, placemaker2.category);
-    CHECK_EQ(pp_token_category::user_defined_raw_string_literal, token1.category);
-    CHECK_EQ(3, std::distance(placemaker2.lextokens.begin(), placemaker2.lextokens.end()));
+      REQUIRE_UNARY(is_success);
+      CHECK_UNARY(placemaker.token == u8R"(R"string"sv)"sv);
+      CHECK_EQ(pp_token_category::user_defined_raw_string_literal, token1.category);
+      CHECK_EQ(3, std::distance(placemaker.lextokens.begin(), placemaker.lextokens.end()));
+    }
 
+    pos = ll.emplace_after(pos, 1);
+    (*pos).line = u8R"(< < =)";
+    //記号の連結1
+    {
+      pp_token token1{pp_token_category::op_or_punc, lex_token{{pp_tokenize_status::OPorPunc}, u8"<", 0u, pos}};
+      pp_token token2{pp_token_category::op_or_punc, lex_token{{pp_tokenize_status::OPorPunc}, u8"<", 2u, pos}};
+      pp_token token3{pp_token_category::op_or_punc, lex_token{{pp_tokenize_status::OPorPunc}, u8"=", 4u, pos}};
+
+      bool is_success = token2 += std::move(token3);
+      is_success &= (token1 += std::move(token2));
+
+      REQUIRE_UNARY(is_success);
+      CHECK_UNARY(token1.token == u8"<<="sv);
+      CHECK_EQ(pp_token_category::op_or_punc, token1.category);
+      CHECK_EQ(3, std::distance(token1.lextokens.begin(), token1.lextokens.end()));
+    }
+
+    pos = ll.emplace_after(pos, 1);
+    (*pos).line = u8R"(| =)";
+    //記号の連結2
+    {
+      pp_token token1{pp_token_category::op_or_punc, lex_token{{pp_tokenize_status::OPorPunc}, u8"|", 0u, pos}};
+      pp_token token2{pp_token_category::op_or_punc, lex_token{{pp_tokenize_status::OPorPunc}, u8"=", 2u, pos}};
+
+      bool is_success = token1 += std::move(token2);
+
+      REQUIRE_UNARY(is_success);
+      CHECK_UNARY(token1.token == u8"|="sv);
+      CHECK_EQ(pp_token_category::op_or_punc, token1.category);
+      CHECK_EQ(2, std::distance(token1.lextokens.begin(), token1.lextokens.end()));
+    }
+
+    pos = ll.emplace_after(pos, 1);
+    (*pos).line = u8R"(-> *)";
+    //記号の連結3
+    {
+      pp_token token1{pp_token_category::op_or_punc, lex_token{{pp_tokenize_status::OPorPunc}, u8"->", 0u, pos}};
+      pp_token token2{pp_token_category::op_or_punc, lex_token{{pp_tokenize_status::OPorPunc}, u8"*", 3u, pos}};
+
+      bool is_success = token1 += std::move(token2);
+
+      REQUIRE_UNARY(is_success);
+      CHECK_UNARY(token1.token == u8"->*"sv);
+      CHECK_EQ(pp_token_category::op_or_punc, token1.category);
+      CHECK_EQ(2, std::distance(token1.lextokens.begin(), token1.lextokens.end()));
+    }
+
+    pos = ll.emplace_after(pos, 1);
+    (*pos).line = u8R"(< > = ! << * ++ =)";
+    //記号の連結、失敗例
+    {
+      pp_token token1{pp_token_category::op_or_punc, lex_token{{pp_tokenize_status::OPorPunc}, u8"<", 0u, pos}};
+      pp_token token2{pp_token_category::op_or_punc, lex_token{{pp_tokenize_status::OPorPunc}, u8">", 2u, pos}};
+
+      bool is_success = token1 += std::move(token2);
+
+      CHECK_UNARY_FALSE(is_success);
+
+      pp_token token3{pp_token_category::op_or_punc, lex_token{{pp_tokenize_status::OPorPunc}, u8"=", 4u, pos}};
+      pp_token token4{pp_token_category::op_or_punc, lex_token{{pp_tokenize_status::OPorPunc}, u8"!", 6u, pos}};
+
+      is_success = token3 += std::move(token4);
+
+      CHECK_UNARY_FALSE(is_success);
+
+      pp_token token5{pp_token_category::op_or_punc, lex_token{{pp_tokenize_status::OPorPunc}, u8"<<", 8u, pos}};
+      pp_token token6{pp_token_category::op_or_punc, lex_token{{pp_tokenize_status::OPorPunc}, u8"*", 11u, pos}};
+
+      is_success = token5 += std::move(token6);
+
+      CHECK_UNARY_FALSE(is_success);
+
+      pp_token token7{pp_token_category::op_or_punc, lex_token{{pp_tokenize_status::OPorPunc}, u8"++", 13u, pos}};
+      pp_token token8{pp_token_category::op_or_punc, lex_token{{pp_tokenize_status::OPorPunc}, u8"=", 16u, pos}};
+
+      is_success = token7 += std::move(token8);
+
+      CHECK_UNARY_FALSE(is_success);
+    }
   }
 
     
