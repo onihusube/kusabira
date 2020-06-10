@@ -337,8 +337,37 @@ namespace kusabira::PP
     pp_token(pp_token_category cat, std::u8string_view tokenstr)
       : category{ cat }
       , token{ tokenstr }
-      , lextokens{}
+      , lextokens{&kusabira::def_mr}
     {}
+
+    /**
+    * @brief コピーコンストラクタ
+    * @details polymorphic_allocatorのmemory_resourceがコピーによって伝播しないのを防ぐために定義
+    */
+    pp_token(const pp_token& other)
+      : category{other.category}
+      , token {other.token}
+      , lextokens{other.lextokens, &kusabira::def_mr}
+    {}
+
+    /**
+    * @brief コピー代入演算子
+    * @details コピーコンストラクタと同様の理由による
+    */
+    pp_token& operator=(const pp_token& other) {
+      if (this != &other) {
+        pp_token copy = other;
+        *this = std::move(copy);
+      }
+      return *this;
+    }
+
+    /**
+    * @brief ムーブコンストラクタ
+    * @details ムーブ時はmemory_resourceが伝播するのでdefault定義
+    */
+    pp_token(pp_token&&) = default;
+    pp_token& operator=(pp_token&&) = default;
 
     ffn operator==(const pp_token& lhs, const pp_token& rhs) noexcept -> bool {
       return lhs.category == rhs.category && lhs.token == rhs.token;
@@ -433,7 +462,7 @@ namespace kusabira::PP
       }
 
       //トークンを構成する字句トークンの連結
-      std::pmr::forward_list<lex_token> tmp = std::move(rhs.lextokens);
+      std::pmr::forward_list<lex_token> tmp{std::move(rhs.lextokens)};
       tmp.splice_after(tmp.before_begin(), std::move(lhs.lextokens));
       lhs.lextokens = std::move(tmp);
 
