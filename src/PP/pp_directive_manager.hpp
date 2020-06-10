@@ -215,9 +215,11 @@ namespace kusabira::PP {
     /**
     * @brief 置換リスト上の仮引数を見つけて、仮引数の番号との対応を取っておく
     * @tparam Is_VA 可変長マクロか否か
+    * @param start 開始インデックス
+    * @param end_index 終了インデックス
     */
     template<bool Is_VA>
-    void make_id_to_param_pair() {
+    void make_id_to_param_pair(std::size_t start, std::size_t end_index) {
       using namespace std::string_view_literals;
 
       //仮引数名に対応する実引数リスト上の位置を求めるやつ
@@ -230,17 +232,19 @@ namespace kusabira::PP {
         return {false, 0};
       };
 
-      // 置換対象トークン数
-      auto N = m_tokens.size();
+      //置換対象トークン数
+      auto N = end_index;
 
       m_correspond.reserve(N);
 
       //#の出現をマークする
       bool apper_sharp_op = false;
       bool apper_sharp2_op = false;
+      //__VA_OPT__()の直後のトークンかをマーク、nulltprじゃなければVA_OPTトークンの##をマークするbool値への参照
+      bool* after_vaopt = nullptr;
 
       auto it = m_tokens.begin();
-      for (auto index = 0ull; index < N; ++index, ++it) {
+      for (auto index = start; index < N; ++index, ++it) {
         //#,##をチェック
         if ((*it).category == pp_token_category::op_or_punc) {
 
@@ -256,10 +260,16 @@ namespace kusabira::PP {
             apper_sharp2_op = true;
 
             //最後に登録された対応関係が、1つ前だったかを調べる
-            if (not empty(m_correspond) and std::get<0>(m_correspond.back()) == (index - 1)) {
-              //1つ前が仮引数名のとき
-              //##の左辺であることをマーク
-              std::get<5>(m_correspond.back()) = true;
+            if (not empty(m_correspond)) {
+              if (after_vaopt != nullptr) {
+                //1つ前で__VA_OPT__()を処理していた時
+                *after_vaopt = true;
+                after_vaopt = nullptr;
+              } else if (std::get<0>(m_correspond.back()) == (index - 1)) {
+                //1つ前が仮引数名のとき
+                //##の左辺であることをマーク
+                std::get<5>(m_correspond.back()) = true;
+              }
             } else {
               //1つ前は普通のトークン、もしくは空の時
               //置換対象リストに連結対象として加える
@@ -269,6 +279,9 @@ namespace kusabira::PP {
             continue;
           }
         }
+
+        //ここにきてる時点で処理済みなのでリセット
+        after_vaopt = nullptr;
 
         //1つ前の#,##トークンを削除する
         if (apper_sharp_op or apper_sharp2_op) {
@@ -313,8 +326,19 @@ namespace kusabira::PP {
               m_is_sharp_op_err = std::move(*it);
               break;
             }
-            //__VA_OPT__を見つけておく
-            m_correspond.emplace_back(index, 0, false, true, false, false);
+            //__VA_OPT__を見つけておき、__VA_OPT__直後であることをマーク
+            after_vaopt = &std::get<5>(m_correspond.emplace_back(index, 0, false, true, false, false));
+
+            //閉じかっこを探索
+            auto start_pos = std::next(m_tokens.begin(), index + 2); //開きかっこの次はず？
+            auto cloase_paren = search_close_parenthesis(start_pos, m_tokens.end());
+            //かっこ内の要素数、囲むかっこも含める
+            std::size_t recursive_N = std::distance(start_pos, ++cloase_paren) + 1;
+            //__VA_OPT__(...)のカッコ内だけを再帰処理、開きかっこと閉じかっこは見なくていいのでインデックス操作で飛ばす
+            make_id_to_param_pair<true>(index + 2, index + recursive_N);
+            //処理済みの分進める（この後ループで++されるので閉じかっこの次から始まる
+            index += recursive_N;
+            std::advance(it, recursive_N);
             continue;
           }
         }
@@ -438,7 +462,8 @@ namespace kusabira::PP {
           assert((*it).token.to_view() == u8"__VA_OPT__");
 
           const auto replist_end = std::end(result_list);
-          //__VA_OPT__の開きかっこの位置を探索
+          //__VA_OPT__の開きかっこの位置を探索（検索する必要はないかもしれない
+          //auto open_paren_pos_next = std::next(it, 2);
           auto open_paren_pos_next = std::find_if(std::next(it), replist_end, [](auto &pptoken) {
             return pptoken.token == u8"("sv;
           });
@@ -604,9 +629,9 @@ namespace kusabira::PP {
       , m_correspond{ &kusabira::def_mr }
     {
       if (is_va) {
-        this->make_id_to_param_pair<true>();
+        this->make_id_to_param_pair<true>(0, m_tokens.size());
       } else {
-        this->make_id_to_param_pair<false>();
+        this->make_id_to_param_pair<false>(0, m_tokens.size());
       }
     }
 
