@@ -391,7 +391,7 @@ namespace kusabira_test::preprocessor
       args.emplace_back(std::move(token2));
 
       //関数マクロ実行
-      const auto [is_success, result] = pp.funcmacro(lt1.token, args);
+      const auto [is_success, result] = pp.funcmacro(*reporter, lt1.token, args);
 
       CHECK_UNARY(is_success);
       REQUIRE_UNARY(bool(result));
@@ -421,7 +421,7 @@ namespace kusabira_test::preprocessor
 
       //引数の数が合わないような呼び出し、失敗
       args.pop_back();
-      const auto [faile, null_result] = pp.funcmacro(lt1.token, args);
+      const auto [faile, null_result] = pp.funcmacro(*reporter, lt1.token, args);
       CHECK_UNARY_FALSE(faile);
       CHECK_EQ(null_result, std::nullopt);
 
@@ -470,7 +470,7 @@ namespace kusabira_test::preprocessor
       args.emplace_back(token2);
 
       //関数マクロ実行
-      const auto [is_success, result] = pp.funcmacro(u8"max", args);
+      const auto [is_success, result] = pp.funcmacro(*reporter, u8"max", args);
 
       CHECK_UNARY(is_success);
       REQUIRE_UNARY(bool(result));
@@ -501,17 +501,17 @@ namespace kusabira_test::preprocessor
 
     //適当なトークンを投げてみる（登録されていない場合は失敗にはならない
     {
-      const auto [is_success, result] = pp.funcmacro(u8"min", {});
+      const auto [is_success, result] = pp.funcmacro(*reporter, u8"min", {});
       CHECK_UNARY(is_success);
       CHECK_EQ(result, std::nullopt);
     }
     {
-      const auto [is_success, result] = pp.funcmacro(u8"max_", {});
+      const auto [is_success, result] = pp.funcmacro(*reporter, u8"max_", {});
       CHECK_UNARY(is_success);
       CHECK_EQ(result, std::nullopt);
     }
     {
-      const auto [is_success, result] = pp.funcmacro(u8"MAX", {});
+      const auto [is_success, result] = pp.funcmacro(*reporter, u8"MAX", {});
       CHECK_UNARY(is_success);
       CHECK_EQ(result, std::nullopt);
     }
@@ -604,7 +604,7 @@ namespace kusabira_test::preprocessor
       args.emplace_back(std::move(token_list));
 
       //関数マクロ実行
-      const auto [is_success, result] = pp.funcmacro(lt2.token, args);
+      const auto [is_success, result] = pp.funcmacro(*reporter, lt2.token, args);
 
       CHECK_UNARY(is_success);
       REQUIRE_UNARY(bool(result));
@@ -633,7 +633,7 @@ namespace kusabira_test::preprocessor
     //引数なし実行
     {
       //関数マクロ実行
-      const auto [is_success, result] = pp.funcmacro(u8"F", std::pmr::vector<std::pmr::list<pp_token>>{&kusabira::def_mr});
+      const auto [is_success, result] = pp.funcmacro(*reporter, u8"F", std::pmr::vector<std::pmr::list<pp_token>>{&kusabira::def_mr});
 
       CHECK_UNARY(is_success);
       REQUIRE_UNARY(bool(result));
@@ -769,7 +769,7 @@ namespace kusabira_test::preprocessor
       args.emplace_back(std::move(token_list));
 
       //関数マクロ実行
-      const auto [is_success, result] = pp.funcmacro(lt2.token, args);
+      const auto [is_success, result] = pp.funcmacro(*reporter, lt2.token, args);
 
       CHECK_UNARY(is_success);
       REQUIRE_UNARY(bool(result));
@@ -795,7 +795,7 @@ namespace kusabira_test::preprocessor
     //引数なし呼び出し
     {
       //関数マクロ実行
-      const auto [is_success, result] = pp.funcmacro(u8"F", std::pmr::vector<std::pmr::list<pp_token>>{&kusabira::def_mr});
+      const auto [is_success, result] = pp.funcmacro(*reporter, u8"F", std::pmr::vector<std::pmr::list<pp_token>>{&kusabira::def_mr});
 
       CHECK_UNARY(is_success);
       REQUIRE_UNARY(bool(result));
@@ -819,7 +819,7 @@ namespace kusabira_test::preprocessor
       args.emplace_back(std::pmr::list<pp_token>{&kusabira::def_mr});
 
       //関数マクロ実行
-      const auto [is_success, result] = pp.funcmacro(u8"F", args);
+      const auto [is_success, result] = pp.funcmacro(*reporter, u8"F", args);
 
       CHECK_UNARY(is_success);
       REQUIRE_UNARY(bool(result));
@@ -920,7 +920,7 @@ namespace kusabira_test::preprocessor
       args.emplace_back(std::move(token_list));
 
       //関数マクロ実行
-      const auto [is_success, result] = pp.funcmacro(lt2.token, args);
+      const auto [is_success, result] = pp.funcmacro(*reporter, lt2.token, args);
 
       CHECK_UNARY(is_success);
       REQUIRE_UNARY(bool(result));
@@ -960,7 +960,7 @@ namespace kusabira_test::preprocessor
       args.emplace_back(std::move(token_list));
 
       //関数マクロ実行
-      const auto [is_success, result] = pp.funcmacro(u8"SDEF", args);
+      const auto [is_success, result] = pp.funcmacro(*reporter, u8"SDEF", args);
 
       CHECK_UNARY(is_success);
       REQUIRE_UNARY(bool(result));
@@ -977,7 +977,7 @@ namespace kusabira_test::preprocessor
         args.emplace_back(std::pmr::list<pp_token>{&kusabira::def_mr});
 
         //関数マクロ実行
-        const auto [is_success2, result2] = pp.funcmacro(u8"SDEF", args);
+        const auto [is_success2, result2] = pp.funcmacro(*reporter, u8"SDEF", args);
 
         CHECK_UNARY(is_success2);
         REQUIRE_UNARY(bool(result2));
@@ -1091,7 +1091,7 @@ namespace kusabira_test::preprocessor
       args.emplace_back(std::move(token_list));
 
       //関数マクロ実行
-      const auto [is_success, result] = pp.funcmacro(lt2.token, args);
+      const auto [is_success, result] = pp.funcmacro(*reporter, lt2.token, args);
 
       CHECK_UNARY(is_success);
       REQUIRE_UNARY(bool(result));
@@ -1157,7 +1157,7 @@ namespace kusabira_test::preprocessor
       args.emplace_back(std::move(token_list));
 
       //関数マクロ実行
-      const auto [is_success, result] = pp.funcmacro(lt2.token, args);
+      const auto [is_success, result] = pp.funcmacro(*reporter, lt2.token, args);
 
       CHECK_UNARY(is_success);
       REQUIRE_UNARY(bool(result));
@@ -1175,7 +1175,7 @@ namespace kusabira_test::preprocessor
       args.clear();
 
       //関数マクロ実行
-      const auto [is_success2, result2] = pp.funcmacro(lt2.token, args);
+      const auto [is_success2, result2] = pp.funcmacro(*reporter, lt2.token, args);
 
       CHECK_UNARY(is_success2);
       REQUIRE_UNARY(bool(result2));
@@ -1293,7 +1293,7 @@ namespace kusabira_test::preprocessor
       args.emplace_back(std::move(token_list));
 
       //関数マクロ実行
-      const auto [is_success, result] = pp.funcmacro(lt2.token, args);
+      const auto [is_success, result] = pp.funcmacro(*reporter, lt2.token, args);
 
       CHECK_UNARY(is_success);
       REQUIRE_UNARY(bool(result));
@@ -1313,7 +1313,7 @@ namespace kusabira_test::preprocessor
       args.emplace_back(std::pmr::list<pp_token>{ &kusabira::def_mr });
 
       //関数マクロ実行
-      const auto [is_success2, result2] = pp.funcmacro(lt2.token, args);
+      const auto [is_success2, result2] = pp.funcmacro(*reporter, lt2.token, args);
 
       CHECK_UNARY(is_success2);
       REQUIRE_UNARY(bool(result2));
@@ -1377,7 +1377,7 @@ namespace kusabira_test::preprocessor
       args.emplace_back(std::move(token_list));
 
       //関数マクロ実行
-      const auto [is_success, result] = pp.funcmacro(lt2.token, args);
+      const auto [is_success, result] = pp.funcmacro(*reporter, lt2.token, args);
 
       CHECK_UNARY(is_success);
       REQUIRE_UNARY(bool(result));
@@ -1401,7 +1401,7 @@ namespace kusabira_test::preprocessor
       args.emplace_back(std::move(token_list));
 
       //関数マクロ実行
-      const auto [is_success2, result2] = pp.funcmacro(lt2.token, args);
+      const auto [is_success2, result2] = pp.funcmacro(*reporter, lt2.token, args);
 
       CHECK_UNARY(is_success2);
       REQUIRE_UNARY(bool(result2));
@@ -1474,7 +1474,7 @@ namespace kusabira_test::preprocessor
 
       {
         //関数マクロ実行
-        const auto [is_success, result] = pp.funcmacro(lt2.token, args);
+        const auto [is_success, result] = pp.funcmacro(*reporter, lt2.token, args);
 
         CHECK_UNARY(is_success);
         REQUIRE_UNARY(bool(result));
@@ -1492,7 +1492,7 @@ namespace kusabira_test::preprocessor
         args.emplace_back(std::move(token_list));
 
         //関数マクロ実行
-        const auto [is_success, result] = pp.funcmacro(lt2.token, args);
+        const auto [is_success, result] = pp.funcmacro(*reporter, lt2.token, args);
 
         CHECK_UNARY(is_success);
         REQUIRE_UNARY(bool(result));
@@ -1584,7 +1584,7 @@ namespace kusabira_test::preprocessor
       args.emplace_back(std::move(token_list));
 
       //関数マクロ実行
-      const auto [is_success, result] = pp.funcmacro(lt2.token, args);
+      const auto [is_success, result] = pp.funcmacro(*reporter, lt2.token, args);
 
       CHECK_UNARY(is_success);
       REQUIRE_UNARY(bool(result));

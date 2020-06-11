@@ -38,6 +38,27 @@ namespace kusabira {
   inline std::pmr::monotonic_buffer_resource def_mr{1024ul};
 }
 
+namespace kusabira {
+
+  /**
+  * @brief 成功を表すexpectedを返す
+  * @details returnで使うことを想定
+  */
+  template<typename T>
+  cfn ok(T&& t) -> T&& {
+    return std::forward<T>(t);
+  }
+
+  /**
+  * @brief 失敗を表すexpectedを返す
+  * @details returnで使うことを想定
+  */
+  template<typename E>
+  cfn ng(E&& e) -> tl::unexpected<E> {
+    return tl::unexpected<E>{std::forward<E>(e)};
+  }
+}
+
 namespace kusabira::PP
 {
   /**
@@ -376,8 +397,8 @@ namespace kusabira::PP
     /**
     * @brief 2つのプリプロセッシングトークンを結合する
     * @details 左辺←右辺に結合、結合が妥当でなくても引数は変更される
-    * @param lhs 結合されるトークン、直接変更される
-    * @param rhs 結合するトークン、ムーブする
+    * @param lhs 結合されるトークン、直接変更される（結合が不正でも変更されている）
+    * @param rhs 結合するトークン、ムーブす（結合が妥当である時のみ破壊的変更が起きる）
     * @return 結合が妥当であるか否か
     */
     friend auto operator+=(pp_token& lhs, pp_token&& rhs) -> bool {

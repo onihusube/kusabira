@@ -212,6 +212,9 @@ namespace kusabira::PP {
     //{置換リストに現れる仮引数名のインデックス, 対応する実引数のインデックス, __VA_ARGS__?, __VA_OPT__?, #?, ##?}}
     std::pmr::vector<std::tuple<std::size_t, std::size_t, bool, bool, bool, bool>> m_correspond;
 
+    //マクロ実行の結果型
+    using macro_result_t = tl::expected<std::pmr::list<pp_token>, std::pair<pp_parse_context, pp_token>>;
+
     /**
     * @brief 置換リスト上の仮引数を見つけて、仮引数の番号との対応を取っておく
     * @tparam Is_VA 可変長マクロか否か
@@ -397,7 +400,7 @@ namespace kusabira::PP {
     * @param args 実引数列（カンマ区切り毎のトークン列のvector
     * @return マクロ置換後のトークンリスト
     */
-    fn func_macro_impl(const std::pmr::vector<std::pmr::list<pp_token>>& args) const -> std::pmr::list<pp_token> {
+    fn func_macro_impl(const std::pmr::vector<std::pmr::list<pp_token>>& args) const -> macro_result_t {
       //置換対象のトークンシーケンスをコピー（終了後そのまま置換結果となる）
       std::pmr::list<pp_token> result_list{ m_tokens, &kusabira::def_mr };
 
@@ -437,7 +440,11 @@ namespace kusabira::PP {
         if (sharp2_op) {
           //##の処理
           auto lhs = std::prev(rhs);
-          (*lhs) += std::move(*rhs);
+          if (bool is_valid = (*lhs) += std::move(*rhs); not is_valid){
+            //有効ではないプリプロセッシングトークンが生成された、エラー
+            //失敗した場合、rhsに破壊的変更はされていないのでエラー出力にはそっちを使う
+            return kusabira::ng(std::make_pair(pp_parse_context::Define_InvalidTokenConcat, std::move(*rhs)));
+          }
           result_list.erase(rhs);
         }
 
@@ -449,7 +456,7 @@ namespace kusabira::PP {
         });
       }
 
-      return result_list;
+      return kusabira::ok(result_list);
     }
 
     /**
@@ -457,7 +464,7 @@ namespace kusabira::PP {
     * @param args 実引数列（カンマ区切り毎のトークン列のvector
     * @return マクロ置換後のトークンリスト
     */
-    fn va_macro_impl(const std::pmr::vector<std::pmr::list<pp_token>>& args) const -> std::pmr::list<pp_token> {
+    fn va_macro_impl(const std::pmr::vector<std::pmr::list<pp_token>>& args) const -> macro_result_t {
       using namespace std::string_view_literals;
 
       //置換対象のトークンシーケンスをコピー（終了後そのまま置換結果となる）
@@ -476,11 +483,19 @@ namespace kusabira::PP {
         should_remove_placemarker = true;
       };
       //##によるトークン結合処理
-      auto token_concat = [&result_list](auto rhs_pos) {
+      auto token_concat = [&result_list](auto rhs_pos) -> bool {
         auto &lhs = *std::prev(rhs_pos);
-        lhs += std::move(*rhs_pos);
+
+        if (bool is_valid = lhs += std::move(*rhs_pos); not is_valid){
+          //有効ではないプリプロセッシングトークンが生成された、エラー
+          //失敗した場合、rhsに破壊的変更はされていないのでエラー出力にはそっちを使う
+          return false;
+        }
+
         //結合したので次のトークンを消す
         result_list.erase(rhs_pos);
+
+        return true;
       };
 
       //置換リスト-引数リスト対応を後ろから処理
@@ -539,7 +554,8 @@ namespace kusabira::PP {
 
             if (sharp2_op) {
               //##によるトークンの結合処理
-              token_concat(rhs);
+              if (not token_concat(rhs))
+                return kusabira::ng(std::make_pair(pp_parse_context::Define_InvalidTokenConcat, std::move(*rhs)));
             }
           }
 
@@ -598,7 +614,8 @@ namespace kusabira::PP {
 
         if (sharp2_op) {
           //##によるトークンの結合処理
-          token_concat(rhs);
+          if (not token_concat(rhs))
+            return kusabira::ng(std::make_pair(pp_parse_context::Define_InvalidTokenConcat, std::move(*rhs)));
         }
       }
 
@@ -608,7 +625,7 @@ namespace kusabira::PP {
         });
       }
 
-      return result_list;
+      return kusabira::ok(std::move(result_list));
     }
 
     /**
@@ -636,7 +653,11 @@ namespace kusabira::PP {
         //##を消して次のイテレータを得る
         auto next = m_tokens.erase(it);
 
-        (*prev) += std::move(*next);
+        if (bool is_valid = (*prev) += std::move(*next); not is_valid) {
+          //有効ではないプリプロセッシングトークンが生成された、エラー
+          //失敗した場合、rhsに破壊的変更はされていないのでエラー出力にはそっちを使う
+          m_replist_err = std::make_pair(pp_parse_context::Define_InvalidTokenConcat, std::move(*next));
+        }
 
         //結合したので次のトークンを消す
         m_tokens.erase(next);
@@ -706,8 +727,8 @@ namespace kusabira::PP {
 
     /**
     * @brief マクロの実行が可能かを取得、オブジェクトマクロはチェックの必要なし
-    * @details falseの時、#の後に仮引数が続かなかった
-    * @return マクロ実行がいつでも可能ならばtrue
+    * @details 置換リスト上の構文エラーを報告
+    * @return マクロ実行がいつでも可能ならば無効値、有効値はエラー情報
     */
     fn is_ready() const -> const std::optional<std::pair<pp_parse_context, pp_token>>& {
       return m_replist_err;
@@ -732,7 +753,7 @@ namespace kusabira::PP {
     * @param args 実引数列
     * @return 置換結果のトークンリスト
     */
-    fn operator()(const std::pmr::vector<std::pmr::list<pp_token>>& args) const -> std::pmr::list<pp_token> {
+    fn operator()(const std::pmr::vector<std::pmr::list<pp_token>>& args) const -> macro_result_t {
       //可変引数マクロと処理を分ける
       if (m_is_va) {
         return this->va_macro_impl(args);
@@ -786,7 +807,8 @@ namespace kusabira::PP {
     fn define(Reporter &reporter, const PP::lex_token& macro_name, ReplacementList &&tokenlist, [[maybe_unused]] ParamList&& params = {}, [[maybe_unused]] bool is_va = false) -> bool {
       using namespace std::string_view_literals;
 
-      bool error = false;
+      bool redefinition_err = false;
+      const std::pair<pp_parse_context, pp_token>* replist_err = nullptr;
 
       if constexpr (std::is_same_v<ParamList, std::nullptr_t>) {
         //オブジェクトマクロの登録
@@ -795,7 +817,12 @@ namespace kusabira::PP {
         if (not is_registered) {
           if ((*pos).second.is_identical({}, tokenlist)) return true;
           //置換リストが一致していなければエラー
-          error = true;
+          redefinition_err = true;
+        } else {
+          if (auto& opt = (*pos).second.is_ready(); bool(opt)) {
+            //##による結合処理のエラーを報告
+            replist_err = &*opt;
+          }
         }
       } else {
         static_assert([] { return false; }() || std::is_same_v<std::remove_cvref_t<ParamList>, std::pmr::vector<std::u8string_view>>, "ParamList must be std::pmr::vector<std::u8string_view>.");
@@ -805,20 +832,24 @@ namespace kusabira::PP {
         if (not is_registered) {
           if ((*pos).second.is_identical(params, tokenlist)) return true;
           //仮引数列と置換リストが一致していなければエラー
-          error = true;
+          redefinition_err = true;
         } else {
           if (auto& opt = (*pos).second.is_ready(); bool(opt)) {
             //置換リストのパースにおいてのエラーを報告
-            const auto &[context, pptoken] = *opt;
-            reporter.pp_err_report(m_filename, pptoken.lextokens.front(), context);
-            return false;
+            replist_err = &*opt;
           }
         }
       }
 
-      if (error) {
+      if (redefinition_err) {
         //同名の異なる定義のマクロが登録された、エラー
         reporter.pp_err_report(m_filename, macro_name, pp_parse_context::Define_Duplicate);
+        return false;
+      }
+      if (replist_err != nullptr) {
+        //置換リストを見ただけで分かるエラーの報告
+        const auto &[context, pptoken] = *replist_err;
+        reporter.pp_err_report(m_filename, pptoken.lextokens.front(), context);
         return false;
       }
 
@@ -859,9 +890,14 @@ namespace kusabira::PP {
     fn objmacro(std::u8string_view macro_name) const -> std::optional<std::pmr::list<pp_token>> {
       return fetch_macro(macro_name, [&mr = kusabira::def_mr](const auto& macro) {
         //置換結果取得
-        auto&& result = macro({});
-        //optionalで包んで返す
-        return std::optional<std::pmr::list<pp_token>>{std::in_place, std::move(result), &mr};
+        if (auto&& result = macro({}); result) {
+          //optionalで包んで返す
+          return std::optional<std::pmr::list<pp_token>>{std::in_place, std::move(*result), &mr};
+        } else {
+          //オブジェクトマクロはこっちにこないのでは？
+          assert(false);
+          return std::optional<std::pmr::list<pp_token>>{};
+        }
       }, std::optional<std::pmr::list<pp_token>>{});
     }
 
@@ -871,16 +907,25 @@ namespace kusabira::PP {
     * @param args 関数マクロの実引数トークン列
     * @return {仮引数の数と実引数の数があったか否か, 置換リストのoptional}
     */
-    fn funcmacro(std::u8string_view macro_name, const std::pmr::vector<std::pmr::list<pp_token>>& args) const -> std::pair<bool, std::optional<std::pmr::list<pp_token>>> {
-      return fetch_macro(macro_name, [&mr = kusabira::def_mr, &args](const auto& macro) -> std::pair<bool, std::optional<std::pmr::list<pp_token>>> {
+    template<typename Reporter>
+    fn funcmacro(Reporter& reporter, std::u8string_view macro_name, const std::pmr::vector<std::pmr::list<pp_token>>& args) const -> std::pair<bool, std::optional<std::pmr::list<pp_token>>> {
+      return fetch_macro(macro_name, [&mr = kusabira::def_mr, &args, &reporter, this](const auto& macro) -> std::pair<bool, std::optional<std::pmr::list<pp_token>>> {
         //引数長さのチェック、ここでエラーにしたい
-        if (not macro.validate_argnum(args)) return {false, std::nullopt};
+        if (not macro.validate_argnum(args)) {
+          return {false, std::nullopt};
+        }
 
         //置換結果取得
-        auto&& result = macro(args);
+        if (auto&& result = macro(args); result) {
+          //optionalで包んで返す
+          return {true, std::optional<std::pmr::list<pp_token>>{std::in_place, std::move(*result), &mr}};
+        } else {
+          //エラー報告（##で不正なトークンが生成された）
+          const auto [context, pptoken] = result.error();
+          reporter.pp_err_report(m_filename, pptoken.lextokens.front(), context);
+          return {false, std::nullopt};
+        }
 
-        //optionalで包んで返す
-        return {true, std::optional<std::pmr::list<pp_token>>{std::in_place, std::move(result), &mr}};
       }, std::make_pair(true, std::optional<std::pmr::list<pp_token>>{}));
     }
 
