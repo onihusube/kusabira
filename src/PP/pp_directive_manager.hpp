@@ -207,8 +207,8 @@ namespace kusabira::PP {
     const bool m_is_va = false;
     //関数マクロですか？
     const bool m_is_func = true;
-    //#トークンが仮引数名の前に来なかった
-    std::optional<pp_token> m_is_sharp_op_err{};
+    //置換リストをチェックしてる時のエラー
+    std::optional<std::pair<pp_parse_context, pp_token>> m_replist_err{};
     //{置換リストに現れる仮引数名のインデックス, 対応する実引数のインデックス, __VA_ARGS__?, __VA_OPT__?, #?, ##?}}
     std::pmr::vector<std::tuple<std::size_t, std::size_t, bool, bool, bool, bool>> m_correspond;
 
@@ -217,9 +217,10 @@ namespace kusabira::PP {
     * @tparam Is_VA 可変長マクロか否か
     * @param start 開始インデックス
     * @param end_index 終了インデックス
+    * @param is_recursive 再帰中か否か
     */
     template<bool Is_VA>
-    void make_id_to_param_pair(std::size_t start, std::size_t end_index) {
+    void make_id_to_param_pair(std::size_t start, std::size_t end_index, bool is_recursive = false) {
       using namespace std::string_view_literals;
 
       //仮引数名に対応する実引数リスト上の位置を求めるやつ
@@ -243,7 +244,27 @@ namespace kusabira::PP {
       //__VA_OPT__()の直後のトークンかをマーク、nulltprじゃなければVA_OPTトークンの##をマークするbool値への参照
       bool* after_vaopt = nullptr;
 
-      auto it = m_tokens.begin();
+      auto it = std::next(m_tokens.begin(), start);
+
+      if (it != m_tokens.end()) {
+        //先頭と末尾の##の出現を調べる、出てきたらエラー
+        pp_token* ptr = nullptr;
+
+        //エラー的にはソースコード上で最初に登場するやつを出したい気がする
+        if (auto& back = m_tokens.back(); back.token == u8"##"sv) ptr = &back;
+        if (auto& front =  *it; front.token == u8"##"sv) ptr = &front;
+
+        if (ptr != nullptr) {
+          //まあこれは起こらないと思う
+          assert((*ptr).lextokens.begin() != (*ptr).lextokens.end());
+
+          //##トークンが置換リストの前後に出現している
+          m_replist_err = std::make_pair(pp_parse_context::Define_Sharp2BothEnd, std::move(*ptr));
+          return;
+        }
+      }
+
+      //置換リストをstartからチェックする
       for (auto index = start; index < N; ++index, ++it) {
         //#,##をチェック
         if ((*it).category == pp_token_category::op_or_punc) {
@@ -302,7 +323,7 @@ namespace kusabira::PP {
         if ((*it).category != pp_token_category::identifier) {
           if (apper_sharp_op == true) {
               //#が仮引数名の前にないためエラー
-              m_is_sharp_op_err = std::move(*it);
+              m_replist_err = std::make_pair(pp_parse_context::Define_InvalidSharp, std::move(*it));
               break;
           }
           continue;
@@ -320,22 +341,33 @@ namespace kusabira::PP {
             m_correspond.emplace_back(index, va_start_index, true, false, apper_sharp_op, false);
             continue;
           } else if ((*it).token.to_view() == u8"__VA_OPT__") {
+            //__VA_OPT__は再帰しない
+            if (is_recursive == true) {
+              //エラー
+              m_replist_err = std::make_pair(pp_parse_context::Define_VAOPTRecursive, std::move(*it));
+              break;
+            }
             //__VA_OPT__の前に#は来てはならない
             if (apper_sharp_op == true) {
               //エラー
-              m_is_sharp_op_err = std::move(*it);
+              m_replist_err = std::make_pair(pp_parse_context::Define_InvalidSharp, std::move(*it));
               break;
             }
-            //__VA_OPT__を見つけておき、__VA_OPT__直後であることをマーク
+
+            //__VA_OPT__を見つけておく
             after_vaopt = &std::get<5>(m_correspond.emplace_back(index, 0, false, true, false, false));
 
             //閉じかっこを探索
-            auto start_pos = std::next(m_tokens.begin(), index + 2); //開きかっこの次はず？
-            auto cloase_paren = search_close_parenthesis(start_pos, m_tokens.end());
+            auto start_pos = std::next(it, 2); //開きかっこの次のはず？
+            auto close_paren = search_close_parenthesis(start_pos, m_tokens.end());
             //かっこ内の要素数、囲むかっこも含める
-            std::size_t recursive_N = std::distance(start_pos, ++cloase_paren) + 1;
+            std::size_t recursive_N = std::distance(start_pos, ++close_paren) + 1;
             //__VA_OPT__(...)のカッコ内だけを再帰処理、開きかっこと閉じかっこは見なくていいのでインデックス操作で飛ばす
-            make_id_to_param_pair<true>(index + 2, index + recursive_N);
+            make_id_to_param_pair<true>(index + 2, index + recursive_N, true);
+
+            //エラーチェック
+            if (m_replist_err != std::nullopt) break;
+
             //処理済みの分進める（この後ループで++されるので閉じかっこの次から始まる
             index += recursive_N;
             std::advance(it, recursive_N);
@@ -349,7 +381,7 @@ namespace kusabira::PP {
           //#が観測されているのに仮引数名ではない場合
           if (apper_sharp_op == true) {
             //エラー
-            m_is_sharp_op_err = std::move(*it);
+            m_replist_err = std::make_pair(pp_parse_context::Define_InvalidSharp, std::move(*it));
             break;
           }
           continue;
@@ -403,6 +435,7 @@ namespace kusabira::PP {
         }
 
         if (sharp2_op) {
+          //##の処理
           auto lhs = std::prev(rhs);
           (*lhs) += std::move(*rhs);
           result_list.erase(rhs);
@@ -676,8 +709,8 @@ namespace kusabira::PP {
     * @details falseの時、#の後に仮引数が続かなかった
     * @return マクロ実行がいつでも可能ならばtrue
     */
-    fn is_ready() const -> const std::optional<pp_token>& {
-      return m_is_sharp_op_err;
+    fn is_ready() const -> const std::optional<std::pair<pp_parse_context, pp_token>>& {
+      return m_replist_err;
     }
 
     /**
@@ -753,24 +786,6 @@ namespace kusabira::PP {
     fn define(Reporter &reporter, const PP::lex_token& macro_name, ReplacementList &&tokenlist, [[maybe_unused]] ParamList&& params = {}, [[maybe_unused]] bool is_va = false) -> bool {
       using namespace std::string_view_literals;
 
-      if (tokenlist.size() != 0) {
-        //先頭と末尾の##の出現を調べる、出てきたらエラー
-        pp_token* ptr = nullptr;
-
-        //エラー的にはソースコード上で最初に登場するやつを出したい気がする
-        if (auto& back = tokenlist.back(); back.token == u8"##"sv) ptr = &back;
-        if (auto& front = tokenlist.front(); front.token == u8"##"sv) ptr = &front;
-
-        if (ptr != nullptr) {
-          //まあこれは起こらないと思う
-          assert((*ptr).lextokens.begin() != (*ptr).lextokens.end());
-
-          //##トークンが置換リストの前後に出現している
-          reporter.pp_err_report(m_filename, (*ptr).lextokens.front(), pp_parse_context::Define_Sharp2BothEnd);
-          return false;
-        }
-      }
-
       bool error = false;
 
       if constexpr (std::is_same_v<ParamList, std::nullptr_t>) {
@@ -793,8 +808,9 @@ namespace kusabira::PP {
           error = true;
         } else {
           if (auto& opt = (*pos).second.is_ready(); bool(opt)) {
-            //#が仮引数の前ではない所に来ていた、エラー
-            reporter.pp_err_report(m_filename, (*opt).lextokens.front(), pp_parse_context::Define_InvalidSharp);
+            //置換リストのパースにおいてのエラーを報告
+            const auto &[context, pptoken] = *opt;
+            reporter.pp_err_report(m_filename, pptoken.lextokens.front(), context);
             return false;
           }
         }

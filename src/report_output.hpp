@@ -38,6 +38,7 @@ namespace kusabira::PP {
     Define_Redfined,            // 異なる形式のマクロの再定義
     Define_Sharp2BothEnd,       // ##トークンが置換リストの両端に現われている
     Define_InvalidSharp,        // #トークンが仮引数の前に現れなかった
+    Define_VAOPTRecursive,      // __VA_OPT__が再帰している
     Define_Func_Disappointing_Token,
     ControlLine_Line_Num,       // #lineディレクティブの行数指定が符号なし整数値として読み取れない
     ControlLine_Line_ManyToken, // #lineディレクティブの後ろに不要なトークンが付いてる（警告）
@@ -126,6 +127,7 @@ namespace kusabira::report {
       {PP::pp_parse_context::Define_Redfined, u8"A different type of macro has been redefined."},
       {PP::pp_parse_context::Define_Sharp2BothEnd, u8"The ## token must appear inside the replacement list."},
       {PP::pp_parse_context::Define_InvalidSharp, u8"The # token must appear only before the name of parameter."},
+      {PP::pp_parse_context::Define_VAOPTRecursive, u8"__VA_OPT__ must not be recursive."},
       {PP::pp_parse_context::ControlLine_Line_Num , u8"The number specified for the #LINE directive is incorrect. Please specify a number in the range of std::size_t."},
       {PP::pp_parse_context::ControlLine_Line_ManyToken, u8"There is an unnecessary token after the #line directive."}
     };
@@ -249,6 +251,7 @@ namespace kusabira::report {
       {PP::pp_parse_context::Define_Redfined, u8"同じ名前で異なる形式のマクロが再定義されました。"},
       {PP::pp_parse_context::Define_Sharp2BothEnd, u8"##トークンは置換リストの内部に現れなければなりません。"},
       {PP::pp_parse_context::Define_InvalidSharp, u8"#トークンは仮引数名の前だけに現れなければなりません。"},
+      {PP::pp_parse_context::Define_VAOPTRecursive, u8"__VA_OPT__は再帰してはいけません。"},
       {PP::pp_parse_context::ControlLine_Line_Num , u8"#lineディレクティブに指定された数値が不正です。std::size_tの範囲内の数値を指定してください。"},
       {PP::pp_parse_context::ControlLine_Line_ManyToken , u8"#lineディレクティブの後に不要なトークンがあります。"}
     };

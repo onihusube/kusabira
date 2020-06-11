@@ -1505,8 +1505,6 @@ namespace kusabira_test::preprocessor
       
     }
 
-
-
     //変な例1
     {
       pos = ll.emplace_after(pos, 10);
@@ -1543,6 +1541,62 @@ namespace kusabira_test::preprocessor
 
     //変な例2
     {
+      pos = ll.emplace_after(pos, 10);
+      (*pos).line = u8"#define H(b) R ## b ## sv";
+
+      //仮引数列と置換リスト
+      std::pmr::list<pp_token> rep_list{&kusabira::def_mr};
+      std::pmr::vector<std::u8string_view> params{&kusabira::def_mr};
+
+      //字句トークン
+      lex_token lt0{pp_tokenize_result{.status = pp_tokenize_status::OPorPunc}, u8"#", 0, pos};
+      lex_token lt1{pp_tokenize_result{.status = pp_tokenize_status::Identifier}, u8"define", 1, pos};
+      lex_token lt2{pp_tokenize_result{.status = pp_tokenize_status::Identifier}, u8"H", 8, pos};
+      lex_token lt4{pp_tokenize_result{.status = pp_tokenize_status::OPorPunc}, u8"(", 9, pos};
+      lex_token lt5{pp_tokenize_result{.status = pp_tokenize_status::Identifier}, u8"b", 10, pos};
+      lex_token lt6{pp_tokenize_result{.status = pp_tokenize_status::OPorPunc}, u8")", 11, pos};
+      lex_token lt7{pp_tokenize_result{.status = pp_tokenize_status::Identifier}, u8"R", 13, pos};
+      lex_token lt8{pp_tokenize_result{.status = pp_tokenize_status::OPorPunc}, u8"##", 15, pos};
+      lex_token lt9{pp_tokenize_result{.status = pp_tokenize_status::Identifier}, u8"b", 18, pos};
+      lex_token lt10{pp_tokenize_result{.status = pp_tokenize_status::OPorPunc}, u8"##", 20, pos};
+      lex_token lt11{pp_tokenize_result{.status = pp_tokenize_status::Identifier}, u8"sv", 23, pos};
+
+      //置換リスト
+      rep_list.emplace_back(pp_token_category::identifier, lt7);
+      rep_list.emplace_back(pp_token_category::op_or_punc, lt8);
+      rep_list.emplace_back(pp_token_category::identifier, lt9);
+      rep_list.emplace_back(pp_token_category::op_or_punc, lt10);
+      rep_list.emplace_back(pp_token_category::identifier, lt11);
+
+      //マクロ仮引数トークン列
+      params.emplace_back(lt5.token);
+
+      //関数登録
+      CHECK_UNARY(pp.define(*reporter, lt2, rep_list, params, false));
+
+      //実引数リスト作成
+      auto pos2 = ll.emplace_after(pos, 1);
+      (*pos2).line = u8R"+(H("(string literal\n)"))+";
+
+      std::pmr::list<pp_token> token_list{&kusabira::def_mr};
+      std::pmr::vector<std::pmr::list<pp_token>> args{&kusabira::def_mr};
+      token_list.emplace_back(pp_token_category::string_literal, lex_token{{pp_tokenize_status::StringLiteral}, u8R"+("(string literal\n)")+", 2, pos2});
+      args.emplace_back(std::move(token_list));
+
+      //関数マクロ実行
+      const auto [is_success, result] = pp.funcmacro(lt2.token, args);
+
+      CHECK_UNARY(is_success);
+      REQUIRE_UNARY(bool(result));
+      CHECK_EQ(1u, result->size());
+
+      auto& result_token = result->front();
+      CHECK_EQ(pp_token_category::user_defined_raw_string_literal, result_token.category);
+      CHECK_UNARY(result_token.token == u8R"++(R"(string literal\n)"sv)++"sv);
+    }
+
+    //エラー
+    {
       pos = ll.emplace_after(pos, 11);
       (*pos).line = u8"#define hash_hash2(a) # ## # a";
 
@@ -1571,8 +1625,68 @@ namespace kusabira_test::preprocessor
       //マクロ仮引数トークン列
       params.emplace_back(lt4.token);
 
+      //エラー出力をクリア
+      report::test_out::extract_string();
+
       //関数マクロ登録、失敗
-      CHECK_UNARY_FALSE(pp.define(*reporter, lt2, rep_list, params, false));
+      CHECK_UNARY_FALSE(pp.define(*reporter, lt2, rep_list, params, true));
+
+      auto expect_err_str = u8R"(test_sharp2.hpp:11:24: error: #トークンは仮引数名の前だけに現れなければなりません。
+#define hash_hash2(a) # ## # a
+)"sv;
+      auto err_str = report::test_out::extract_string();
+
+      CHECK_UNARY(expect_err_str == err_str);
+    }
+
+    //エラー
+    {
+      pos = ll.emplace_after(pos, 12);
+      (*pos).line = u8"#define ERR_VAOPT(X, ...) X __VA_OPT__(##) __VA_ARGS__";
+
+      //仮引数列と置換リスト
+      std::pmr::list<pp_token> rep_list{&kusabira::def_mr};
+      std::pmr::vector<std::u8string_view> params{&kusabira::def_mr};
+
+      //字句トークン
+      lex_token lt0{pp_tokenize_result{.status = pp_tokenize_status::OPorPunc}, u8"#", 0, pos};
+      lex_token lt1{pp_tokenize_result{.status = pp_tokenize_status::Identifier}, u8"define", 1, pos};
+      lex_token lt2{pp_tokenize_result{.status = pp_tokenize_status::Identifier}, u8"ERR_VAOPT", 8, pos};
+      lex_token lt3{pp_tokenize_result{.status = pp_tokenize_status::OPorPunc}, u8"(", 17, pos};
+      lex_token lt4{pp_tokenize_result{.status = pp_tokenize_status::Identifier}, u8"X", 18, pos};
+      lex_token lt5{pp_tokenize_result{.status = pp_tokenize_status::OPorPunc}, u8",", 19, pos};
+      lex_token lt6{pp_tokenize_result{.status = pp_tokenize_status::OPorPunc}, u8"...", 21, pos};
+      lex_token lt7{pp_tokenize_result{.status = pp_tokenize_status::OPorPunc}, u8")", 24, pos};
+      lex_token lt8{pp_tokenize_result{.status = pp_tokenize_status::Identifier}, u8"X", 26, pos};
+      lex_token lt9{pp_tokenize_result{.status = pp_tokenize_status::Identifier}, u8"__VA_OPT__", 28, pos};
+      lex_token lt10{pp_tokenize_result{.status = pp_tokenize_status::OPorPunc}, u8"(", 38, pos};
+      lex_token lt11{pp_tokenize_result{.status = pp_tokenize_status::OPorPunc}, u8"##", 39, pos};
+      lex_token lt12{pp_tokenize_result{.status = pp_tokenize_status::OPorPunc}, u8")", 41, pos};
+      lex_token lt13{pp_tokenize_result{.status = pp_tokenize_status::Identifier}, u8"__VA_ARGS__", 43, pos};
+
+      //置換リスト
+      rep_list.emplace_back(pp_token_category::identifier, lt8);
+      rep_list.emplace_back(pp_token_category::identifier, lt9);
+      rep_list.emplace_back(pp_token_category::op_or_punc, lt10);
+      rep_list.emplace_back(pp_token_category::op_or_punc, lt11);
+      rep_list.emplace_back(pp_token_category::op_or_punc, lt12);
+      rep_list.emplace_back(pp_token_category::identifier, lt13);
+
+      //マクロ仮引数トークン列
+      params.emplace_back(lt4.token);
+
+      //エラー出力をクリア
+      report::test_out::extract_string();
+
+      //関数マクロ登録、失敗
+      CHECK_UNARY_FALSE(pp.define(*reporter, lt2, rep_list, params, true));
+
+      auto expect_err_str = u8R"(test_sharp2.hpp:12:39: error: ##トークンは置換リストの内部に現れなければなりません。
+#define ERR_VAOPT(X, ...) X __VA_OPT__(##) __VA_ARGS__
+)"sv;
+      auto err_str = report::test_out::extract_string();
+
+      CHECK_UNARY(expect_err_str == err_str);
     }
   }
 
