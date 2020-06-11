@@ -456,7 +456,7 @@ namespace kusabira::PP {
         });
       }
 
-      return kusabira::ok(result_list);
+      return kusabira::ok(std::move(result_list));
     }
 
     /**

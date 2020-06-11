@@ -1232,6 +1232,54 @@ namespace kusabira_test::preprocessor
 
       CHECK_UNARY(expect_err_str == err_str);
     }
+
+    //#__VA_OPT__の登録（失敗2）
+    {
+      pos = ll.emplace_after(pos, 3);
+      (*pos).line = u8"#define R(...) __VA_OPT__(__VA_OPT__())";
+
+      //仮引数列と置換リスト
+      std::pmr::vector<std::u8string_view> params{ &kusabira::def_mr };
+      std::pmr::list<pp_token> rep_list{ &kusabira::def_mr };
+
+      //字句トークン
+      lex_token lt0{ pp_tokenize_result{.status = pp_tokenize_status::OPorPunc}, u8"#", 0, pos };
+      lex_token lt1{ pp_tokenize_result{.status = pp_tokenize_status::Identifier}, u8"define", 1, pos };
+      lex_token lt2{ pp_tokenize_result{.status = pp_tokenize_status::Identifier}, u8"R", 8, pos };
+      lex_token lt3{ pp_tokenize_result{.status = pp_tokenize_status::OPorPunc}, u8"(", 9, pos };
+      lex_token lt4{ pp_tokenize_result{.status = pp_tokenize_status::OPorPunc}, u8"...", 10, pos };
+      lex_token lt5{ pp_tokenize_result{.status = pp_tokenize_status::OPorPunc}, u8")", 13, pos };
+      lex_token lt6{ pp_tokenize_result{.status = pp_tokenize_status::Identifier}, u8"__VA_OPT__", 15, pos };
+      lex_token lt7{ pp_tokenize_result{.status = pp_tokenize_status::OPorPunc}, u8"(", 25, pos };
+      lex_token lt8{ pp_tokenize_result{.status = pp_tokenize_status::Identifier}, u8"__VA_OPT__", 26, pos };
+      lex_token lt9{ pp_tokenize_result{.status = pp_tokenize_status::OPorPunc}, u8"(", 36, pos };
+      lex_token lt10{ pp_tokenize_result{.status = pp_tokenize_status::OPorPunc}, u8")", 37, pos };
+      lex_token lt11{ pp_tokenize_result{.status = pp_tokenize_status::OPorPunc}, u8")", 38, pos };
+
+      //マクロ仮引数トークン列
+      params.emplace_back(lt4.token);
+
+      //置換リスト
+      rep_list.emplace_back(pp_token_category::identifier, lt6);
+      rep_list.emplace_back(pp_token_category::op_or_punc, lt7);
+      rep_list.emplace_back(pp_token_category::identifier, lt8);
+      rep_list.emplace_back(pp_token_category::op_or_punc, lt9);
+      rep_list.emplace_back(pp_token_category::op_or_punc, lt10);
+      rep_list.emplace_back(pp_token_category::op_or_punc, lt11);
+
+      //エラー出力をクリア
+      report::test_out::extract_string();
+
+      //関数マクロ登録、失敗する
+      CHECK_UNARY_FALSE(pp.define(*reporter, lt2, rep_list, params, true));
+
+      auto expect_err_str = u8R"(test_sharp.hpp:3:26: error: __VA_OPT__は再帰してはいけません。
+#define R(...) __VA_OPT__(__VA_OPT__())
+)"sv;
+      auto err_str = report::test_out::extract_string();
+
+      CHECK_UNARY(expect_err_str == err_str);
+    }
   }
 
   TEST_CASE("## operator test") {
