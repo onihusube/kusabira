@@ -19,8 +19,6 @@ namespace kusabira::PP {
 
     //入力ファイルストリーム
     std::ifstream m_srcstream;
-    //char8_tの多相アロケータ
-    u8_pmralloc m_alloc;
     //1行分を一時的に持っておくバッファ
     std::pmr::string m_buffer;
     //現在の物理行数
@@ -58,8 +56,7 @@ namespace kusabira::PP {
 
     filereader(const fs::path &filepath, std::pmr::memory_resource *mr = &kusabira::def_mr)
         : m_srcstream{filepath}
-        , m_alloc{mr}
-        , m_buffer{m_alloc}
+        , m_buffer{mr}
     {
       m_srcstream.sync_with_stdio(false);
       m_srcstream.tie(nullptr);
@@ -80,7 +77,7 @@ namespace kusabira::PP {
     * @return 論理行型のoptional
     */
     fn readline() -> maybe_line {
-      logical_line ll{m_alloc, m_line_num};
+      logical_line ll{m_line_num};
 
       if (this->readline_impl(ll.line)) {
         //空行のチェック

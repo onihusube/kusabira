@@ -54,8 +54,18 @@ namespace kusabira {
   * @details returnで使うことを想定
   */
   template<typename E>
-  cfn ng(E&& e) -> tl::unexpected<E> {
+  cfn error(E&& e) -> tl::unexpected<E> {
     return tl::unexpected<E>{std::forward<E>(e)};
+  }
+
+  /**
+  * @brief イテレータをデリファンレンスする
+  * @param it イテレータ
+  * @details *it
+  */
+  template<typename I>
+  cfn deref(I& it) -> std::iterator_traits<I>::reference {
+    return *it;
   }
 }
 
@@ -147,19 +157,6 @@ namespace kusabira::PP
   */
   struct logical_line {
 
-    //()集成体初期化がポータブルになったならこのコンストラクタは消える定め
-    logical_line(u8_pmralloc &alloc, std::size_t line_num)
-        : line{alloc}
-        , phisic_line{line_num}
-        , line_offset{alloc}
-    {}
-
-    explicit logical_line(std::size_t line_num)
-        : line{&kusabira::def_mr}
-        , phisic_line{line_num}
-        , line_offset{&kusabira::def_mr}
-    {}
-
     //論理1行の文字列
     std::pmr::u8string line;
 
@@ -168,22 +165,23 @@ namespace kusabira::PP
 
     //1行毎の文字列長、このvectorの長さ=継続行数
     std::pmr::vector<std::size_t> line_offset;
-  };
 
+    explicit logical_line(std::size_t line_num)
+        : line{&kusabira::def_mr}
+        , phisic_line{line_num}
+        , line_offset{&kusabira::def_mr}
+    {}
+
+    logical_line(logical_line &&) = default;
+    logical_line &operator=(logical_line &&) = default;
+  };
 
   /**
   * @brief 字句トークン1つを表現する型
   */
   struct lex_token {
+    
     using line_iterator = std::pmr::forward_list<logical_line>::const_iterator;
-
-    //()集成体初期化がポータブルになったならこのコンストラクタは消える定め
-    lex_token(kusabira::PP::pp_tokenize_result result, std::u8string_view view, std::size_t col, line_iterator line)
-      : kind{ std::move(result) }
-      , token{ std::move(view) }
-      , column{ col }
-      , srcline_ref{ std::move(line) }
-    {}
 
     //トークン種別
     kusabira::PP::pp_tokenize_result kind;
@@ -196,6 +194,14 @@ namespace kusabira::PP
 
     //対応する論理行オブジェクトへのイテレータ
     line_iterator srcline_ref;
+
+    //()集成体初期化がポータブルになったならこのコンストラクタは消える定め
+    lex_token(kusabira::PP::pp_tokenize_result result, std::u8string_view view, std::size_t col, line_iterator line)
+      : kind{ std::move(result) }
+      , token{ std::move(view) }
+      , column{ col }
+      , srcline_ref{ std::move(line) }
+    {}
 
     /**
     * @brief バックスラッシュによる行継続が行われているかを判定する

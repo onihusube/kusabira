@@ -70,7 +70,7 @@ namespace kusabira::PP {
 //ホワイトスペース読み飛ばしのテンプレ
 #define SKIP_WHITESPACE(iterator, sentinel)     \
   if (not skip_whitespaces(iterator, sentinel)) \
-    return {tl::in_place, pp_parse_status::EndOfFile}
+    return kusabira::ok(pp_parse_status::EndOfFile)
 
 //トークナイザのエラーチェック
 #define TOKNIZE_ERR_CHECK(iterator)                                               \
@@ -225,72 +225,7 @@ namespace kusabira::PP {
       if (tokenstr == u8"include") {
 
       } else if (tokenstr == u8"define") {
-        //ホワイトスペース列を読み飛ばす
-        SKIP_WHITESPACE(it, end);
-
-        if ((*it).kind != pp_tokenize_status::Identifier) {
-          // #defineディレクティブのエラー
-          m_reporter->pp_err_report(m_filename, *it, pp_parse_context::Define_No_Identifier);
-          return make_error(it, pp_parse_context::Define_No_Identifier);
-        }
-
-        //マクロ名となるトークン
-        auto macroname = std::move(*it);
-
-        //関数マクロの場合、マクロ名と開き括弧の間にスペースは入らない
-        //オブジェクトマクロは逆に必ずスペースが入る
-        ++it;
-        if ((*it).kind != pp_tokenize_status::OPorPunc and (*it).token == u8"(" ) {
-          //関数形式マクロ
-
-          //引数リストの取得
-          auto&& [arg_status, arglist] = this->identifier_list(it, end);
-          if (!arg_status) return arg_status;
-
-          //可変長マクロ対応と引数リストパースの終了
-          switch (*arg_status) {
-            case pp_parse_status::DefineRparen:
-              //次のトークンへ進める
-              ++it;
-              break;
-            case pp_parse_status::DefineVA:
-              //可変長引数を登録
-              arglist.emplace_back(u8"...");
-              //閉じかっこを探す
-              SKIP_WHITESPACE(it, end);
-              if ((*it).kind == pp_tokenize_status::OPorPunc and (*it).token == u8")") {
-                ++it;
-              } else {
-                return make_error(it, pp_parse_context::Define_Func_Disappointing_Token);
-              }
-              break;
-            default:
-              //ここにきたらバグ
-              assert(false);
-          }
-
-          //置換リストの取得
-          auto&& [rep_status, replacement_token_list] = this->replacement_list(it, end);
-          if (!rep_status) return rep_status;
-
-          //マクロの登録
-
-          return {pp_parse_status::Complete};
-        } else if ((*it).kind == pp_tokenize_status::Whitespaces) {
-          //オブジェクト形式マクロ
-
-          //置換リストの取得
-          auto&& [status, replacement_token_list] = this->replacement_list(it, end);
-          if (!status) return status;
-          
-          //マクロの登録
-          //preprocessor.define(macroname.token, std::move(replacement_token_list));
-
-          return { pp_parse_status::Complete };
-        } else {
-          //エラー
-          return make_error(it, pp_parse_context::Define_Func_Disappointing_Token);
-        }
+        return this->control_line_define(it, end);
       } else if (tokenstr == u8"undef") {
 
       } else if (tokenstr == u8"line") {
@@ -322,6 +257,85 @@ namespace kusabira::PP {
       return this->newline(it, end);
     }
 
+    fn control_line_define(iterator &it, sentinel end) -> parse_status {
+      //ホワイトスペース列を読み飛ばす
+      SKIP_WHITESPACE(it, end);
+
+      if ((*it).kind != pp_tokenize_status::Identifier) {
+        // #defineディレクティブのエラー、マクロ名が無い
+        m_reporter->pp_err_report(m_filename, *it, pp_parse_context::Define_No_Identifier);
+        return kusabira::error(pp_err_info{std::move(*it),  pp_parse_context::Define_No_Identifier});
+      }
+
+      //マクロ名となるトークン
+      auto macroname = std::move(*it);
+      //次のトークンへ
+      ++it;
+
+      //関数マクロの場合、マクロ名と開き括弧の間にスペースは入らない
+      //オブジェクトマクロは逆に必ずスペースが入る
+      
+      //オブジェクト形式マクロの登録
+      if (deref(it).kind == pp_tokenize_status::Whitespaces) {
+        //置換リストの取得
+        auto&& [status, replacement_token_list] = this->replacement_list(it, end);
+        if (!status) return status;
+        
+        //マクロの登録
+        if (preprocessor.define(*m_reporter, macroname, std::move(replacement_token_list)) == false)
+          return kusabira::error(pp_err_info{std::move(macroname), pp_parse_context::ControlLine});
+
+        return kusabira::ok(pp_parse_status::Complete);
+      }
+      
+      //関数マクロの登録
+      if (deref(it).kind == pp_tokenize_status::OPorPunc and deref(it).token == u8"(") {
+        //引数リストの取得
+        auto result = this->identifier_list(it, end);
+        if (!result) {
+
+        }
+
+        auto&& [arg_status, arglist] = *result;
+
+        //可変長マクロ対応と引数リストパースの終了
+        switch (arg_status) {
+          case pp_parse_status::DefineRparen:
+            //閉じ括弧を検出、次のトークンへ進める
+            ++it;
+            break;
+          case pp_parse_status::DefineVA:
+            //可変長引数を検出
+            arglist.emplace_back(u8"...");
+            //閉じかっこを探す
+            SKIP_WHITESPACE(it, end);
+            if (deref(it).kind == pp_tokenize_status::OPorPunc and deref(it).token == u8")") {
+              ++it;
+            } else {
+              //閉じ括弧が出現しない場合はエラー
+              m_reporter->pp_err_report(m_filename, *it, pp_parse_context::Define_No_Identifier);
+              return kusabira::error(pp_err_info{std::move(*it), pp_parse_context::Define_InvalidDirective});
+            }
+            break;
+          default:
+            //ここにきたらバグ
+            assert(false);
+        }
+
+        //置換リストの取得
+        auto&& [rep_status, replacement_token_list] = this->replacement_list(it, end);
+        if (!rep_status) return rep_status;
+
+        //マクロの登録
+
+        return kusabira::ok(pp_parse_status::Complete);
+      }
+
+      //エラー、#defineディレクティブが正しくない
+      m_reporter->pp_err_report(m_filename, *it, pp_parse_context::Define_InvalidDirective);
+      return kusabira::error(pp_err_info{std::move(*it), pp_parse_context::Define_InvalidDirective});
+    }
+
     fn replacement_list(iterator &it, sentinel end) -> std::pair<parse_status, pptoken_conteiner> {
       pptoken_conteiner list{std::pmr::polymorphic_allocator<pp_token>(&kusabira::def_mr)};
       auto&& res = this->pp_tokens(it, end, list);
@@ -329,52 +343,59 @@ namespace kusabira::PP {
       return std::make_pair(std::move(res), std::move(list));
     }
 
-    fn identifier_list(iterator& it, sentinel end) -> std::pair<parse_status, std::pmr::vector<std::u8string_view>> {
+    fn identifier_list(iterator &it, sentinel end) -> tl::expected<std::pair<pp_parse_status, std::pmr::vector<std::u8string_view>>, pp_err_info> {
+      //仮引数文字列
+      std::pmr::vector<std::u8string_view> param_list{ &kusabira::def_mr};
+      param_list.reserve(10);
 
-      std::pmr::vector<std::u8string_view> arglist{ std::pmr::polymorphic_allocator<std::u8string_view>(&kusabira::def_mr) };
-      arglist.reserve(10);
-
+      //ホワイトスペース列をスキップする
       auto skip = [end](auto& itr) {
-        while (itr != end and (*itr).kind != pp_tokenize_status::Whitespaces) ++itr;
+        while (itr != end and deref(itr).kind != pp_tokenize_status::Whitespaces) ++itr;
         return itr != end;
       };
 
       for (;;) {
-        if (skip(it) == false) return std::make_pair(make_error(it, pp_parse_context::UnexpectedEOF), std::move(arglist));
+        if (skip(it) == false)
+          return kusabira::error(pp_err_info{std::move(*it), pp_parse_context::UnexpectedEOF});
 
-        if ((*it).kind == pp_tokenize_status::Identifier) {
-          arglist.emplace_back((*it).token);
-        } else if ((*it).kind == pp_tokenize_status::OPorPunc) {
-          //可変長マクロor関数マクロの終わり
-          if ((*it).token == u8"...") {
-            return std::make_pair(parse_status{pp_parse_status::DefineVA}, std::move(arglist));
+        if (deref(it).kind == pp_tokenize_status::Identifier) {
+          //普通の識別子なら仮引数名
+          param_list.emplace_back((*it).token);
+        } else if (deref(it).kind == pp_tokenize_status::OPorPunc) {
+          //記号が出てきたら可変長マクロか閉じ括弧の可能性がある
+          if (deref(it).token == u8"...") {
+            return kusabira::ok(std::make_pair(pp_parse_status::DefineVA, std::move(param_list)));
           } else if ((*it).token == u8")") {
-            return std::make_pair(parse_status{pp_parse_status::DefineRparen}, std::move(arglist));
+            return kusabira::ok(std::make_pair(pp_parse_status::DefineRparen, std::move(param_list)));
           }
-
           //エラー：現れてはいけない記号が現れている
-          return std::make_pair(make_error(it, pp_parse_context::Define_Func_Disappointing_Token), std::move(arglist));
+          m_reporter->pp_err_report(m_filename, *it, pp_parse_context::Define_InvalidDirective);
+          return kusabira::error(pp_err_info{std::move(*it), pp_parse_context::Define_InvalidDirective});
         } else {
           //エラー：現れるべきトークンが現れなかった
-          return std::make_pair(make_error(it, pp_parse_context::Define_Func_Disappointing_Token), std::move(arglist));
+          m_reporter->pp_err_report(m_filename, *it, pp_parse_context::Define_InvalidDirective);
+          return kusabira::error(pp_err_info{std::move(*it), pp_parse_context::Define_InvalidDirective});
         }
 
-        //カンマを探す
-        if (skip(it) == false) return std::make_pair(make_error(it, pp_parse_context::UnexpectedEOF), std::move(arglist));
+        //仮引数リストの区切りとなるカンマを探す
+        if (skip(it) == false)
+          return kusabira::error(pp_err_info{std::move(*it), pp_parse_context::UnexpectedEOF});
 
-        if ((*it).kind == pp_tokenize_status::OPorPunc) {
-          if ((*it).token == u8",") {
+        if (deref(it).kind == pp_tokenize_status::OPorPunc) {
+          if (deref(it).token == u8",") {
             //残りの引数リストをパースする
             ++it;
             continue;
           }
           if ((*it).token == u8")") {
             //関数マクロの終わり
-            return std::make_pair(parse_status{ pp_parse_status::DefineRparen }, std::move(arglist));
+            return kusabira::ok(std::make_pair(pp_parse_status::DefineRparen, std::move(param_list)));
           }
         }
+  
         //エラー：現れるべきトークンが現れなかった
-        return std::make_pair(make_error(it, pp_parse_context::Define_Func_Disappointing_Token), std::move(arglist));
+        m_reporter->pp_err_report(m_filename, *it, pp_parse_context::Define_InvalidDirective);
+        return kusabira::error(pp_err_info{std::move(*it), pp_parse_context::Define_InvalidDirective});
       }
     }
 

@@ -443,7 +443,7 @@ namespace kusabira::PP {
           if (bool is_valid = (*lhs) += std::move(*rhs); not is_valid){
             //有効ではないプリプロセッシングトークンが生成された、エラー
             //失敗した場合、rhsに破壊的変更はされていないのでエラー出力にはそっちを使う
-            return kusabira::ng(std::make_pair(pp_parse_context::Define_InvalidTokenConcat, std::move(*rhs)));
+            return kusabira::error(std::make_pair(pp_parse_context::Define_InvalidTokenConcat, std::move(*rhs)));
           }
           result_list.erase(rhs);
         }
@@ -555,7 +555,7 @@ namespace kusabira::PP {
             if (sharp2_op) {
               //##によるトークンの結合処理
               if (not token_concat(rhs))
-                return kusabira::ng(std::make_pair(pp_parse_context::Define_InvalidTokenConcat, std::move(*rhs)));
+                return kusabira::error(std::make_pair(pp_parse_context::Define_InvalidTokenConcat, std::move(*rhs)));
             }
           }
 
@@ -615,7 +615,7 @@ namespace kusabira::PP {
         if (sharp2_op) {
           //##によるトークンの結合処理
           if (not token_concat(rhs))
-            return kusabira::ng(std::make_pair(pp_parse_context::Define_InvalidTokenConcat, std::move(*rhs)));
+            return kusabira::error(std::make_pair(pp_parse_context::Define_InvalidTokenConcat, std::move(*rhs)));
         }
       }
 
@@ -726,7 +726,7 @@ namespace kusabira::PP {
     }
 
     /**
-    * @brief マクロの実行が可能かを取得、オブジェクトマクロはチェックの必要なし
+    * @brief マクロの実行が可能かを取得
     * @details 置換リスト上の構文エラーを報告
     * @return マクロ実行がいつでも可能ならば無効値、有効値はエラー情報
     */
@@ -905,13 +905,14 @@ namespace kusabira::PP {
     * @brief 関数マクロによる置換リストを取得する
     * @param macro_name マクロ名
     * @param args 関数マクロの実引数トークン列
-    * @return {仮引数の数と実引数の数があったか否か, 置換リストのoptional}
+    * @return {エラーの有無, 置換リストのoptional}
     */
     template<typename Reporter>
-    fn funcmacro(Reporter& reporter, std::u8string_view macro_name, const std::pmr::vector<std::pmr::list<pp_token>>& args) const -> std::pair<bool, std::optional<std::pmr::list<pp_token>>> {
-      return fetch_macro(macro_name, [&mr = kusabira::def_mr, &args, &reporter, this](const auto& macro) -> std::pair<bool, std::optional<std::pmr::list<pp_token>>> {
-        //引数長さのチェック、ここでエラーにしたい
+    fn funcmacro(Reporter& reporter, const lex_token& macro_name, const std::pmr::vector<std::pmr::list<pp_token>>& args) const -> std::pair<bool, std::optional<std::pmr::list<pp_token>>> {
+      return fetch_macro(macro_name.token, [&mr = kusabira::def_mr, &args, &reporter, &macro_name, this](const auto& macro) -> std::pair<bool, std::optional<std::pmr::list<pp_token>>> {
+        //引数長さのチェック
         if (not macro.validate_argnum(args)) {
+          reporter.pp_err_report(m_filename, macro_name, PP::pp_parse_context::Funcmacro_InsufficientArgs);
           return {false, std::nullopt};
         }
 
