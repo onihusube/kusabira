@@ -42,8 +42,10 @@ namespace kusabira::PP {
     Define_InvalidTokenConcat,  // 不正なプリプロセッシングトークンの連結が行われた
     Define_InvalidDirective,    // #defineディレクティブが正しくない
     Funcmacro_InsufficientArgs, // 関数マクロ呼び出しの際、引数が足りなかった
+    ControlLine_Undef,          // #undefにマクロ名が指定されていない
     ControlLine_Line_Num,       // #lineディレクティブの行数指定が符号なし整数値として読み取れない
     ControlLine_Line_ManyToken, // #lineディレクティブの後ろに不要なトークンが付いてる（警告）
+    ControlLine_Error,          // #errorディレクティブによる終了
   
     ElseGroup,         // 改行の前に不正なトークンが現れている
     EndifLine_Mistake, // #endifがくるべき所に別のものが来ている
@@ -133,6 +135,7 @@ namespace kusabira::report {
       {PP::pp_parse_context::Define_InvalidTokenConcat, u8"Concatenation result by ## is not a valid preprocessing token."},
       {PP::pp_parse_context::Define_InvalidDirective, u8"Unexpected characters appear in #define directive."},
       {PP::pp_parse_context::Funcmacro_InsufficientArgs, u8"The number of arguments of the function macro call does not match."},
+      {PP::pp_parse_context::ControlLine_Undef, u8"Specify the macro name."},
       {PP::pp_parse_context::ControlLine_Line_Num , u8"The number specified for the #LINE directive is incorrect. Please specify a number in the range of std::size_t."},
       {PP::pp_parse_context::ControlLine_Line_ManyToken, u8"There is an unnecessary token after the #line directive."}
     };
@@ -259,6 +262,7 @@ namespace kusabira::report {
       {PP::pp_parse_context::Define_VAOPTRecursive, u8"__VA_OPT__は再帰してはいけません。"},
       {PP::pp_parse_context::Define_InvalidTokenConcat, u8"##による連結結果は有効なプリプロセッシングトークンではありません。"},
       {PP::pp_parse_context::Define_InvalidDirective, u8"#defineディレクティブに予期しない文字が現れています。"},
+      {PP::pp_parse_context::ControlLine_Undef, u8"マクロ名を指定してください。"},
       {PP::pp_parse_context::Funcmacro_InsufficientArgs, u8"関数マクロ呼び出しの引数の数が合いません。"},
       {PP::pp_parse_context::ControlLine_Line_Num , u8"#lineディレクティブに指定された数値が不正です。std::size_tの範囲内の数値を指定してください。"},
       {PP::pp_parse_context::ControlLine_Line_ManyToken , u8"#lineディレクティブの後に不要なトークンがあります。"}

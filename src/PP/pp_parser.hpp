@@ -52,7 +52,7 @@ namespace kusabira::PP {
   * @return 有効なトークンを指していれば（終端に達していなければ）true
   */
   template <typename TokenIterator, typename Sentinel>
-  ifn skip_whitespaces(TokenIterator& it, Sentinel end) -> bool {
+  cfn skip_whitespaces(TokenIterator& it, Sentinel end) -> bool {
 
     auto check_status = [](auto kind) -> bool {
       //ホワイトスペース列とブロックコメントはスルー
@@ -61,7 +61,7 @@ namespace kusabira::PP {
 
     do {
       ++it;
-    } while (it != end and check_status((*it).kind));
+    } while (it != end and check_status(deref(it).kind));
 
     return it != end;
   }
@@ -198,7 +198,6 @@ namespace kusabira::PP {
           } else {
             // control-lineへ
             return this->control_line(it, end);
-            // conditionally-supported-directiveはどうしよう・・
           }
         }
       }
@@ -225,27 +224,34 @@ namespace kusabira::PP {
       if (tokenstr == u8"include") {
 
       } else if (tokenstr == u8"define") {
-        return this->control_line_define(it, end);
+        return this->control_line_define(it, end).and_then([&, this](auto&&) {
+          return this->newline(it, end);
+        });
       } else if (tokenstr == u8"undef") {
-
+        SKIP_WHITESPACE(it, end);
+        if (deref(it).category != pp_tokenize_status::Identifier) {
+          //マクロ名以外のものが指定されている
+          m_reporter->pp_err_report(m_filename, *it, pp_parse_context::Define_InvalidDirective);
+          return kusabira::error(pp_err_info{ std::move(*it), pp_parse_context::Define_InvalidDirective });
+        }
+        preprocessor.undef(deref(it).token);
       } else if (tokenstr == u8"line") {
-        pptoken_conteiner line_token_list{std::pmr::polymorphic_allocator<pp_token>(&kusabira::def_mr)};
+        pptoken_conteiner line_token_list{ &kusabira::def_mr };
 
         //lineの次のトークンからプリプロセッシングトークンを構成する
         ++it;
-        if (auto res = this->pp_tokens(it, end, line_token_list); !res) return res;
-
-        // #lineディレクティブの実行
-        if (auto is_err = preprocessor.line(*m_reporter, line_token_list); is_err) {
-          return { pp_parse_status::Complete };
-        } else {
-          return make_error(it, pp_parse_context::ControlLine);
-        }
+        return this->pp_tokens(it, end, line_token_list).and_then([&, this](auto&&) -> parse_status {
+          if (auto is_err = preprocessor.line(*m_reporter, line_token_list); is_err) {
+            return this->newline(it, end);
+          } else {
+            return kusabira::error(pp_err_info{ std::move(*it),  pp_parse_context::ControlLine });
+          }
+        });
       } else if (tokenstr == u8"error") {
         // #errorディレクティブの実行
         preprocessor.error(*m_reporter, it, end);
         //コンパイルエラー
-        return make_error(it, pp_parse_context::ControlLine);
+        return kusabira::error(pp_err_info{ std::move(*it),  pp_parse_context::ControlLine_Error });
       } else if (tokenstr == u8"pragma") {
         // #pragmaディレクティブの実行
         preprocessor.pragma(*m_reporter, it, end);
@@ -278,34 +284,31 @@ namespace kusabira::PP {
       //オブジェクト形式マクロの登録
       if (deref(it).kind == pp_tokenize_status::Whitespaces) {
         //置換リストの取得
-        auto&& [status, replacement_token_list] = this->replacement_list(it, end);
-        if (!status) return status;
-        
-        //マクロの登録
-        if (preprocessor.define(*m_reporter, macroname, std::move(replacement_token_list)) == false)
-          return kusabira::error(pp_err_info{std::move(macroname), pp_parse_context::ControlLine});
+        return this->replacement_list(it, end).and_then([&, this](auto&& replacement_token_list) -> parse_status {
+          //マクロの登録
+          if (preprocessor.define(*m_reporter, macroname, std::move(replacement_token_list)) == false)
+            return kusabira::error(pp_err_info{ std::move(macroname), pp_parse_context::ControlLine });
 
-        return kusabira::ok(pp_parse_status::Complete);
+          return kusabira::ok(pp_parse_status::Complete);
+        });
       }
       
       //関数マクロの登録
       if (deref(it).kind == pp_tokenize_status::OPorPunc and deref(it).token == u8"(") {
         //引数リストの取得
-        auto result = this->identifier_list(it, end);
-        if (!result) {
+        return this->identifier_list(it, end).and_then([&, this](auto&& value) -> parse_status {
+          auto& [arg_status, arglist] = value;
+          bool is_va = false;
 
-        }
-
-        auto&& [arg_status, arglist] = *result;
-
-        //可変長マクロ対応と引数リストパースの終了
-        switch (arg_status) {
+          //可変長マクロ対応と引数リストパースの終了
+          switch (arg_status) {
           case pp_parse_status::DefineRparen:
             //閉じ括弧を検出、次のトークンへ進める
             ++it;
             break;
           case pp_parse_status::DefineVA:
             //可変長引数を検出
+            is_va = true;
             arglist.emplace_back(u8"...");
             //閉じかっこを探す
             SKIP_WHITESPACE(it, end);
@@ -313,22 +316,24 @@ namespace kusabira::PP {
               ++it;
             } else {
               //閉じ括弧が出現しない場合はエラー
-              m_reporter->pp_err_report(m_filename, *it, pp_parse_context::Define_No_Identifier);
-              return kusabira::error(pp_err_info{std::move(*it), pp_parse_context::Define_InvalidDirective});
+              m_reporter->pp_err_report(m_filename, *it, pp_parse_context::Define_InvalidDirective);
+              return kusabira::error(pp_err_info{ std::move(*it), pp_parse_context::Define_InvalidDirective });
             }
             break;
           default:
             //ここにきたらバグ
             assert(false);
-        }
+          }
 
-        //置換リストの取得
-        auto&& [rep_status, replacement_token_list] = this->replacement_list(it, end);
-        if (!rep_status) return rep_status;
+          //置換リストの取得
+          return this->replacement_list(it, end).and_then([&, this](auto&& replacement_token_list) -> parse_status {
+            //マクロの登録
+            if (preprocessor.define(*m_reporter, macroname, std::move(replacement_token_list), arglist, is_va) == false)
+              return kusabira::error(pp_err_info{ std::move(macroname), pp_parse_context::ControlLine });
 
-        //マクロの登録
-
-        return kusabira::ok(pp_parse_status::Complete);
+            return kusabira::ok(pp_parse_status::Complete);
+          });
+        });
       }
 
       //エラー、#defineディレクティブが正しくない
@@ -336,11 +341,12 @@ namespace kusabira::PP {
       return kusabira::error(pp_err_info{std::move(*it), pp_parse_context::Define_InvalidDirective});
     }
 
-    fn replacement_list(iterator &it, sentinel end) -> std::pair<parse_status, pptoken_conteiner> {
+    fn replacement_list(iterator &it, sentinel end) -> tl::expected<pptoken_conteiner, pp_err_info>{
       pptoken_conteiner list{std::pmr::polymorphic_allocator<pp_token>(&kusabira::def_mr)};
-      auto&& res = this->pp_tokens(it, end, list);
-
-      return std::make_pair(std::move(res), std::move(list));
+      
+      return this->pp_tokens(it, end, list).map([&list](auto&&) -> pptoken_conteiner {
+        return list;
+      });
     }
 
     fn identifier_list(iterator &it, sentinel end) -> tl::expected<std::pair<pp_parse_status, std::pmr::vector<std::u8string_view>>, pp_err_info> {
@@ -348,14 +354,8 @@ namespace kusabira::PP {
       std::pmr::vector<std::u8string_view> param_list{ &kusabira::def_mr};
       param_list.reserve(10);
 
-      //ホワイトスペース列をスキップする
-      auto skip = [end](auto& itr) {
-        while (itr != end and deref(itr).kind != pp_tokenize_status::Whitespaces) ++itr;
-        return itr != end;
-      };
-
-      for (;;) {
-        if (skip(it) == false)
+      for (;; ++it) {
+        if (skip_whitespaces(it, end) == false)
           return kusabira::error(pp_err_info{std::move(*it), pp_parse_context::UnexpectedEOF});
 
         if (deref(it).kind == pp_tokenize_status::Identifier) {
@@ -368,6 +368,7 @@ namespace kusabira::PP {
           } else if ((*it).token == u8")") {
             return kusabira::ok(std::make_pair(pp_parse_status::DefineRparen, std::move(param_list)));
           }
+
           //エラー：現れてはいけない記号が現れている
           m_reporter->pp_err_report(m_filename, *it, pp_parse_context::Define_InvalidDirective);
           return kusabira::error(pp_err_info{std::move(*it), pp_parse_context::Define_InvalidDirective});
@@ -378,13 +379,12 @@ namespace kusabira::PP {
         }
 
         //仮引数リストの区切りとなるカンマを探す
-        if (skip(it) == false)
+        if (skip_whitespaces(it, end) == false)
           return kusabira::error(pp_err_info{std::move(*it), pp_parse_context::UnexpectedEOF});
 
         if (deref(it).kind == pp_tokenize_status::OPorPunc) {
           if (deref(it).token == u8",") {
             //残りの引数リストをパースする
-            ++it;
             continue;
           }
           if ((*it).token == u8")") {
@@ -529,7 +529,7 @@ namespace kusabira::PP {
       return this->pp_tokens(it, end, this->pptoken_list);
     }
 
-    fn pp_tokens(iterator& it, sentinel end, pptoken_conteiner& list) ->  parse_status {
+    fn pp_tokens(iterator& it, sentinel end, pptoken_conteiner& list) -> parse_status {
       using namespace std::string_view_literals;
       //プリプロセッシングトークン列を読み出す
       auto kind = (*it).kind;
@@ -631,7 +631,7 @@ namespace kusabira::PP {
       preprocessor.newline();
       //次の行の頭のトークンへ進めて戻る
       ++it;
-      return {tl::in_place, pp_parse_status::Complete};
+      return kusabira::ok(pp_parse_status::Complete);
     }
 
 

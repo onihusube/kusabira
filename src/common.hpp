@@ -64,7 +64,7 @@ namespace kusabira {
   * @details *it
   */
   template<typename I>
-  cfn deref(I& it) -> std::iterator_traits<I>::reference {
+  cfn deref(I& it) -> typename std::iterator_traits<I>::reference {
     return *it;
   }
 }
