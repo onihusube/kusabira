@@ -887,8 +887,34 @@ namespace kusabira::PP {
     * @param macro_name 識別子トークン名
     * @return 置換リストのoptional、無効地なら置換対象ではなかった
     */
-    fn objmacro(std::u8string_view macro_name) const -> std::optional<std::pmr::list<pp_token>> {
-      return fetch_macro(macro_name, [&mr = kusabira::def_mr](const auto& macro) {
+    fn objmacro(const lex_token& macro_name) const -> std::optional<std::pmr::list<pp_token>> {
+      if (macro_name.token == u8"__LINE__") {
+        auto line_num = macro_name.get_logicalline_num();
+
+        //現在の実行数に対応する#lineによる行数変更を捜索        
+        if (auto pos = m_line_map.upper_bound(line_num); pos != m_line_map.end()) {
+          //#line適用時点から進んだ行数
+          auto diff = line_num - deref(pos).first;
+          //#lineによる変更を反映し、行数を進める
+          line_num = deref(pos).second + diff;
+        }
+
+        //現在の論理行番号を文字列化
+        char buf[21]{};
+        auto [ptr, ec] = std::to_chars(buf, std::end(buf), line_num);
+        //失敗せんでしょ・・・
+        assert(ec == std::errc{});
+        std::pmr::u8string line_num_str{ reinterpret_cast<const char8_t*>(buf), reinterpret_cast<const char8_t*>(ptr), &kusabira::def_mr };
+
+        //結果プリプロセッシングトークンリストの作成
+        std::pmr::list<pp_token> line_list{ &kusabira::def_mr };
+        auto& linenum_token = line_list.emplace_back(pp_token_category::pp_number, lex_token{ {pp_tokenize_status::NumberLiteral}, u8"", macro_name.column, macro_name.srcline_ref });
+        linenum_token.token = std::move(line_num_str);
+
+        return line_list;
+      }
+
+      return fetch_macro(macro_name.token, [&mr = kusabira::def_mr](const auto& macro) {
         //置換結果取得
         if (auto&& result = macro({}); result) {
           //optionalで包んで返す
@@ -973,7 +999,7 @@ namespace kusabira::PP {
         //現在行番号の変更
 
         //本当の論理行番号
-        auto true_line = deref(it).lextokens.front().column;
+        auto true_line = deref(it).lextokens.front().get_logicalline_num();
         auto tokenstr = (*it).token.to_view();
         //数値文字列の先頭
         auto* first = reinterpret_cast<const char*>(tokenstr.data());

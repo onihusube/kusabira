@@ -237,7 +237,7 @@ namespace kusabira_test::preprocessor
       REQUIRE_UNARY(bool(is_func));
       CHECK_UNARY_FALSE(*is_func);
 
-      auto list = pp.objmacro(lt1.token);
+      auto list = pp.objmacro(lt1);
 
       CHECK_UNARY(bool(list));
       CHECK_EQ(list->size(), 1u);
@@ -270,7 +270,7 @@ namespace kusabira_test::preprocessor
       REQUIRE_UNARY(bool(is_func));
       CHECK_UNARY_FALSE(*is_func);
 
-      auto list = pp.objmacro(lt1.token);
+      auto list = pp.objmacro(lt1);
 
       CHECK_UNARY(bool(list));
       CHECK_EQ(list->size(), 3u);
@@ -278,11 +278,11 @@ namespace kusabira_test::preprocessor
     }
 
     //適当なトークンを投げてみる
-    CHECK_EQ(pp.objmacro(u8"M"), std::nullopt);
-    CHECK_EQ(pp.objmacro(u8"NN"), std::nullopt);
-    CHECK_EQ(pp.objmacro(u8"TEST"), std::nullopt);
-    CHECK_EQ(pp.objmacro(u8"NUMBER"), std::nullopt);
-    CHECK_EQ(pp.objmacro(u8"MACRO_"), std::nullopt);
+    CHECK_EQ(pp.objmacro(lex_token{ {.status = pp_tokenize_status::Identifier}, u8"M", 0, {} }), std::nullopt);
+    CHECK_EQ(pp.objmacro(lex_token{ {.status = pp_tokenize_status::Identifier}, u8"NN", 0, {} }), std::nullopt);
+    CHECK_EQ(pp.objmacro(lex_token{ {.status = pp_tokenize_status::Identifier}, u8"TEST", 0, {} }), std::nullopt);
+    CHECK_EQ(pp.objmacro(lex_token{ {.status = pp_tokenize_status::Identifier}, u8"NUMBER", 0, {} }), std::nullopt);
+    CHECK_EQ(pp.objmacro(lex_token{ {.status = pp_tokenize_status::Identifier}, u8"MACRO_", 0, {} }), std::nullopt);
 
     {
       pp.undef(u8"N"sv);
@@ -1578,7 +1578,7 @@ namespace kusabira_test::preprocessor
       CHECK_UNARY(pp.define(*reporter, lt2, rep_list));
 
       //オブジェクトマクロ実行
-      auto list = pp.objmacro(lt2.token);
+      auto list = pp.objmacro(lt2);
 
       REQUIRE_UNARY(bool(list));
       CHECK_EQ(1u, list->size());

@@ -246,6 +246,15 @@ namespace kusabira::PP
         return {(*srcline_ref).phisic_line, this->column};
       }
     }
+
+    /**
+    * @brief 対応する論理行番号を取得する
+    * @return 論理行数
+    */
+    fn get_logicalline_num() const -> std::size_t {
+      //仮実装、これだと物理行数
+      return (*srcline_ref).phisic_line;
+    }
   };
 
 
