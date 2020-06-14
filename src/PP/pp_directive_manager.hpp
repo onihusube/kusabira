@@ -949,6 +949,9 @@ namespace kusabira::PP {
       m_funcmacros.erase(macro_name);
     }
 
+    std::map<std::size_t, std::size_t> m_line_map;
+
+
     /**
     * @brief #lineディレクティブを実行する
     * @param reporter レポート出力オブジェクトへの参照
@@ -969,13 +972,18 @@ namespace kusabira::PP {
       if ((*it).category == pp_token_category::pp_number) {
         //現在行番号の変更
 
-        std::size_t value;
+        //本当の論理行番号
+        auto true_line = deref(it).lextokens.front().column;
         auto tokenstr = (*it).token.to_view();
+        //数値文字列の先頭
         auto* first = reinterpret_cast<const char*>(tokenstr.data());
 
+        std::size_t value;
         if (auto [ptr, ec] = std::from_chars(first, first + tokenstr.length(), value); ec == std::errc{}) {
           //カウントしてる行番号を変更
           m_line = value;
+          //論理行数に対して指定された行数の対応を取っておく
+          m_line_map.emplace_hint(m_line_map.end(), std::make_pair(true_line, value));
         } else {
           assert((*it).lextokens.empty() == false);
           //エラーです

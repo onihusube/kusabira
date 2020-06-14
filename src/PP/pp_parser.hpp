@@ -229,7 +229,7 @@ namespace kusabira::PP {
         });
       } else if (tokenstr == u8"undef") {
         SKIP_WHITESPACE(it, end);
-        if (deref(it).category != pp_tokenize_status::Identifier) {
+        if (deref(it).kind != pp_tokenize_status::Identifier) {
           //マクロ名以外のものが指定されている
           m_reporter->pp_err_report(m_filename, *it, pp_parse_context::Define_InvalidDirective);
           return kusabira::error(pp_err_info{ std::move(*it), pp_parse_context::Define_InvalidDirective });
