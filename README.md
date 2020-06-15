@@ -17,8 +17,9 @@ kusabiraはC++コンパイラを目指すキノコです。
 
 - 必要なもの
   - [Meson](https://github.com/mesonbuild/meson)
-  - Ninja (Windowsではない場合)
-  - VC++2019 latest (Windowsの場合)
+  - Ninja (Windows以外)
+  - GCC 9.3 or later (homebrewとかから)
+  - VC++2019 latest (Windows)
 
 1. どこかのディレクトリにこのリポジトリをチェックアウトし、そこに移動します
     - Windowsの場合は*x64 Native Tools Command Prompt*を使用してください
