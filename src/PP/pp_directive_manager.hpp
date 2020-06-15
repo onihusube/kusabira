@@ -4,6 +4,7 @@
 #include <functional>
 #include <algorithm>
 #include <tuple>
+#include <chrono>
 
 #include "../common.hpp"
 #include "../report_output.hpp"
@@ -727,7 +728,7 @@ namespace kusabira::PP {
 
     /**
     * @brief マクロの実行が可能かを取得
-    * @details 置換リスト上の構文エラーを報告
+    * @details 構築時の置換リスト上構文エラーを報告
     * @return マクロ実行がいつでも可能ならば無効値、有効値はエラー情報
     */
     fn is_ready() const -> const std::optional<std::pair<pp_parse_context, pp_token>>& {
@@ -769,10 +770,12 @@ namespace kusabira::PP {
   struct pp_directive_manager {
 
     using funcmacro_map = std::pmr::unordered_map<std::u8string_view, unified_macro>;
+    using timepoint_t = decltype(std::chrono::system_clock::now());
 
     std::size_t m_line = 1;
     fs::path m_filename{};
     fs::path m_replace_filename{};
+    std::time_t m_datetime{};
     funcmacro_map m_funcmacros{&kusabira::def_mr};
 
     pp_directive_manager() = default;
@@ -780,6 +783,7 @@ namespace kusabira::PP {
     pp_directive_manager(const fs::path& filename)
       : m_filename{filename}
       , m_replace_filename{filename.filename()}
+      , m_datetime{std::chrono::system_clock::to_time_t(std::chrono::system_clock::now())}
     {}
 
     void newline() {
@@ -856,6 +860,131 @@ namespace kusabira::PP {
       return true;
     }
 
+
+    /**
+    * @brief 特殊処理が必要な事前定義マクロを処理する
+    * @param macro_name マクロ名
+    * @return 処理結果、無効値は対象外
+    */
+    fn predef_macro(const lex_token& macro_name) const -> std::optional<std::pmr::list<pp_token>> {
+
+      //結果プリプロセッシングトークンリストを作成する処理
+      auto result_ret = [&macro_name, &mr = kusabira::def_mr](auto &&str, auto pptoken_cat, auto lextoken_cat) {
+        std::pmr::list<pp_token> result_list{&mr};
+        auto &linenum_token = result_list.emplace_back(pptoken_cat, lex_token{{lextoken_cat}, u8"", macro_name.column, macro_name.srcline_ref});
+        linenum_token.token = std::move(str);
+
+        return result_list;
+      };
+
+      if (macro_name.token == u8"__LINE__") {
+        auto line_num = macro_name.get_logicalline_num();
+
+        //現在の実行数に対応する#lineによる行数変更を捜索        
+        if (auto pos = m_line_map.upper_bound(line_num); not empty(m_line_map)) {
+          //実行数よりも大きい要素を探しているので、その一つ前が適用すべき#lineの処理
+          std::advance(pos, -1);
+          //#line適用時点から進んだ行数
+          auto diff = line_num - deref(pos).first;
+          //#lineによる変更を反映し、行数を進める
+          line_num = deref(pos).second + diff;
+        }
+
+        //現在の論理行番号を文字列化
+        char buf[21]{};
+        auto [ptr, ec] = std::to_chars(buf, std::end(buf), line_num);
+        //失敗せんでしょ・・・
+        assert(ec == std::errc{});
+        std::pmr::u8string line_num_str{ reinterpret_cast<const char8_t*>(buf), reinterpret_cast<const char8_t*>(ptr), &kusabira::def_mr };
+
+        return result_ret(std::move(line_num_str), pp_token_category::pp_number, pp_tokenize_status::NumberLiteral);
+      }
+      if (macro_name.token == u8"__FILE__") {
+        std::pmr::u8string filename_str{&kusabira::def_mr};
+
+        //#lineによるファイル名変更を処理
+        if (not m_replace_filename.empty()) {
+          filename_str = std::pmr::u8string{m_replace_filename.filename().u8string(), &kusabira::def_mr};
+        }
+        filename_str = std::pmr::u8string{m_filename.filename().u8string(), &kusabira::def_mr};
+
+        return result_ret(std::move(filename_str), pp_token_category::string_literal, pp_tokenize_status::StringLiteral);
+      }
+      if (macro_name.token == u8"__DATE__") {
+        //月毎の基礎文字列対応
+        constexpr const char8_t* maoth_map[12] = {
+            u8"Jan dd yyyy",
+            u8"Feb dd yyyy",
+            u8"Mar dd yyyy",
+            u8"Apr dd yyyy",
+            u8"May dd yyyy",
+            u8"Jun dd yyyy",
+            u8"Jul dd yyyy",
+            u8"Aug dd yyyy",
+            u8"Sep dd yyyy",
+            u8"Oct dd yyyy",
+            u8"Nov dd yyyy",
+            u8"Dec dd yyyy"
+        };
+
+        //左側をスペース埋め
+        auto space_pad = [](auto *pos, auto c) {
+          if (*pos == c) {
+            *pos = ' ';
+            std::swap(*(pos - 1), *pos);
+          }
+        };
+        
+        //time_tをtm構造体へ変換
+        auto *utc = gmtime(&m_datetime);
+
+        //utc->tm_monは月を表す0~11の数字
+        std::pmr::u8string date_str{maoth_map[utc->tm_mon], &kusabira::def_mr};
+        auto *first = reinterpret_cast<char *>(date_str.data() + 4);
+
+        //日付と年を文字列化
+        auto [ptr1, ec1] = std::to_chars(first, first + 2, utc->tm_mday);
+        space_pad(first + 1, 'd');
+        auto [ptr2, ec2] = std::to_chars(first + 3, first + 7, utc->tm_year + 1900);
+
+        //失敗しないはず・・・
+        assert(ec1 == std::errc{} and ec2 == std::errc{});
+
+        return result_ret(std::move(date_str), pp_token_category::string_literal, pp_tokenize_status::StringLiteral);
+      }
+      if (macro_name.token == u8"__TIME__") {
+
+        std::pmr::u8string time_str{u8"hh:mm:ss", &kusabira::def_mr};
+        auto *first = reinterpret_cast<char*>(time_str.data());
+
+        //左側をゼロ埋めするやつ
+        auto zero_pad = [](char* pos, char c) {
+          if (*pos == c) {
+            *pos = '0';
+            std::swap(*(pos - 1), *pos);
+          }
+        };
+        
+        //time_tをtm構造体へ変換
+        auto *utc = gmtime(&m_datetime);
+
+        //時分秒を文字列化
+        auto [ptr1, ec1] = std::to_chars(first, first + 2, utc->tm_hour);
+        zero_pad(first + 1, 'h');
+        auto [ptr2, ec2] = std::to_chars(first + 3, first + 5, utc->tm_min);
+        zero_pad(first + 4, 'm');
+        auto [ptr3, ec3] = std::to_chars(first + 6, first + 8, utc->tm_sec);
+        zero_pad(first + 7, 's');
+
+        //失敗しないはず・・・
+        assert(ec1 == std::errc{} and ec2 == std::errc{} and ec3 == std::errc{});
+
+        return result_ret(std::move(time_str), pp_token_category::string_literal, pp_tokenize_status::StringLiteral);
+      }
+
+      return std::nullopt;
+    }
+
   private:
 
     /**
@@ -888,30 +1017,10 @@ namespace kusabira::PP {
     * @return 置換リストのoptional、無効地なら置換対象ではなかった
     */
     fn objmacro(const lex_token& macro_name) const -> std::optional<std::pmr::list<pp_token>> {
-      if (macro_name.token == u8"__LINE__") {
-        auto line_num = macro_name.get_logicalline_num();
-
-        //現在の実行数に対応する#lineによる行数変更を捜索        
-        if (auto pos = m_line_map.upper_bound(line_num); pos != m_line_map.end()) {
-          //#line適用時点から進んだ行数
-          auto diff = line_num - deref(pos).first;
-          //#lineによる変更を反映し、行数を進める
-          line_num = deref(pos).second + diff;
-        }
-
-        //現在の論理行番号を文字列化
-        char buf[21]{};
-        auto [ptr, ec] = std::to_chars(buf, std::end(buf), line_num);
-        //失敗せんでしょ・・・
-        assert(ec == std::errc{});
-        std::pmr::u8string line_num_str{ reinterpret_cast<const char8_t*>(buf), reinterpret_cast<const char8_t*>(ptr), &kusabira::def_mr };
-
-        //結果プリプロセッシングトークンリストの作成
-        std::pmr::list<pp_token> line_list{ &kusabira::def_mr };
-        auto& linenum_token = line_list.emplace_back(pp_token_category::pp_number, lex_token{ {pp_tokenize_status::NumberLiteral}, u8"", macro_name.column, macro_name.srcline_ref });
-        linenum_token.token = std::move(line_num_str);
-
-        return line_list;
+      
+      //4つの事前定義マクロを処理
+      if (auto result = predef_macro(macro_name); result) {
+        return result;
       }
 
       return fetch_macro(macro_name.token, [&mr = kusabira::def_mr](const auto& macro) {

@@ -256,7 +256,6 @@ namespace kusabira::PP
     * @return 論理行数
     */
     fn get_logicalline_num() const -> std::size_t {
-      //仮実装、これだと物理行数
       return (*srcline_ref).logical_line_num;
     }
   };
