@@ -160,15 +160,19 @@ namespace kusabira::PP
     //論理1行の文字列
     std::pmr::u8string line;
 
-    //元の開始行
-    std::size_t phisic_line;
+    //物理行番号
+    std::size_t phisic_line_num;
+
+    //論理行番号
+    std::size_t logical_line_num;
 
     //1行毎の文字列長、このvectorの長さ=継続行数
     std::pmr::vector<std::size_t> line_offset;
 
-    explicit logical_line(std::size_t line_num)
+    logical_line(std::size_t pline_num, std::size_t lline_num)
         : line{&kusabira::def_mr}
-        , phisic_line{line_num}
+        , phisic_line_num{pline_num}
+        , logical_line_num{lline_num}
         , line_offset{&kusabira::def_mr}
     {}
 
@@ -241,9 +245,9 @@ namespace kusabira::PP
           ++offset;
         }
 
-        return { (*srcline_ref).phisic_line + offset, this->column - total_len };
+        return { (*srcline_ref).phisic_line_num + offset, this->column - total_len };
       } else {
-        return {(*srcline_ref).phisic_line, this->column};
+        return {(*srcline_ref).phisic_line_num, this->column};
       }
     }
 
@@ -253,7 +257,7 @@ namespace kusabira::PP
     */
     fn get_logicalline_num() const -> std::size_t {
       //仮実装、これだと物理行数
-      return (*srcline_ref).phisic_line;
+      return (*srcline_ref).logical_line_num;
     }
   };
 

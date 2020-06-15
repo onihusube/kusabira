@@ -53,7 +53,7 @@ namespace kusabira_test::report
     auto pos = ll.before_begin();
 
     //論理行オブジェクト1
-    pos = ll.emplace_after(pos, 1);
+    pos = ll.emplace_after(pos, 1, 1);
     (*pos).line = u8"#error test error out";
     lex_token token1(pp_tokenize_result{ .status = pp_tokenize_status::Identifier }, u8"error", 1, pos);
 

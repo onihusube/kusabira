@@ -180,7 +180,7 @@ namespace pp_paser_test {
     auto pos = ll.before_begin();
 
     //論理行オブジェクト1
-    pos = ll.emplace_after(pos, 0);
+    pos = ll.emplace_after(pos, 0, 0);
     (*pos).line = u8"R\"(testrawstringriteral";
     (*pos).line_offset.emplace_back(7);
     (*pos).line_offset.emplace_back(7 + 3);
@@ -192,7 +192,7 @@ namespace pp_paser_test {
     tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::NewLine}, u8""sv, (*pos).line.length(), pos);
 
     //論理行オブジェクト2
-    pos = ll.emplace_after(pos, 4);
+    pos = ll.emplace_after(pos, 4, 4);
     (*pos).line = u8"testline1";
     (*pos).line_offset.emplace_back(4);
     {
@@ -202,7 +202,7 @@ namespace pp_paser_test {
     tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::NewLine}, u8""sv, (*pos).line.length(), pos);
 
     //論理行オブジェクト３
-    pos = ll.emplace_after(pos, 6);
+    pos = ll.emplace_after(pos, 6, 6);
     (*pos).line = u8"testlogicalline2)\"";
     (*pos).line_offset.emplace_back(4);
     (*pos).line_offset.emplace_back(4 + 7);
@@ -233,7 +233,7 @@ line2)")**"sv;
 
     //途中で切れてるやつ
     tokens.clear();
-    pos = ll.emplace_after(pos, 9);
+    pos = ll.emplace_after(pos, 9, 9);
     (*pos).line = u8"R\"(testrawstri";
     tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::DuringRawStr}, (*pos).line, 0, pos);
     tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::NewLine}, u8""sv, (*pos).line.length(), pos);
@@ -248,11 +248,11 @@ line2)")**"sv;
 
     //途中でトークナイズエラーが出る
     tokens.clear();
-    pos = ll.emplace_after(pos, 10);
+    pos = ll.emplace_after(pos, 10, 10);
     (*pos).line = u8"R\"(rwastring read error";
     tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::DuringRawStr}, (*pos).line, 0, pos);
   
-    pos = ll.emplace_after(pos, 11);
+    pos = ll.emplace_after(pos, 11, 11);
     (*pos).line = u8"";
     tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::FailedRawStrLiteralRead}, (*pos).line, 0, pos);
 
@@ -266,11 +266,11 @@ line2)")**"sv;
 
     //単に改行されてる生文字列リテラル
     tokens.clear();
-    pos = ll.emplace_after(pos, 11);
+    pos = ll.emplace_after(pos, 11, 11);
     (*pos).line = u8"R\"(rawstring test";
     tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::DuringRawStr}, (*pos).line, 0, pos);
     tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::NewLine}, u8""sv, (*pos).line.length(), pos);
-    pos = ll.emplace_after(pos, 12);
+    pos = ll.emplace_after(pos, 12, 12);
     (*pos).line = u8R"**(newline)")**";
     tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::RawStrLiteral}, (*pos).line, 0, pos);
 
@@ -307,7 +307,7 @@ newline)")**"sv;
     auto pos = ll.before_begin();
 
     //論理行オブジェクト1
-    pos = ll.emplace_after(pos, 0);
+    pos = ll.emplace_after(pos, 0, 0);
     (*pos).line = u8"<::Foo>;";
 
     tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::OPorPunc }, u8"<:"sv, 0, pos);
@@ -333,7 +333,7 @@ newline)")**"sv;
 
 
     //論理行オブジェクト2
-    pos = ll.emplace_after(pos, 1);
+    pos = ll.emplace_after(pos, 1, 1);
     (*pos).line = u8"<:::Foo::value:>;";
 
     tokens.clear();
@@ -359,7 +359,7 @@ newline)")**"sv;
     }
 
     //論理行オブジェクト3
-    pos = ll.emplace_after(pos, 2);
+    pos = ll.emplace_after(pos, 2, 2);
     (*pos).line = u8"<:::> "; //こんなトークンエラーでは・・・
 
     tokens.clear();
@@ -386,7 +386,7 @@ newline)")**"sv;
     }
 
     //論理行オブジェクト4
-    pos = ll.emplace_after(pos, 3);
+    pos = ll.emplace_after(pos, 3, 3);
     (*pos).line = u8"<::> = {}";
 
     tokens.clear();

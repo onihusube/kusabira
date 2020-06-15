@@ -97,7 +97,7 @@ namespace kusabira_test::preprocessor
 
     {
       //トークン列の構成
-      pos = ll.emplace_after(pos, 1);
+      pos = ll.emplace_after(pos, 1, 1);
       (*pos).line = u8"#error test error directive!";
       tokens.push_back({ pp_tokenize_result{.status = pp_tokenize_status::Identifier }, u8"error", 1, pos });
       tokens.push_back({ pp_tokenize_result{.status = pp_tokenize_status::Identifier }, u8"test", 7, pos });
@@ -118,7 +118,7 @@ namespace kusabira_test::preprocessor
     tokens.clear();
     {
       //トークン列の構成
-      pos = ll.emplace_after(pos, 137879);
+      pos = ll.emplace_after(pos, 137879, 137879);
       (*pos).line = u8"#             error       test   error  directive !";
       tokens.push_back({ pp_tokenize_result{.status = pp_tokenize_status::Identifier }, u8"error", 14, pos });
       tokens.push_back({ pp_tokenize_result{.status = pp_tokenize_status::Identifier }, u8"test", 26, pos });
@@ -150,7 +150,7 @@ namespace kusabira_test::preprocessor
     kusabira::PP::pp_directive_manager pp{"/kusabira/test_line_directive.hpp"};
 
     auto pos = ll.before_begin();
-    pos = ll.emplace_after(pos, 0);
+    pos = ll.emplace_after(pos, 0, 0);
     (*pos).line = u8"#line 1234";
 
     //行数のみの変更
@@ -175,7 +175,7 @@ namespace kusabira_test::preprocessor
     }
 
     pptokens.clear();
-    pos = ll.emplace_after(pos, 1);
+    pos = ll.emplace_after(pos, 1, 1);
     (*pos).line = u8R"(#line 5678 "replace_filename.hpp")";
 
     //行数とファイル名の変更
@@ -214,7 +214,7 @@ namespace kusabira_test::preprocessor
     kusabira::PP::pp_directive_manager pp{"/kusabira/test_line_directive.hpp"};
 
     auto pos = ll.before_begin();
-    pos = ll.emplace_after(pos, 0);
+    pos = ll.emplace_after(pos, 0, 0);
     (*pos).line = u8"#define N 3";
 
     //単純な定数定義
@@ -244,7 +244,7 @@ namespace kusabira_test::preprocessor
       CHECK_EQ(pptokens, *list);
     }
 
-    pos = ll.emplace_after(pos, 1);
+    pos = ll.emplace_after(pos, 1, 1);
     (*pos).line = u8"#define MACRO macro replacement test";
 
     //長めの置換リスト
@@ -310,7 +310,7 @@ namespace kusabira_test::preprocessor
     kusabira::PP::pp_directive_manager pp{"/kusabira/test_funcmacro.hpp"};
 
     auto pos = ll.before_begin();
-    pos = ll.emplace_after(pos, 0);
+    pos = ll.emplace_after(pos, 0, 0);
     (*pos).line = u8"#define max(a, b) ((a) > (b) ? (a) : (b))";
     lex_token lt1{pp_tokenize_result{.status = pp_tokenize_status::Identifier}, u8"max", 8, pos};
 
@@ -376,7 +376,7 @@ namespace kusabira_test::preprocessor
       CHECK_UNARY(*is_func);
 
       //実引数リスト作成
-      pos = ll.emplace_after(pos, 1);
+      pos = ll.emplace_after(pos, 1, 1);
       (*pos).line = u8"max(1, 2)";
 
       lex_token arg1{ pp_tokenize_result{.status = pp_tokenize_status::NumberLiteral}, u8"1", 4, pos };
@@ -440,7 +440,7 @@ namespace kusabira_test::preprocessor
     // 引数に複数のトークン列を含む
     {
       //実引数リスト作成
-      pos = ll.emplace_after(pos, 1);
+      pos = ll.emplace_after(pos, 1, 1);
       (*pos).line = u8"max(1 + 2, a + b - c)";
 
       lex_token arg1_1{pp_tokenize_result{.status = pp_tokenize_status::NumberLiteral}, u8"1", 0, pos};
@@ -536,7 +536,7 @@ namespace kusabira_test::preprocessor
     kusabira::PP::pp_directive_manager pp{ "/kusabira/test_vamacro.hpp" };
 
     auto pos = ll.before_begin();
-    pos = ll.emplace_after(pos, 0);
+    pos = ll.emplace_after(pos, 0, 0);
     (*pos).line = u8"#define F(...) f(__VA_ARGS__)";
 
     {
@@ -573,7 +573,7 @@ namespace kusabira_test::preprocessor
       CHECK_UNARY(*is_func);
 
       //実引数リスト作成
-      auto pos2 = ll.emplace_after(pos, 1);
+      auto pos2 = ll.emplace_after(pos, 1, 1);
       (*pos2).line = u8R"++(F(x, 1, 0, a + b, "str"))++";
 
       lex_token arg1{ pp_tokenize_result{.status = pp_tokenize_status::Identifier}, u8"x", 2, pos2 };
@@ -705,7 +705,7 @@ namespace kusabira_test::preprocessor
 
     //基本的なやつ
     {
-      pos = ll.emplace_after(pos, 0);
+      pos = ll.emplace_after(pos, 0, 0);
       (*pos).line = u8"#define F(...) f(0 __VA_OPT__(,) __VA_ARGS__)";
 
       //仮引数列と置換リスト
@@ -750,7 +750,7 @@ namespace kusabira_test::preprocessor
       CHECK_UNARY(pp.define(*reporter, lt2, rep_list, params, true));
 
       //実引数リスト作成
-      auto pos2 = ll.emplace_after(pos, 1);
+      auto pos2 = ll.emplace_after(pos, 1, 1);
       (*pos2).line = u8"F(a, b, c)";
 
       lex_token arg1{pp_tokenize_result{.status = pp_tokenize_status::Identifier}, u8"a", 2, pos2};
@@ -849,7 +849,7 @@ namespace kusabira_test::preprocessor
 
     //変な例
     {
-      pos = ll.emplace_after(pos, 0);
+      pos = ll.emplace_after(pos, 0, 0);
       (*pos).line = u8"#define SDEF(sname, ...) S sname __VA_OPT__(= { __VA_ARGS__ })";
 
       //仮引数列と置換リスト
@@ -893,7 +893,7 @@ namespace kusabira_test::preprocessor
       CHECK_UNARY(pp.define(*reporter, lt2, rep_list, params, true));
 
       //実引数リスト作成
-      auto pos2 = ll.emplace_after(pos, 1);
+      auto pos2 = ll.emplace_after(pos, 1, 1);
       (*pos2).line = u8"SDEF(bar, 1, 2, 3 + 4)";
 
       lex_token arg1{pp_tokenize_result{.status = pp_tokenize_status::Identifier}, u8"bar", 5, pos2};
@@ -951,7 +951,7 @@ namespace kusabira_test::preprocessor
     //引数なし呼び出し
     {
       //実引数リスト作成
-      auto pos2 = ll.emplace_after(pos, 1);
+      auto pos2 = ll.emplace_after(pos, 1, 1);
       (*pos2).line = u8"SDEF(foo)";
 
       std::pmr::list<pp_token> token_list{&kusabira::def_mr};
@@ -993,7 +993,7 @@ namespace kusabira_test::preprocessor
     //論理行保持コンテナ
     std::pmr::forward_list<logical_line> ll{};
     auto pos = ll.before_begin();
-    pos = ll.emplace_after(pos, 0);
+    pos = ll.emplace_after(pos, 0, 0);
 
     std::vector<pp_token> vec{};
     vec.emplace_back(pp_token_category::identifier, lex_token{{pp_tokenize_status::Identifier}, u8"test"sv, 0, pos});
@@ -1037,7 +1037,7 @@ namespace kusabira_test::preprocessor
 
     //基本的な文字列化
     {
-      pos = ll.emplace_after(pos, 1);
+      pos = ll.emplace_after(pos, 1, 1);
       (*pos).line = u8R"(#define to_str(s) # s "_append" ;)";
 
       //仮引数列と置換リスト
@@ -1069,7 +1069,7 @@ namespace kusabira_test::preprocessor
       CHECK_UNARY(pp.define(*reporter, lt2, rep_list, params, false));
 
       //実引数リスト作成
-      auto pos2 = ll.emplace_after(pos, 1);
+      auto pos2 = ll.emplace_after(pos, 1, 1);
       (*pos2).line = u8R"++(to_str(strncmp("abc\0d", "abc", '\4') == 0))++";
 
       std::pmr::list<pp_token> token_list{&kusabira::def_mr};
@@ -1108,7 +1108,7 @@ namespace kusabira_test::preprocessor
 
     //可変長文字列化
     {
-      pos = ll.emplace_after(pos, 2);
+      pos = ll.emplace_after(pos, 2, 2);
       (*pos).line = u8"#define str(...) #__VA_ARGS__";
 
       //仮引数列と置換リスト
@@ -1136,7 +1136,7 @@ namespace kusabira_test::preprocessor
       CHECK_UNARY(pp.define(*reporter, lt2, rep_list, params, true));
 
       //実引数リスト作成
-      auto pos2 = ll.emplace_after(pos, 1);
+      auto pos2 = ll.emplace_after(pos, 1, 1);
       (*pos2).line = u8R"++(str(1, "x", int, a * b+0))++";
 
       std::pmr::list<pp_token> token_list{&kusabira::def_mr};
@@ -1170,7 +1170,7 @@ namespace kusabira_test::preprocessor
       CHECK_UNARY(pptoken.token == tmpstr);
 
       //空で呼ぶ例
-      auto pos3 = ll.emplace_after(pos2, 1);
+      auto pos3 = ll.emplace_after(pos2, 1, 1);
       (*pos3).line = u8R"(str())";
       args.clear();
 
@@ -1189,7 +1189,7 @@ namespace kusabira_test::preprocessor
 
     //#__VA_OPT__の登録（失敗）
     {
-      pos = ll.emplace_after(pos, 3);
+      pos = ll.emplace_after(pos, 3, 3);
       (*pos).line = u8"#define str2(...) #__VA_OPT__(__VA_ARGS__)";
 
       //仮引数列と置換リスト
@@ -1235,7 +1235,7 @@ namespace kusabira_test::preprocessor
 
     //#__VA_OPT__の登録（失敗2）
     {
-      pos = ll.emplace_after(pos, 3);
+      pos = ll.emplace_after(pos, 3, 3);
       (*pos).line = u8"#define R(...) __VA_OPT__(__VA_OPT__())";
 
       //仮引数列と置換リスト
@@ -1294,7 +1294,7 @@ namespace kusabira_test::preprocessor
 
     //普通の関数マクロ
     {
-      pos = ll.emplace_after(pos, 0);
+      pos = ll.emplace_after(pos, 0, 0);
       (*pos).line = u8"#define glue(a, b) pre ## a ## b";
 
       //仮引数列と置換リスト
@@ -1330,7 +1330,7 @@ namespace kusabira_test::preprocessor
       CHECK_UNARY(pp.define(*reporter, lt2, rep_list, params, false));
 
       //実引数リスト作成
-      auto pos2 = ll.emplace_after(pos, 1);
+      auto pos2 = ll.emplace_after(pos, 1, 1);
       (*pos2).line = u8"glue(proce, ssing)";
 
       std::pmr::list<pp_token> token_list{ &kusabira::def_mr };
@@ -1354,7 +1354,7 @@ namespace kusabira_test::preprocessor
       CHECK_EQ(pp_token_category::identifier, token.category);
 
       //空で呼び出し
-      auto pos3 = ll.emplace_after(pos2, 1);
+      auto pos3 = ll.emplace_after(pos2, 1, 1);
       (*pos3).line = u8R"(glue(,))";
       args.clear();
       args.emplace_back(std::pmr::list<pp_token>{ &kusabira::def_mr });
@@ -1372,7 +1372,7 @@ namespace kusabira_test::preprocessor
 
     //可変長マクロの例
     {
-      pos = ll.emplace_after(pos, 0);
+      pos = ll.emplace_after(pos, 0, 0);
       (*pos).line = u8"#define F(X, ...) X ## __VA_ARGS__ ## X";
 
       //仮引数列と置換リスト
@@ -1408,7 +1408,7 @@ namespace kusabira_test::preprocessor
       CHECK_UNARY(pp.define(*reporter, lt2, rep_list, params, true));
 
       //実引数リスト作成
-      auto pos2 = ll.emplace_after(pos, 1);
+      auto pos2 = ll.emplace_after(pos, 1, 1);
       (*pos2).line = u8"F(a, b, cd, e, fgh)";
 
       std::pmr::list<pp_token> token_list{&kusabira::def_mr};
@@ -1462,7 +1462,7 @@ namespace kusabira_test::preprocessor
 
     //VA_OPTの例
     {
-      pos = ll.emplace_after(pos, 0);
+      pos = ll.emplace_after(pos, 0, 0);
       (*pos).line = u8"#define G(X, ...) X ## __VA_OPT__(bcd) ## X";
 
       //仮引数列と置換リスト
@@ -1504,7 +1504,7 @@ namespace kusabira_test::preprocessor
       CHECK_UNARY(pp.define(*reporter, lt2, rep_list, params, true));
 
       //実引数リスト作成
-      auto pos2 = ll.emplace_after(pos, 1);
+      auto pos2 = ll.emplace_after(pos, 1, 1);
       (*pos2).line = u8"G(a, b, cd, e, fgh)";
 
       std::pmr::list<pp_token> token_list{&kusabira::def_mr};
@@ -1555,7 +1555,7 @@ namespace kusabira_test::preprocessor
 
     //変な例1
     {
-      pos = ll.emplace_after(pos, 10);
+      pos = ll.emplace_after(pos, 10, 10);
       (*pos).line = u8"#define hash_hash # ## #";
 
       //仮引数列と置換リスト
@@ -1589,7 +1589,7 @@ namespace kusabira_test::preprocessor
 
     //変な例2
     {
-      pos = ll.emplace_after(pos, 10);
+      pos = ll.emplace_after(pos, 10, 10);
       (*pos).line = u8"#define H(b) R ## b ## sv";
 
       //仮引数列と置換リスト
@@ -1623,7 +1623,7 @@ namespace kusabira_test::preprocessor
       CHECK_UNARY(pp.define(*reporter, lt2, rep_list, params, false));
 
       //実引数リスト作成
-      auto pos2 = ll.emplace_after(pos, 1);
+      auto pos2 = ll.emplace_after(pos, 1, 1);
       (*pos2).line = u8R"+(H("(string literal\n)"))+";
 
       std::pmr::list<pp_token> token_list{&kusabira::def_mr};
@@ -1645,7 +1645,7 @@ namespace kusabira_test::preprocessor
 
     //エラー
     {
-      pos = ll.emplace_after(pos, 11);
+      pos = ll.emplace_after(pos, 11, 11);
       (*pos).line = u8"#define hash_hash2(a) # ## # a";
 
       //仮引数列と置換リスト
@@ -1689,7 +1689,7 @@ namespace kusabira_test::preprocessor
 
     //エラー
     {
-      pos = ll.emplace_after(pos, 12);
+      pos = ll.emplace_after(pos, 12, 12);
       (*pos).line = u8"#define ERR_VAOPT(X, ...) X __VA_OPT__(##) __VA_ARGS__";
 
       //仮引数列と置換リスト

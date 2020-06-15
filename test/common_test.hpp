@@ -21,7 +21,7 @@ namespace kusabira_test::common
     auto pos = ll.before_begin();
 
     //論理行オブジェクト1
-    pos = ll.emplace_after(pos, 1);
+    pos = ll.emplace_after(pos, 1, 1);
     (*pos).line = u8"int main() {";
 
     {
@@ -36,7 +36,7 @@ namespace kusabira_test::common
     }
 
     //論理行オブジェクト2
-    pos = ll.emplace_after(pos, 2);
+    pos = ll.emplace_after(pos, 2, 2);
     (*pos).line = u8"  return 0; }";
     //"  "の後、";"の後、で行継続が行われているとする
     //"  \\nreturn 0;\\n }"みたいな感じ
@@ -225,7 +225,7 @@ namespace kusabira_test::common
     auto pos = ll.before_begin();
 
     //論理行オブジェクト1
-    pos = ll.emplace_after(pos, 1);
+    pos = ll.emplace_after(pos, 1, 1);
     (*pos).line = u8R"(R "string" sv)";
 
     {
@@ -260,7 +260,7 @@ namespace kusabira_test::common
       CHECK_EQ(3, std::distance(placemaker.lextokens.begin(), placemaker.lextokens.end()));
     }
 
-    pos = ll.emplace_after(pos, 1);
+    pos = ll.emplace_after(pos, 1, 1);
     (*pos).line = u8R"(< < =)";
     //記号の連結1
     {
@@ -277,7 +277,7 @@ namespace kusabira_test::common
       CHECK_EQ(3, std::distance(token1.lextokens.begin(), token1.lextokens.end()));
     }
 
-    pos = ll.emplace_after(pos, 1);
+    pos = ll.emplace_after(pos, 1, 1);
     (*pos).line = u8R"(| =)";
     //記号の連結2
     {
@@ -292,7 +292,7 @@ namespace kusabira_test::common
       CHECK_EQ(2, std::distance(token1.lextokens.begin(), token1.lextokens.end()));
     }
 
-    pos = ll.emplace_after(pos, 1);
+    pos = ll.emplace_after(pos, 1, 1);
     (*pos).line = u8R"(-> *)";
     //記号の連結3
     {
@@ -307,7 +307,7 @@ namespace kusabira_test::common
       CHECK_EQ(2, std::distance(token1.lextokens.begin(), token1.lextokens.end()));
     }
 
-    pos = ll.emplace_after(pos, 1);
+    pos = ll.emplace_after(pos, 1, 1);
     (*pos).line = u8R"(< > = ! << * ++ =)";
     //記号の連結、失敗例
     {

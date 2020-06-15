@@ -22,7 +22,9 @@ namespace kusabira::PP {
     //1行分を一時的に持っておくバッファ
     std::pmr::string m_buffer;
     //現在の物理行数
-    std::size_t m_line_num = 1;
+    std::size_t m_pline_num = 1;
+    //現在の論理行数
+    std::size_t m_lline_num = 1;
 
     /**
     * @brief ファイルから1行を読み込み、引数末尾に追記する
@@ -44,7 +46,7 @@ namespace kusabira::PP {
         str.append(first, last);
 
         //物理行数をカウント
-        ++m_line_num;
+        ++m_pline_num;
 
         return true;
       } else {
@@ -77,7 +79,10 @@ namespace kusabira::PP {
     * @return 論理行型のoptional
     */
     fn readline() -> maybe_line {
-      logical_line ll{m_line_num};
+      logical_line ll{m_pline_num, m_lline_num};
+
+      //論理行数カウント
+      ++m_lline_num;
 
       if (this->readline_impl(ll.line)) {
         //空行のチェック
@@ -86,7 +91,7 @@ namespace kusabira::PP {
           while (ll.line.back() == u8'\x5c') {
             auto last = ll.line.end() - 1;
             //バックスラッシュ2つならびは行継続しない
-            if (*(last - 1) == u8'\x5c') break;
+            if (*(std::prev(last)) == u8'\x5c') break;
 
             //行末尾バックスラッシュを削除
             ll.line.erase(last);
@@ -94,8 +99,7 @@ namespace kusabira::PP {
             ll.line_offset.emplace_back(ll.line.length());
 
             //次の行を読み込み、追記
-            if (this->readline_impl(ll.line) == false)
-              break;
+            if (this->readline_impl(ll.line) == false) break;
             //読み込みに成功したら再び行継続チェック
           }
         }
