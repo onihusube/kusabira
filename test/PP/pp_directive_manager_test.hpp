@@ -137,73 +137,6 @@ namespace kusabira_test::preprocessor
     }
   }
 
-  TEST_CASE("line directive test") {
-
-    //論理行保持コンテナ
-    std::pmr::forward_list<logical_line> ll{};
-    //PPトークン列
-    std::vector<pp_token> pptokens{};
-    pptokens.reserve(20);
-    //エラー出力先
-    auto reporter = kusabira::report::reporter_factory<report::test_out>::create();
-    //プリプロセッサ
-    kusabira::PP::pp_directive_manager pp{"/kusabira/test_line_directive.hpp"};
-
-    auto pos = ll.before_begin();
-    pos = ll.emplace_after(pos, 0, 0);
-    (*pos).line = u8"#line 1234";
-
-    //行数のみの変更
-    {
-      //字句トークン
-      lex_token lt{pp_tokenize_result{.status = pp_tokenize_status::NumberLiteral}, u8"1234", 6, pos};
-      lex_token nl{pp_tokenize_result{.status = pp_tokenize_status::NewLine}, u8"", 10, pos};
-
-      //PPトークン列
-      pptokens.emplace_back(pp_token_category::pp_number, std::move(lt));
-      pptokens.emplace_back(pp_token_category::newline, std::move(nl));
-
-      CHECK_UNARY(pp.line(*reporter, pptokens));
-
-      const auto& [linenum, filename] = pp.get_state();
-
-      CHECK_EQ(1234, linenum);
-      CHECK_EQ(filename, "test_line_directive.hpp");
-
-      auto&& str = report::test_out::extract_string();
-      CHECK_UNARY(str.empty());
-    }
-
-    pptokens.clear();
-    pos = ll.emplace_after(pos, 1, 1);
-    (*pos).line = u8R"(#line 5678 "replace_filename.hpp")";
-
-    //行数とファイル名の変更
-    {
-      //字句トークン
-      lex_token lt1{pp_tokenize_result{.status = pp_tokenize_status::NumberLiteral}, u8"5678", 6, pos};
-      lex_token lt2{pp_tokenize_result{.status = pp_tokenize_status::StringLiteral}, u8R"("replace_filename.hpp")", 11, pos};
-      lex_token nl{pp_tokenize_result{.status = pp_tokenize_status::NewLine}, u8"", 32, pos};
-
-      //PPトークン列
-      pptokens.emplace_back(pp_token_category::pp_number, std::move(lt1));
-      pptokens.emplace_back(pp_token_category::string_literal, std::move(lt2));
-      pptokens.emplace_back(pp_token_category::newline, std::move(nl));
-
-      CHECK_UNARY(pp.line(*reporter, pptokens));
-
-      const auto& [linenum, filename] = pp.get_state();
-
-      CHECK_EQ(5678, linenum);
-      CHECK_EQ(filename, "replace_filename.hpp");
-
-      auto&& str = report::test_out::extract_string();
-      CHECK_UNARY(str.empty());
-    }
-
-    //あとマクロ展開した上で#lineディレクティブ実行する場合のテストが必要、マクロ実装後
-  }
-
   TEST_CASE("object like macro test") {
 
     //論理行保持コンテナ
@@ -1735,6 +1668,97 @@ namespace kusabira_test::preprocessor
       auto err_str = report::test_out::extract_string();
 
       CHECK_UNARY(expect_err_str == err_str);
+    }
+  }
+
+  TEST_CASE("predfined macro test") {
+
+    //プリプロセッサ
+    kusabira::PP::pp_directive_manager pp{"/kusabira/test_predefined_macro.hpp"};
+    //エラー出力先
+    auto reporter = kusabira::report::reporter_factory<report::test_out>::create();
+    //論理行保持コンテナ
+    std::pmr::forward_list<logical_line> ll{};
+    auto pos = ll.before_begin();
+
+    //__LINE__のテスト（#lineのテストも兼ねる）
+    {
+      //論理行で5行目に__LINE__を実行
+      pos = ll.emplace_after(pos, 20, 5);
+      (*pos).line = u8"__LINE__";
+      lex_token line_token{pp_tokenize_result{pp_tokenize_status::Identifier}, u8"__LINE__", 0, pos};
+
+      //#lineの引数トークン列
+      std::vector<pp_token> line_args{};
+
+      {
+        auto result = pp.objmacro(line_token);
+
+        REQUIRE_UNARY(bool(result));
+        CHECK_EQ(1, result->size());
+
+        auto &res_token = result->front();
+        CHECK_EQ(pp_token_category::pp_number, res_token.category);
+        CHECK_UNARY(res_token.token == u8"5"sv);
+      }
+
+      //#line 1234567を実行、2行目で実行されてたことにする
+      auto pos2 = ll.emplace_after(pos, 18, 2);
+      (*pos2).line = u8"#line 1234567";
+      line_args.emplace_back(pp_token_category::pp_number, lex_token{pp_tokenize_result{pp_tokenize_status::NumberLiteral}, u8"1234567", 7, pos2});
+
+      CHECK_UNARY(pp.line(*reporter, line_args));
+
+      {
+        auto result = pp.objmacro(line_token);
+
+        REQUIRE_UNARY(bool(result));
+        CHECK_EQ(1, result->size());
+
+        auto &res_token = result->front();
+        CHECK_EQ(pp_token_category::pp_number, res_token.category);
+        CHECK_UNARY(res_token.token == u8"1234570"sv);
+      }
+
+      //#line 0を実行、6行目で実行されてたことにする
+      auto pos3 = ll.emplace_after(pos, 23, 6);
+      (*pos3).line = u8"#line 0";
+      line_args.clear();
+      line_args.emplace_back(pp_token_category::pp_number, lex_token{pp_tokenize_result{pp_tokenize_status::NumberLiteral}, u8"0", 7, pos2});
+
+      CHECK_UNARY(pp.line(*reporter, line_args));
+
+      {
+        auto result = pp.objmacro(line_token);
+
+        REQUIRE_UNARY(bool(result));
+        CHECK_EQ(1, result->size());
+
+        auto &res_token = result->front();
+        CHECK_EQ(pp_token_category::pp_number, res_token.category);
+        CHECK_UNARY(res_token.token == u8"1234570"sv);
+      }
+
+      //#line 99を実行、4行目で実行されてたことにする
+      auto pos4 = ll.emplace_after(pos, 21, 4);
+      (*pos4).line = u8"#line 99";
+      line_args.clear();
+      line_args.emplace_back(pp_token_category::pp_number, lex_token{pp_tokenize_result{pp_tokenize_status::NumberLiteral}, u8"99", 7, pos4});
+
+      CHECK_UNARY(pp.line(*reporter, line_args));
+
+      {
+        auto result = pp.objmacro(line_token);
+
+        REQUIRE_UNARY(bool(result));
+        CHECK_EQ(1, result->size());
+
+        auto &res_token = result->front();
+        CHECK_EQ(pp_token_category::pp_number, res_token.category);
+        CHECK_UNARY(res_token.token == u8"100"sv);
+      }
+
+      //#lineと__LINE__が同じ行で実行される場合は先に__LINE__が読まれることになるはず、テストしない
     }
   }
 

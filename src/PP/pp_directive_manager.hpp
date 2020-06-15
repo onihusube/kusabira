@@ -860,16 +860,19 @@ namespace kusabira::PP {
       return true;
     }
 
+  private:
+
 
     /**
     * @brief 特殊処理が必要な事前定義マクロを処理する
+    * @details __LINE__ __FILE__ __DATE__ __TIME__ の4つ
     * @param macro_name マクロ名
     * @return 処理結果、無効値は対象外
     */
     fn predef_macro(const lex_token& macro_name) const -> std::optional<std::pmr::list<pp_token>> {
 
       //結果プリプロセッシングトークンリストを作成する処理
-      auto result_ret = [&macro_name, &mr = kusabira::def_mr](auto &&str, auto pptoken_cat, auto lextoken_cat) {
+      auto make_result = [&macro_name, &mr = kusabira::def_mr](auto &&str, auto pptoken_cat, auto lextoken_cat) {
         std::pmr::list<pp_token> result_list{&mr};
         auto &linenum_token = result_list.emplace_back(pptoken_cat, lex_token{{lextoken_cat}, u8"", macro_name.column, macro_name.srcline_ref});
         linenum_token.token = std::move(str);
@@ -897,7 +900,7 @@ namespace kusabira::PP {
         assert(ec == std::errc{});
         std::pmr::u8string line_num_str{ reinterpret_cast<const char8_t*>(buf), reinterpret_cast<const char8_t*>(ptr), &kusabira::def_mr };
 
-        return result_ret(std::move(line_num_str), pp_token_category::pp_number, pp_tokenize_status::NumberLiteral);
+        return make_result(std::move(line_num_str), pp_token_category::pp_number, pp_tokenize_status::NumberLiteral);
       }
       if (macro_name.token == u8"__FILE__") {
         std::pmr::u8string filename_str{&kusabira::def_mr};
@@ -908,7 +911,7 @@ namespace kusabira::PP {
         }
         filename_str = std::pmr::u8string{m_filename.filename().u8string(), &kusabira::def_mr};
 
-        return result_ret(std::move(filename_str), pp_token_category::string_literal, pp_tokenize_status::StringLiteral);
+        return make_result(std::move(filename_str), pp_token_category::string_literal, pp_tokenize_status::StringLiteral);
       }
       if (macro_name.token == u8"__DATE__") {
         //月毎の基礎文字列対応
@@ -950,7 +953,7 @@ namespace kusabira::PP {
         //失敗しないはず・・・
         assert(ec1 == std::errc{} and ec2 == std::errc{});
 
-        return result_ret(std::move(date_str), pp_token_category::string_literal, pp_tokenize_status::StringLiteral);
+        return make_result(std::move(date_str), pp_token_category::string_literal, pp_tokenize_status::StringLiteral);
       }
       if (macro_name.token == u8"__TIME__") {
 
@@ -979,13 +982,11 @@ namespace kusabira::PP {
         //失敗しないはず・・・
         assert(ec1 == std::errc{} and ec2 == std::errc{} and ec3 == std::errc{});
 
-        return result_ret(std::move(time_str), pp_token_category::string_literal, pp_tokenize_status::StringLiteral);
+        return make_result(std::move(time_str), pp_token_category::string_literal, pp_tokenize_status::StringLiteral);
       }
 
       return std::nullopt;
     }
-
-  private:
 
     /**
     * @brief 対応するマクロを取り出す
@@ -1093,7 +1094,7 @@ namespace kusabira::PP {
     * @param it プリプロセッシングトークン列の先頭イテレータ
     * @param end プリプロセッシングトークン列の終端イテレータ
     */
-    template <typename Reporter, typename PPTokenRange>
+    template<typename Reporter, typename PPTokenRange = std::pmr::list<pp_token>>
     fn line(Reporter& reporter, const PPTokenRange& token_range) -> bool {
       using std::cbegin;
       using std::cend;
