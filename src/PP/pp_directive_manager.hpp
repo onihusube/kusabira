@@ -908,14 +908,15 @@ namespace kusabira::PP {
         //#lineによるファイル名変更を処理
         if (not m_replace_filename.empty()) {
           filename_str = std::pmr::u8string{m_replace_filename.filename().u8string(), &kusabira::def_mr};
+        } else {
+          filename_str = std::pmr::u8string{m_filename.filename().u8string(), &kusabira::def_mr};
         }
-        filename_str = std::pmr::u8string{m_filename.filename().u8string(), &kusabira::def_mr};
 
         return make_result(std::move(filename_str), pp_token_category::string_literal, pp_tokenize_status::StringLiteral);
       }
       if (macro_name.token == u8"__DATE__") {
         //月毎の基礎文字列対応
-        constexpr const char8_t* maoth_map[12] = {
+        constexpr const char8_t* month_map[12] = {
             u8"Jan dd yyyy",
             u8"Feb dd yyyy",
             u8"Mar dd yyyy",
@@ -937,12 +938,18 @@ namespace kusabira::PP {
             std::swap(*(pos - 1), *pos);
           }
         };
-        
+
         //time_tをtm構造体へ変換
-        auto *utc = gmtime(&m_datetime);
+#ifdef _MSC_VER
+        tm temp{};
+        gmtime_s(&temp, &m_datetime);
+        auto* utc = &temp;
+#else
+        auto* utc = gmtime(&m_datetime);
+#endif // _MSC_VER
 
         //utc->tm_monは月を表す0~11の数字
-        std::pmr::u8string date_str{maoth_map[utc->tm_mon], &kusabira::def_mr};
+        std::pmr::u8string date_str{month_map[utc->tm_mon], &kusabira::def_mr};
         auto *first = reinterpret_cast<char *>(date_str.data() + 4);
 
         //日付と年を文字列化
@@ -967,9 +974,15 @@ namespace kusabira::PP {
             std::swap(*(pos - 1), *pos);
           }
         };
-        
+
         //time_tをtm構造体へ変換
-        auto *utc = gmtime(&m_datetime);
+#ifdef _MSC_VER
+        tm temp{};
+        gmtime_s(&temp, &m_datetime);
+        auto* utc = &temp;
+#else
+        auto* utc = gmtime(&m_datetime);
+#endif // _MSC_VER
 
         //時分秒を文字列化
         auto [ptr1, ec1] = std::to_chars(first, first + 2, utc->tm_hour);

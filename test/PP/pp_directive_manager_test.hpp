@@ -1760,6 +1760,68 @@ namespace kusabira_test::preprocessor
 
       //#lineと__LINE__が同じ行で実行される場合は先に__LINE__が読まれることになるはず、テストしない
     }
+
+    //__FILE__のテスト（#lineのテストも兼ねる）
+    {
+      pos = ll.emplace_after(pos, 1, 1);
+      (*pos).line = u8"__FILE__";
+      lex_token file_token{ pp_tokenize_result{pp_tokenize_status::Identifier}, u8"__FILE__", 0, pos };
+
+      {
+        auto result = pp.objmacro(file_token);
+
+        REQUIRE_UNARY(bool(result));
+        CHECK_EQ(1, result->size());
+
+        auto& res_token = result->front();
+        CHECK_EQ(pp_token_category::string_literal, res_token.category);
+        CHECK_UNARY(res_token.token == u8"test_predefined_macro.hpp"sv);
+      }
+
+      //#lineの引数トークン列
+      std::vector<pp_token> line_args{};
+
+      //#line 10 replace_file.cppを実行
+      auto pos2 = ll.emplace_after(pos, 2, 2);
+      (*pos2).line = u8R"(#line 10 "replace_file.cpp")";
+      line_args.emplace_back(pp_token_category::pp_number, lex_token{ pp_tokenize_result{pp_tokenize_status::NumberLiteral}, u8"10", 6, pos2 });
+      line_args.emplace_back(pp_token_category::string_literal, lex_token{ pp_tokenize_result{pp_tokenize_status::StringLiteral}, u8R"("replace_file.cpp")", 9, pos2 });
+      line_args.emplace_back(pp_token_category::newline, lex_token{ pp_tokenize_result{pp_tokenize_status::NewLine }, u8"", 27, pos2 });
+
+      CHECK_UNARY(pp.line(*reporter, line_args));
+
+      {
+        auto result = pp.objmacro(file_token);
+
+        REQUIRE_UNARY(bool(result));
+        CHECK_EQ(1, result->size());
+
+        auto& res_token = result->front();
+        CHECK_EQ(pp_token_category::string_literal, res_token.category);
+        CHECK_UNARY(res_token.token == u8"replace_file.cpp"sv);
+      }
+
+      //#line 1000 replace_file.cppを実行
+      auto pos3 = ll.emplace_after(pos, 11, 11);
+      (*pos3).line = u8R"+(#line 1000 R"(rwastr_filename.h)")+";
+      line_args.clear();
+      line_args.emplace_back(pp_token_category::pp_number, lex_token{ pp_tokenize_result{pp_tokenize_status::NumberLiteral}, u8"1000", 6, pos3 });
+      line_args.emplace_back(pp_token_category::raw_string_literal, lex_token{ pp_tokenize_result{pp_tokenize_status::RawStrLiteral},  u8R"+(R"*+(rwastr_filename.h)*+")+", 11, pos3 });
+      line_args.emplace_back(pp_token_category::newline, lex_token{ pp_tokenize_result{pp_tokenize_status::NewLine }, u8"", 33, pos3 });
+
+      CHECK_UNARY(pp.line(*reporter, line_args));
+
+      {
+        auto result = pp.objmacro(file_token);
+
+        REQUIRE_UNARY(bool(result));
+        CHECK_EQ(1, result->size());
+
+        auto& res_token = result->front();
+        CHECK_EQ(pp_token_category::string_literal, res_token.category);
+        CHECK_UNARY(res_token.token == u8"rwastr_filename.h"sv);
+      }
+    }
   }
 
 } // namespace kusabira_test::preprocessor
