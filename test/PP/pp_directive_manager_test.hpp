@@ -1698,7 +1698,7 @@ namespace kusabira_test::preprocessor
       {
         auto opt = pp.is_macro(line_token.token);
         REQUIRE_UNARY(bool(opt));
-        REQUIRE_UNARY_FALSE(*opt);
+        CHECK_UNARY_FALSE(*opt);
         
         auto result = pp.objmacro(line_token);
 
@@ -1778,7 +1778,7 @@ namespace kusabira_test::preprocessor
       {
         auto opt = pp.is_macro(file_token.token);
         REQUIRE_UNARY(bool(opt));
-        REQUIRE_UNARY_FALSE(*opt);
+        CHECK_UNARY_FALSE(*opt);
 
         auto result = pp.objmacro(file_token);
 
@@ -1838,7 +1838,18 @@ namespace kusabira_test::preprocessor
     //__DATE__のテスト
     {
       std::stringstream stm{};
+
+      //time_tをtm構造体へ変換
+#ifdef _MSC_VER
+      tm temp{};
+      gmtime_s(&temp, &test_time);
+      //Mmm dd yyyy
+      stm << std::put_time(&temp, "%b %e %Y");
+#else
+      //Mmm dd yyyy
       stm << std::put_time(gmtime(&test_time), "%b %e %Y");
+#endif // _MSC_VER
+
       auto expect_str = stm.str();
       std::u8string_view expect{reinterpret_cast<const char8_t*>(expect_str.data()), expect_str.length()};
 
@@ -1848,7 +1859,7 @@ namespace kusabira_test::preprocessor
 
       auto opt = pp.is_macro(date_token.token);
       REQUIRE_UNARY(bool(opt));
-      REQUIRE_UNARY_FALSE(*opt);
+      CHECK_UNARY_FALSE(*opt);
 
       //何回読んでも同じ結果になる
       for (int i = 0; i < 5; ++i) {
@@ -1866,8 +1877,17 @@ namespace kusabira_test::preprocessor
     //__TIME__のテスト
     {
       std::stringstream stm{};
+
+#ifdef _MSC_VER
+      tm temp{};
+      gmtime_s(&temp, &test_time);
+      //hh:mm:ss
+      stm << std::put_time(&temp, "%H:%M:%S");
+#else
       //hh:mm:ss
       stm << std::put_time(gmtime(&test_time), "%H:%M:%S");
+#endif // _MSC_VER
+
       auto expect_str = stm.str();
       //少なくとも分単位までは会うはず
       std::u8string_view expect{reinterpret_cast<const char8_t*>(expect_str.data()), 6};
@@ -1878,7 +1898,7 @@ namespace kusabira_test::preprocessor
 
       auto opt = pp.is_macro(time_token.token);
       REQUIRE_UNARY(bool(opt));
-      REQUIRE_UNARY_FALSE(*opt);
+      CHECK_UNARY_FALSE(*opt);
 
       //何回読んでも同じ結果になる
       for (int i = 0; i < 5; ++i) {
@@ -1905,7 +1925,7 @@ namespace kusabira_test::preprocessor
 
       auto opt = pp.is_macro(macro_token.token);
       REQUIRE_UNARY(bool(opt));
-      REQUIRE_UNARY_FALSE(*opt);
+      CHECK_UNARY_FALSE(*opt);
 
       auto result = pp.objmacro(macro_token);
 
@@ -1924,7 +1944,7 @@ namespace kusabira_test::preprocessor
 
       auto opt = pp.is_macro(macro_token.token);
       REQUIRE_UNARY(bool(opt));
-      REQUIRE_UNARY_FALSE(*opt);
+      CHECK_UNARY_FALSE(*opt);
 
       auto result = pp.objmacro(macro_token);
 
@@ -1943,7 +1963,7 @@ namespace kusabira_test::preprocessor
 
       auto opt = pp.is_macro(macro_token.token);
       REQUIRE_UNARY(bool(opt));
-      REQUIRE_UNARY_FALSE(*opt);
+      CHECK_UNARY_FALSE(*opt);
 
       auto result = pp.objmacro(macro_token);
 
@@ -1962,7 +1982,7 @@ namespace kusabira_test::preprocessor
 
       auto opt = pp.is_macro(macro_token.token);
       REQUIRE_UNARY(bool(opt));
-      REQUIRE_UNARY_FALSE(*opt);
+      CHECK_UNARY_FALSE(*opt);
 
       auto result = pp.objmacro(macro_token);
 

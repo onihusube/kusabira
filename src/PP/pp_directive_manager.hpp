@@ -875,8 +875,8 @@ namespace kusabira::PP {
     };
 
     /**
-    * @brief 特殊処理が必要な事前定義マクロを処理する
-    * @details __LINE__ __FILE__ __DATE__ __TIME__ の4つ
+    * @brief 事前定義マクロを処理する
+    * @details __LINE__ __FILE__ __DATE__ __TIME__ の4つは特殊処理、その他はトークン置換で生成
     * @param macro_name マクロ名
     * @return 処理結果、無効値は対象外
     */
