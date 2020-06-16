@@ -4,6 +4,8 @@
 #include "PP/pp_directive_manager.hpp"
 #include "../report_output_test.hpp"
 
+#include <iomanip>
+
 namespace kusabira_test::preprocessor
 {
 
@@ -1675,6 +1677,8 @@ namespace kusabira_test::preprocessor
 
     //プリプロセッサ
     kusabira::PP::pp_directive_manager pp{"/kusabira/test_predefined_macro.hpp"};
+    //テスト開始時刻
+    const auto test_time = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
     //エラー出力先
     auto reporter = kusabira::report::reporter_factory<report::test_out>::create();
     //論理行保持コンテナ
@@ -1821,6 +1825,121 @@ namespace kusabira_test::preprocessor
         CHECK_EQ(pp_token_category::string_literal, res_token.category);
         CHECK_UNARY(res_token.token == u8"rwastr_filename.h"sv);
       }
+    }
+
+    //__DATE__のテスト
+    {
+      std::stringstream stm{};
+      stm << std::put_time(gmtime(&test_time), "%b %e %Y");
+      auto expect_str = stm.str();
+      std::u8string_view expect{reinterpret_cast<const char8_t*>(expect_str.data()), expect_str.length()};
+
+      pos = ll.emplace_after(pos, 1, 1);
+      (*pos).line = u8"__DATE__";
+      lex_token file_token{pp_tokenize_result{pp_tokenize_status::Identifier}, u8"__DATE__", 0, pos};
+
+      //何回読んでも同じ結果になる
+      for (int i = 0; i < 5; ++i) {
+        auto result = pp.objmacro(file_token);
+
+        REQUIRE_UNARY(bool(result));
+        CHECK_EQ(1, result->size());
+
+        auto &res_token = result->front();
+        CHECK_EQ(pp_token_category::string_literal, res_token.category);
+        CHECK_UNARY(res_token.token == expect);
+      }
+    }
+
+    //__TIME__のテスト
+    {
+      std::stringstream stm{};
+      //hh:mm:ss
+      stm << std::put_time(gmtime(&test_time), "%H:%M:%S");
+      auto expect_str = stm.str();
+      //少なくとも分単位までは会うはず
+      std::u8string_view expect{reinterpret_cast<const char8_t*>(expect_str.data()), 6};
+
+      pos = ll.emplace_after(pos, 1, 1);
+      (*pos).line = u8"__TIME__";
+      lex_token time_token{pp_tokenize_result{pp_tokenize_status::Identifier}, u8"__TIME__", 0, pos};
+
+      //何回読んでも同じ結果になる
+      for (int i = 0; i < 5; ++i) {
+        auto result = pp.objmacro(time_token);
+
+        REQUIRE_UNARY(bool(result));
+        CHECK_EQ(1, result->size());
+
+        auto &res_token = result->front();
+        CHECK_EQ(pp_token_category::string_literal, res_token.category);
+        //ごく低い確率で落ちるかもしれない
+        CHECK_UNARY(res_token.token.to_view().substr(0, 6) == expect);
+        //秒単位は数字であることだけ確認しておく
+        auto sec = res_token.token.to_view().substr(6, 2);
+        CHECK_UNARY(std::isdigit(static_cast<unsigned char>(sec[0])) != 0);
+        CHECK_UNARY(std::isdigit(static_cast<unsigned char>(sec[1])) != 0);
+      }
+    }
+    //_­_­cplusplus
+    {
+      pos = ll.emplace_after(pos, 1, 1);
+      (*pos).line = u8"_­_­cplusplus";
+      lex_token macro_token{pp_tokenize_result{pp_tokenize_status::Identifier}, u8"_­_­cplusplus", 0, pos};
+
+      auto result = pp.objmacro(macro_token);
+
+      REQUIRE_UNARY(bool(result));
+      CHECK_EQ(1, result->size());
+
+      auto &res_token = result->front();
+      CHECK_EQ(pp_token_category::pp_number, res_token.category);
+      CHECK_UNARY(res_token.token == u8"202002L"sv);
+    }
+    //__STDC_­HOSTED__
+    {
+      pos = ll.emplace_after(pos, 1, 1);
+      (*pos).line = u8"__STDC_­HOSTED__";
+      lex_token macro_token{pp_tokenize_result{pp_tokenize_status::Identifier}, u8"__STDC_­HOSTED__", 0, pos};
+
+      auto result = pp.objmacro(macro_token);
+
+      REQUIRE_UNARY(bool(result));
+      CHECK_EQ(1, result->size());
+
+      auto &res_token = result->front();
+      CHECK_EQ(pp_token_category::pp_number, res_token.category);
+      CHECK_UNARY(res_token.token == u8"1"sv);
+    }
+    //__STDCPP_­DEFAULT_­NEW_­ALIGNMENT__
+    {
+      pos = ll.emplace_after(pos, 1, 1);
+      (*pos).line = u8"__STDCPP_­DEFAULT_­NEW_­ALIGNMENT__";
+      lex_token macro_token{pp_tokenize_result{pp_tokenize_status::Identifier}, u8"__STDCPP_­DEFAULT_­NEW_­ALIGNMENT__", 0, pos};
+
+      auto result = pp.objmacro(macro_token);
+
+      REQUIRE_UNARY(bool(result));
+      CHECK_EQ(1, result->size());
+
+      auto &res_token = result->front();
+      CHECK_EQ(pp_token_category::pp_number, res_token.category);
+      CHECK_UNARY(res_token.token == u8"16ull"sv);
+    }
+    //__STDCPP_­THREADS__
+    {
+      pos = ll.emplace_after(pos, 1, 1);
+      (*pos).line = u8"__STDCPP_­THREADS__";
+      lex_token macro_token{pp_tokenize_result{pp_tokenize_status::Identifier}, u8"__STDCPP_­THREADS__", 0, pos};
+
+      auto result = pp.objmacro(macro_token);
+
+      REQUIRE_UNARY(bool(result));
+      CHECK_EQ(1, result->size());
+
+      auto &res_token = result->front();
+      CHECK_EQ(pp_token_category::pp_number, res_token.category);
+      CHECK_UNARY(res_token.token == u8"1"sv);
     }
   }
 

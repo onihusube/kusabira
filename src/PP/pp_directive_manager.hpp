@@ -772,11 +772,11 @@ namespace kusabira::PP {
     using funcmacro_map = std::pmr::unordered_map<std::u8string_view, unified_macro>;
     using timepoint_t = decltype(std::chrono::system_clock::now());
 
-    std::size_t m_line = 1;
     fs::path m_filename{};
     fs::path m_replace_filename{};
     std::time_t m_datetime{};
     funcmacro_map m_funcmacros{&kusabira::def_mr};
+    std::map<std::size_t, std::size_t> m_line_map{};
 
     pp_directive_manager() = default;
 
@@ -787,7 +787,6 @@ namespace kusabira::PP {
     {}
 
     void newline() {
-      ++m_line;
     }
 
     template<typename TokensIterator, typename TokensSentinel>
@@ -862,6 +861,14 @@ namespace kusabira::PP {
 
   private:
 
+    //以降変更されることは無いはず、ムーブしたいのでconstを付けないでおく・・・
+    std::unordered_map<std::u8string_view, std::u8string_view> m_predef_macro = {
+      {u8"_­_­cplusplus", u8"202002L"},
+      {u8"__STDC_­HOSTED__", u8"1"},
+      {u8"__STDCPP_­DEFAULT_­NEW_­ALIGNMENT__", u8"16ull"},
+      //{u8"__STDCPP_­STRICT_­POINTER_­SAFETY__", u8"1"},
+      {u8"__STDCPP_­THREADS__", u8"1"}
+    };
 
     /**
     * @brief 特殊処理が必要な事前定義マクロを処理する
@@ -869,10 +876,10 @@ namespace kusabira::PP {
     * @param macro_name マクロ名
     * @return 処理結果、無効値は対象外
     */
-    fn predef_macro(const lex_token& macro_name) const -> std::optional<std::pmr::list<pp_token>> {
+    fn predefined_macro(const lex_token& macro_name) const -> std::optional<std::pmr::list<pp_token>> {
 
       //結果プリプロセッシングトークンリストを作成する処理
-      auto make_result = [&macro_name, &mr = kusabira::def_mr](auto &&str, auto pptoken_cat, auto lextoken_cat) {
+      auto make_result = [&macro_name, &mr = kusabira::def_mr](auto str, auto pptoken_cat, auto lextoken_cat) {
         std::pmr::list<pp_token> result_list{&mr};
         auto &linenum_token = result_list.emplace_back(pptoken_cat, lex_token{{lextoken_cat}, u8"", macro_name.column, macro_name.srcline_ref});
         linenum_token.token = std::move(str);
@@ -998,6 +1005,11 @@ namespace kusabira::PP {
         return make_result(std::move(time_str), pp_token_category::string_literal, pp_tokenize_status::StringLiteral);
       }
 
+      if (auto pos = m_predef_macro.find(macro_name.token); pos != m_predef_macro.end()) {
+        //その他事前定義マクロの処理
+        return make_result(deref(pos).second, pp_token_category::pp_number, pp_tokenize_status::NumberLiteral);
+      }
+
       return std::nullopt;
     }
 
@@ -1033,7 +1045,7 @@ namespace kusabira::PP {
     fn objmacro(const lex_token& macro_name) const -> std::optional<std::pmr::list<pp_token>> {
       
       //4つの事前定義マクロを処理
-      if (auto result = predef_macro(macro_name); result) {
+      if (auto result = predefined_macro(macro_name); result) {
         return result;
       }
 
@@ -1098,9 +1110,6 @@ namespace kusabira::PP {
       m_funcmacros.erase(macro_name);
     }
 
-    std::map<std::size_t, std::size_t> m_line_map;
-
-
     /**
     * @brief #lineディレクティブを実行する
     * @param reporter レポート出力オブジェクトへの参照
@@ -1129,8 +1138,6 @@ namespace kusabira::PP {
 
         std::size_t value;
         if (auto [ptr, ec] = std::from_chars(first, first + tokenstr.length(), value); ec == std::errc{}) {
-          //カウントしてる行番号を変更
-          m_line = value;
           //論理行数に対して指定された行数の対応を取っておく
           m_line_map.emplace_hint(m_line_map.end(), std::make_pair(true_line, value));
         } else {
@@ -1229,13 +1236,6 @@ namespace kusabira::PP {
       do {
         ++it;
       } while (it != end and (*it).kind == pp_tokenize_status::Whitespaces);
-    }
-
-    /**
-    * @brief 現在のファイル名と行番号を取得する、テスト用
-    */
-    fn get_state() const -> std::pair<std::size_t, const fs::path&> {
-      return {m_line, m_replace_filename};
     }
 
   };  
