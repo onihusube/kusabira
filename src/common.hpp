@@ -35,6 +35,9 @@ namespace kusabira {
 
   using maybe_u8str = std::optional<std::pmr::u8string>;
 
+  template<typename T, typename E>
+  using expected = tl::expected<T, E>;
+
   inline std::pmr::monotonic_buffer_resource def_mr{1024ul};
 }
 

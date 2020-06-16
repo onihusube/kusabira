@@ -34,7 +34,7 @@ namespace kusabira::PP {
     pp_parse_context context;
   };
 
-  using parse_status = tl::expected<pp_parse_status, pp_err_info>;
+  using parse_status = kusabira::expected<pp_parse_status, pp_err_info>;
 
   /**
   * @brief パース中のエラーオブジェクトを作成する
@@ -149,7 +149,7 @@ namespace kusabira::PP {
     }
 
     fn group(iterator& it, sentinel end) -> parse_status {
-      parse_status status{ tl::in_place, pp_parse_status::Complete };
+      parse_status status{ pp_parse_status::Complete };
 
       //ここでEOFチェックする意味ある？？？
       while (it != end and status == pp_parse_status::Complete) {
@@ -194,7 +194,7 @@ namespace kusabira::PP {
             return this->if_section(it, end);
           } else if (check_elif_etc((*it).token) == true) {
             // if-sectionの内部でif-group読取中のelif等の出現、group読取の終了
-            return {tl::in_place, pp_parse_status::FollowingSharpToken};
+            return kusabira::ok(pp_parse_status::FollowingSharpToken);
           } else {
             // control-lineへ
             return this->control_line(it, end);
@@ -222,7 +222,8 @@ namespace kusabira::PP {
       auto tokenstr = (*it).token;
 
       if (tokenstr == u8"include") {
-
+        //#include、未実装
+        assert(false);
       } else if (tokenstr == u8"define") {
         return this->control_line_define(it, end).and_then([&, this](auto&&) {
           return this->newline(it, end);
@@ -341,7 +342,7 @@ namespace kusabira::PP {
       return kusabira::error(pp_err_info{std::move(*it), pp_parse_context::Define_InvalidDirective});
     }
 
-    fn replacement_list(iterator &it, sentinel end) -> tl::expected<pptoken_conteiner, pp_err_info>{
+    fn replacement_list(iterator &it, sentinel end) -> kusabira::expected<pptoken_conteiner, pp_err_info>{
       pptoken_conteiner list{std::pmr::polymorphic_allocator<pp_token>(&kusabira::def_mr)};
       
       return this->pp_tokens(it, end, list).map([&list](auto&&) -> pptoken_conteiner {
@@ -349,7 +350,7 @@ namespace kusabira::PP {
       });
     }
 
-    fn identifier_list(iterator &it, sentinel end) -> tl::expected<std::pair<pp_parse_status, std::pmr::vector<std::u8string_view>>, pp_err_info> {
+    fn identifier_list(iterator &it, sentinel end) -> kusabira::expected<std::pair<pp_parse_status, std::pmr::vector<std::u8string_view>>, pp_err_info> {
       //仮引数文字列
       std::pmr::vector<std::u8string_view> param_list{ &kusabira::def_mr};
       param_list.reserve(10);
@@ -470,7 +471,7 @@ namespace kusabira::PP {
     }
 
     fn elif_groups(iterator& it, sentinel end) -> parse_status {
-      parse_status status{ tl::in_place, pp_parse_status::Complete };
+      parse_status status{ pp_parse_status::Complete };
 
       while (it != end and status == pp_parse_status::Complete) {
         status = elif_group(it, end);
@@ -532,13 +533,33 @@ namespace kusabira::PP {
     fn pp_tokens(iterator& it, sentinel end, pptoken_conteiner& list) -> parse_status {
       using namespace std::string_view_literals;
       //プリプロセッシングトークン列を読み出す
-      auto kind = (*it).kind;
-      while (kind != pp_tokenize_status::NewLine) {
+      auto lextoken_category = (*it).kind;
+      while (lextoken_category != pp_tokenize_status::NewLine) {
         //トークナイザのエラーならそこで終わる
-        if (kind < pp_tokenize_status::Unaccepted) break;
+        if (lextoken_category < pp_tokenize_status::Unaccepted) break;
 
         //トークン読み出しとプリプロセッシングトークンの構成
         switch ((*it).kind.status) {
+          case pp_tokenize_status::Identifier:
+          {
+            //識別子を処理、マクロ置換を行う
+            if (auto opt = preprocessor.is_macro(deref(it).token); opt) {
+              bool is_funcmacro = *opt;
+              if (not is_funcmacro) {
+                //オブジェクトマクロ置換
+                if (auto res_list = preprocessor.objmacro(deref(it)); res_list) {
+                  //置換後リストを末尾にspliceする
+                  list.splice(std::end(list), std::move(*res_list));
+                }
+              } else {
+                //関数マクロ
+              }
+            } else {
+              //置換対象ではない
+              list.emplace_back(pp_token_category::identifier, std::move(*it));
+            }
+            break;
+          }
           case pp_tokenize_status::LineComment:  [[fallthrough]];
           case pp_tokenize_status::BlockComment: [[fallthrough]];
           case pp_tokenize_status::Whitespaces:  [[fallthrough]];
@@ -554,7 +575,7 @@ namespace kusabira::PP {
             if (it == end) {
               return { pp_parse_status::EndOfFile };
             }
-            kind = (*it).kind;
+            lextoken_category = (*it).kind;
             continue;
           }
           case pp_tokenize_status::DuringRawStr:
@@ -574,7 +595,7 @@ namespace kusabira::PP {
               break;
             } else {
               //falseの時は次のトークンを通常の手順で処理して頂く
-              kind = (*it).kind;
+              lextoken_category = (*it).kind;
               continue;
             }
             break;
@@ -582,7 +603,7 @@ namespace kusabira::PP {
           case pp_tokenize_status::RawStrLiteral: [[fallthrough]];
           case pp_tokenize_status::StringLiteral:
           {
-            auto category = (kind == pp_tokenize_status::RawStrLiteral) ? pp_token_category::raw_string_literal : pp_token_category::string_literal;
+            auto category = (lextoken_category == pp_tokenize_status::RawStrLiteral) ? pp_token_category::raw_string_literal : pp_token_category::string_literal;
             auto& prev = list.emplace_back(category, std::move(*it));
 
             EOF_CHECK(it, end);
@@ -593,21 +614,21 @@ namespace kusabira::PP {
               break;
             } else {
               //falseの時は次のトークンを通常の手順で処理して頂く
-              kind = (*it).kind;
+              lextoken_category = (*it).kind;
               continue;
             }
           }
           default:
           {
             //基本はトークン1つを読み込んでプリプロセッシングトークンを構成する
-            auto category = tokenize_status_to_category(kind.status);
+            auto category = tokenize_status_to_category(lextoken_category.status);
             list.emplace_back(category, std::move(*it));
           }
         }
 
         //トークンを進める
         EOF_CHECK(it, end);
-        kind = (*it).kind;
+        lextoken_category = (*it).kind;
       }
 
       TOKNIZE_ERR_CHECK(it);
@@ -628,7 +649,7 @@ namespace kusabira::PP {
       assert((*it).kind == pp_tokenize_status::NewLine);
 
       //プリプロセッサへ行が進んだことを伝える
-      preprocessor.newline();
+      //preprocessor.newline();
       //次の行の頭のトークンへ進めて戻る
       ++it;
       return kusabira::ok(pp_parse_status::Complete);
@@ -651,6 +672,8 @@ namespace kusabira::PP {
         return pp_token_category::op_or_punc;
       case kusabira::PP::pp_tokenize_status::OtherChar:
         return pp_token_category::other_character;
+      case kusabira::PP::pp_tokenize_status::NewLine:
+        return pp_token_category::newline;
       default:
         //ここに来たら上でバグってる
         assert(false);

@@ -214,7 +214,7 @@ namespace kusabira::PP {
     std::pmr::vector<std::tuple<std::size_t, std::size_t, bool, bool, bool, bool>> m_correspond;
 
     //マクロ実行の結果型
-    using macro_result_t = tl::expected<std::pmr::list<pp_token>, std::pair<pp_parse_context, pp_token>>;
+    using macro_result_t = kusabira::expected<std::pmr::list<pp_token>, std::pair<pp_parse_context, pp_token>>;
 
     /**
     * @brief 置換リスト上の仮引数を見つけて、仮引数の番号との対応を取っておく
@@ -776,7 +776,7 @@ namespace kusabira::PP {
     fs::path m_replace_filename{};
     std::time_t m_datetime{};
     funcmacro_map m_funcmacros{&kusabira::def_mr};
-    std::map<std::size_t, std::size_t> m_line_map{};
+    std::pmr::map<std::size_t, std::size_t> m_line_map{&kusabira::def_mr};
 
     pp_directive_manager() = default;
 
@@ -863,6 +863,10 @@ namespace kusabira::PP {
 
     //以降変更されることは無いはず、ムーブしたいのでconstを付けないでおく・・・
     std::unordered_map<std::u8string_view, std::u8string_view> m_predef_macro = {
+      {u8"__LINE__", u8""},
+      {u8"__FILE__", u8""},
+      {u8"__DATE__", u8""},
+      {u8"__TIME__", u8""},
       {u8"_­_­cplusplus", u8"202002L"},
       {u8"__STDC_­HOSTED__", u8"1"},
       {u8"__STDCPP_­DEFAULT_­NEW_­ALIGNMENT__", u8"16ull"},
@@ -1097,6 +1101,10 @@ namespace kusabira::PP {
     * @return マクロでないなら無効値、関数マクロならtrue
     */
     fn is_macro(std::u8string_view identifier) const -> std::optional<bool> {
+      //事前定義マクロのチェック
+      if (m_predef_macro.contains(identifier)) return false;
+
+      //それ以外のマクロのチェック
       return fetch_macro(identifier, [](const auto& macro) -> std::optional<bool> {
         return macro.is_function();
       }, std::optional<bool>{});
@@ -1113,8 +1121,7 @@ namespace kusabira::PP {
     /**
     * @brief #lineディレクティブを実行する
     * @param reporter レポート出力オブジェクトへの参照
-    * @param it プリプロセッシングトークン列の先頭イテレータ
-    * @param end プリプロセッシングトークン列の終端イテレータ
+    * @param token_range 行末までのプリプロセッシングトークン列（マクロ置換済）
     */
     template<typename Reporter, typename PPTokenRange = std::pmr::list<pp_token>>
     fn line(Reporter& reporter, const PPTokenRange& token_range) -> bool {
@@ -1127,52 +1134,49 @@ namespace kusabira::PP {
       //事前条件
       assert(it != end);
 
-      if ((*it).category == pp_token_category::pp_number) {
-        //現在行番号の変更
-
-        //本当の論理行番号
-        auto true_line = deref(it).lextokens.front().get_logicalline_num();
-        auto tokenstr = (*it).token.to_view();
-        //数値文字列の先頭
-        auto* first = reinterpret_cast<const char*>(tokenstr.data());
-
-        std::size_t value;
-        if (auto [ptr, ec] = std::from_chars(first, first + tokenstr.length(), value); ec == std::errc{}) {
-          //論理行数に対して指定された行数の対応を取っておく
-          m_line_map.emplace_hint(m_line_map.end(), std::make_pair(true_line, value));
-        } else {
-          assert((*it).lextokens.empty() == false);
-          //エラーです
-          reporter.pp_err_report(m_filename, (*it).lextokens.front(), pp_parse_context::ControlLine_Line_Num);
-          return false;
-        }
-
-        //次のトークンが無ければ終わり
-        ++it;
-        if (it == end or (*it).category == pp_token_category::newline) return true;
-
-        if (pp_token_category::string_literal <= (*it).category and (*it).category <= pp_token_category::user_defined_raw_string_literal) {
-          //ファイル名変更
-
-          //文字列リテラルから文字列を取得
-          auto str = extract_string_from_strtoken((*it).token, pp_token_category::raw_string_literal <= (*it).category);
-          m_replace_filename = str;
-
-          ++it;
-          if (it == end or (*it).category != pp_token_category::newline) {
-            //ここにきた場合は未定義に当たるはずなので、警告出して継続する
-            reporter.pp_err_report(m_filename, (*it).lextokens.front(), pp_parse_context::ControlLine_Line_ManyToken, report::report_category::warning);
-          }
-
-          return true;
-        }
+      if ((*it).category != pp_token_category::pp_number) {
+        //#line の後のトークンが数値では無い、構文エラー
+        reporter.pp_err_report(m_filename, (*it).lextokens.front(), pp_parse_context::ControlLine_Line_Num);
+        return false;
       }
 
-      //マクロを展開した上で#lineディレクティブを実行する、マクロ展開を先に実装しないと・・・
-      //展開後に#lineにならなければ未定義動作、エラーにしようかなあ
-      assert(false);
+      //現在行番号の変更
 
-      return false;
+      //本当の論理行番号
+      auto true_line = deref(it).lextokens.front().get_logicalline_num();
+      auto tokenstr = (*it).token.to_view();
+      //数値文字列の先頭
+      auto* first = reinterpret_cast<const char*>(tokenstr.data());
+
+      std::size_t value;
+      if (auto [ptr, ec] = std::from_chars(first, first + tokenstr.length(), value); ec == std::errc{}) {
+        //論理行数に対して指定された行数の対応を取っておく
+        m_line_map.emplace_hint(m_line_map.end(), std::make_pair(true_line, value));
+      } else {
+        assert((*it).lextokens.empty() == false);
+        //浮動小数点数が指定されていた？エラー
+        reporter.pp_err_report(m_filename, (*it).lextokens.front(), pp_parse_context::ControlLine_Line_Num);
+        return false;
+      }
+
+      //次のトークンが無ければ終わり
+      ++it;
+      if (it == end or (*it).category == pp_token_category::newline) return true;
+
+      if (pp_token_category::string_literal <= (*it).category and (*it).category <= pp_token_category::user_defined_raw_string_literal) {
+        //文字列リテラルから文字列を取得
+        auto str = extract_string_from_strtoken((*it).token, pp_token_category::raw_string_literal <= (*it).category);
+        //ファイル名変更
+        m_replace_filename = str;
+        ++it;
+      }
+
+      if (it != end or (*it).category != pp_token_category::newline) {
+        //ここにきた場合は未定義に当たるはずなので、警告出して継続する
+        reporter.pp_err_report(m_filename, (*it).lextokens.front(), pp_parse_context::ControlLine_Line_ManyToken, report::report_category::warning);
+      }
+
+      return true;
     }
 
     /**

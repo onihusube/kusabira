@@ -1696,6 +1696,10 @@ namespace kusabira_test::preprocessor
       std::vector<pp_token> line_args{};
 
       {
+        auto opt = pp.is_macro(line_token.token);
+        REQUIRE_UNARY(bool(opt));
+        REQUIRE_UNARY_FALSE(*opt);
+        
         auto result = pp.objmacro(line_token);
 
         REQUIRE_UNARY(bool(result));
@@ -1772,6 +1776,10 @@ namespace kusabira_test::preprocessor
       lex_token file_token{ pp_tokenize_result{pp_tokenize_status::Identifier}, u8"__FILE__", 0, pos };
 
       {
+        auto opt = pp.is_macro(file_token.token);
+        REQUIRE_UNARY(bool(opt));
+        REQUIRE_UNARY_FALSE(*opt);
+
         auto result = pp.objmacro(file_token);
 
         REQUIRE_UNARY(bool(result));
@@ -1805,7 +1813,7 @@ namespace kusabira_test::preprocessor
         CHECK_UNARY(res_token.token == u8"replace_file.cpp"sv);
       }
 
-      //#line 1000 replace_file.cppを実行
+      //#line 1000 R"(rwastr_filename.h)"を実行
       auto pos3 = ll.emplace_after(pos, 11, 11);
       (*pos3).line = u8R"+(#line 1000 R"(rwastr_filename.h)")+";
       line_args.clear();
@@ -1836,11 +1844,15 @@ namespace kusabira_test::preprocessor
 
       pos = ll.emplace_after(pos, 1, 1);
       (*pos).line = u8"__DATE__";
-      lex_token file_token{pp_tokenize_result{pp_tokenize_status::Identifier}, u8"__DATE__", 0, pos};
+      lex_token date_token{pp_tokenize_result{pp_tokenize_status::Identifier}, u8"__DATE__", 0, pos};
+
+      auto opt = pp.is_macro(date_token.token);
+      REQUIRE_UNARY(bool(opt));
+      REQUIRE_UNARY_FALSE(*opt);
 
       //何回読んでも同じ結果になる
       for (int i = 0; i < 5; ++i) {
-        auto result = pp.objmacro(file_token);
+        auto result = pp.objmacro(date_token);
 
         REQUIRE_UNARY(bool(result));
         CHECK_EQ(1, result->size());
@@ -1863,6 +1875,10 @@ namespace kusabira_test::preprocessor
       pos = ll.emplace_after(pos, 1, 1);
       (*pos).line = u8"__TIME__";
       lex_token time_token{pp_tokenize_result{pp_tokenize_status::Identifier}, u8"__TIME__", 0, pos};
+
+      auto opt = pp.is_macro(time_token.token);
+      REQUIRE_UNARY(bool(opt));
+      REQUIRE_UNARY_FALSE(*opt);
 
       //何回読んでも同じ結果になる
       for (int i = 0; i < 5; ++i) {
@@ -1887,6 +1903,10 @@ namespace kusabira_test::preprocessor
       (*pos).line = u8"_­_­cplusplus";
       lex_token macro_token{pp_tokenize_result{pp_tokenize_status::Identifier}, u8"_­_­cplusplus", 0, pos};
 
+      auto opt = pp.is_macro(macro_token.token);
+      REQUIRE_UNARY(bool(opt));
+      REQUIRE_UNARY_FALSE(*opt);
+
       auto result = pp.objmacro(macro_token);
 
       REQUIRE_UNARY(bool(result));
@@ -1901,6 +1921,10 @@ namespace kusabira_test::preprocessor
       pos = ll.emplace_after(pos, 1, 1);
       (*pos).line = u8"__STDC_­HOSTED__";
       lex_token macro_token{pp_tokenize_result{pp_tokenize_status::Identifier}, u8"__STDC_­HOSTED__", 0, pos};
+
+      auto opt = pp.is_macro(macro_token.token);
+      REQUIRE_UNARY(bool(opt));
+      REQUIRE_UNARY_FALSE(*opt);
 
       auto result = pp.objmacro(macro_token);
 
@@ -1917,6 +1941,10 @@ namespace kusabira_test::preprocessor
       (*pos).line = u8"__STDCPP_­DEFAULT_­NEW_­ALIGNMENT__";
       lex_token macro_token{pp_tokenize_result{pp_tokenize_status::Identifier}, u8"__STDCPP_­DEFAULT_­NEW_­ALIGNMENT__", 0, pos};
 
+      auto opt = pp.is_macro(macro_token.token);
+      REQUIRE_UNARY(bool(opt));
+      REQUIRE_UNARY_FALSE(*opt);
+
       auto result = pp.objmacro(macro_token);
 
       REQUIRE_UNARY(bool(result));
@@ -1931,6 +1959,10 @@ namespace kusabira_test::preprocessor
       pos = ll.emplace_after(pos, 1, 1);
       (*pos).line = u8"__STDCPP_­THREADS__";
       lex_token macro_token{pp_tokenize_result{pp_tokenize_status::Identifier}, u8"__STDCPP_­THREADS__", 0, pos};
+
+      auto opt = pp.is_macro(macro_token.token);
+      REQUIRE_UNARY(bool(opt));
+      REQUIRE_UNARY_FALSE(*opt);
 
       auto result = pp.objmacro(macro_token);
 
