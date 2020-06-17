@@ -553,6 +553,17 @@ namespace kusabira::PP {
                 }
               } else {
                 //関数マクロ
+                //マクロ名を取得し次へ
+                auto macro_name = deref_inc(it);
+                //実引数リストの取得
+                auto&& arg_list = this->funcmacro_args(it, end);
+
+                if (auto [success, res_list] = preprocessor.funcmacro(*m_reporter, macro_name, *arg_list); success and res_list) {
+                  //置換後リストを末尾にspliceする
+                  list.splice(std::end(list), std::move(*res_list));
+                } else if (not success) {
+                  return kusabira::error(pp_err_info{std::move(macro_name), pp_parse_context::ControlLine});
+                }
               }
             } else {
               //置換対象ではない
@@ -635,6 +646,18 @@ namespace kusabira::PP {
 
       //改行で終了しているはず
       return this->newline(it, end);
+    }
+
+    fn coonvert_pp_token(iterator &it, pptoken_conteiner &list)->kusabira::expected<pp_token, pp_err_info> {
+      
+    }
+
+    fn funcmacro_args(iterator& it, sentinel) -> kusabira::expected<std::pmr::vector<std::pmr::list<pp_token>>, pp_err_info> {
+      std::pmr::vector<std::pmr::list<pp_token>> args{ &kusabira::def_mr };
+      while (deref(it).category == pp_tokenize_status::OPorPunc and deref(it).token == u8")") {
+
+      }
+      return kusabira::ok(std::move(args));
     }
 
     /**

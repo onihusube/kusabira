@@ -70,6 +70,18 @@ namespace kusabira {
   cfn deref(I& it) -> typename std::iterator_traits<I>::reference {
     return *it;
   }
+
+  /**
+  * @brief イテレータをデリファンレンスしてからインクリメントする
+  * @param it イテレータ
+  * @details std::move(*it), ++i
+  */
+  template<typename I>
+  cfn deref_inc(I& it) -> typename std::iterator_traits<I>::value_type {
+    auto value = std::move(*it);
+    ++it;
+    return value;
+  }
 }
 
 namespace kusabira::PP
