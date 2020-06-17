@@ -648,8 +648,109 @@ namespace kusabira::PP {
       return this->newline(it, end);
     }
 
-    fn coonvert_pp_token(iterator &it, pptoken_conteiner &list)->kusabira::expected<pp_token, pp_err_info> {
-      
+    /**
+    * @brief プリプロセッシングトークン1つを構成する
+    * @param it 現在の先頭トークン
+    * @param end トークン列の終端
+    * @param list プリプロセッシングトークンリスト
+    * @return エラーが起きた場合、その情報
+    */
+    fn convert_pptoken(iterator &it, sentinel end, pptoken_conteiner &list) -> std::optional<pp_err_info> {
+
+      //終了時にイテレータを進めておく
+      kusabira::vocabulary::scope_exit se_inc_itr = [&it]() {
+        ++it;
+      };
+
+      //トークン読み出しとプリプロセッシングトークンの構成
+      switch (deref(it).kind.status) {
+        case pp_tokenize_status::Identifier:
+        {
+          //識別子を処理、マクロ置換を行う
+          if (auto opt = preprocessor.is_macro(deref(it).token); opt) {
+            bool is_funcmacro = *opt;
+            if (not is_funcmacro) {
+              //オブジェクトマクロ置換
+              if (auto res_list = preprocessor.objmacro(deref(it)); res_list) {
+                //置換後リストを末尾にspliceする
+                list.splice(std::end(list), std::move(*res_list));
+              }
+            } else {
+              //関数マクロ
+              //マクロ名を取得し次へ
+              auto macro_name = deref_inc(it);
+              //実引数リストの取得
+              auto&& arg_list = this->funcmacro_args(it, end);
+
+              if (auto [success, res_list] = preprocessor.funcmacro(*m_reporter, macro_name, *arg_list); success and res_list) {
+                //置換後リストを末尾にspliceする
+                list.splice(std::end(list), std::move(*res_list));
+              } else if (not success) {
+                se_inc_itr.release();
+                return pp_err_info{ std::move(macro_name), pp_parse_context::ControlLine };
+              }
+            }
+          } else {
+            //置換対象ではない
+            list.emplace_back(pp_token_category::identifier, std::move(*it));
+          }
+          break;
+        }
+        case pp_tokenize_status::LineComment:  [[fallthrough]];
+        case pp_tokenize_status::BlockComment: [[fallthrough]];
+        case pp_tokenize_status::Whitespaces:
+          //マクロの引数パース時のみ処理が必要
+          break;
+        case pp_tokenize_status::OPorPunc:
+        {
+          auto&& oppunc_list = longest_match_exception_handling(it, end);
+          if (0u < oppunc_list.size()) {
+            list.splice(std::end(list), std::move(oppunc_list));
+          }
+          //既に次のトークンを指しているので進めない
+          se_inc_itr.release();
+          break;
+        }
+        case pp_tokenize_status::DuringRawStr:
+        {
+          //改行されている生文字列リテラルの1行目
+          //生文字列リテラル全体を一つのトークンとして読み出す必要がある
+          list.emplace_back(read_rawstring_tokens(it, end));
+
+          //次のトークンを調べてユーザー定義リテラルの有無を判断
+          ++it;
+          if (strliteral_classify(it, u8" "sv, list.back()) == false) {
+            //ファイル終端に到達した
+            se_inc_itr.release();
+          }
+          break;
+        }
+        case pp_tokenize_status::RawStrLiteral: [[fallthrough]];
+        case pp_tokenize_status::StringLiteral:
+        {
+          auto category = (lextoken_category == pp_tokenize_status::RawStrLiteral) ? pp_token_category::raw_string_literal : pp_token_category::string_literal;
+          auto& prev = list.emplace_back(category, std::move(*it));
+
+          //次のトークンを調べてユーザー定義リテラルの有無を判断
+          ++it;
+          if (strliteral_classify(it, deref(prev.lextokens.begin()).token, list.back()) == false) {
+            //ファイル終端に到達した
+            se_inc_itr.release();
+          }
+          break;
+        }
+        case pp_tokenize_status::Empty:
+          //無視
+          break;
+        default:
+        {
+          //基本はトークン1つを読み込んでプリプロセッシングトークンを構成する
+          auto category = tokenize_status_to_category(lextoken_category.status);
+          list.emplace_back(category, std::move(*it));
+        }
+      }
+
+      return std::nullopt;
     }
 
     fn funcmacro_args(iterator& it, sentinel) -> kusabira::expected<std::pmr::vector<std::pmr::list<pp_token>>, pp_err_info> {
@@ -712,6 +813,7 @@ namespace kusabira::PP {
     * @param prev_tokenstr 直前のトークン文字列
     * @param last_pptoken 直前のプリプロセッシングトークン
     * @details 直前が文字・文字列リテラルであることを前提に動作する、呼び出す場所に注意
+    * @details trueで戻った場合itは処理済みのトークンを指している、falseで戻った場合itは未処理のトークンを指す
     * @return ユーザー定義リテラルの有無
     */
     template<typename Iterator = iterator>
@@ -748,6 +850,7 @@ namespace kusabira::PP {
     * @brief 生文字列リテラルを読み出し、改行継続を元に戻した上で連結する
     * @param it トークン列のイテレータ
     * @param end トークン列の終端イテレータ
+    * @details itは処理済みトークンを指した状態で戻る
     * @return 構成した生文字列リテラルトークン
     */
     template<typename Iterator = iterator, typename Sentinel = sentinel>
@@ -758,63 +861,69 @@ namespace kusabira::PP {
       assert((*it).kind == pp_tokenize_status::DuringRawStr or (*it).kind < pp_tokenize_status::Unaccepted);
 
       //生文字列リテラルの行継続を元に戻す
-      auto undo_rawstr = [](auto& iter, auto& string, std::size_t bias = 0) {
-        if ((*iter).is_multiple_phlines()) {
-          //バックスラッシュによる行継続が行われている
-          auto &line = *(*iter).srcline_ref;
+      auto undo_linecontinue = [](auto& iter, auto& string, std::size_t bias = 0) {
+        //バックスラッシュによる行継続が行われていなければ何もしない
+        if (not deref(iter).is_multiple_phlines()) return;
 
-          auto pos = line.line.find_first_of((*iter).token);
-          auto acc = 0u;
-          //これは起こりえないはず・・・
-          assert(pos != std::u8string_view::npos);
+        //論理行オブジェクト
+        auto& logical_line = deref(deref(iter).srcline_ref);
+        //論理行文字列中に現在のトークンが現れるところを検索
+        auto pos = logical_line.line.find_first_of(deref(iter).token);
+        //これは起こりえないはず・・・
+        assert(pos != std::u8string_view::npos);
 
-          //バックスラッシュ+改行を復元する
-          for (auto newline_pos : line.line_offset) {
-            //newline_posは複数存在する場合は常にその論理行頭からの長さになっている
-            if (pos <= newline_pos + acc) {
-              //挿入する行継続マーカとその長さ
-              constexpr char8_t insert_str[] = u8"\\\n";
-              constexpr auto insert_len = sizeof(insert_str) - 1;
-              //すでに構成済みの生文字列リテラルの長さ+改行継続された論理行での位置+それまで挿入したバックスラッシュと改行の長さ
-              string.insert(bias + newline_pos + acc, insert_str, insert_len);
-              acc += insert_len;
-              pos = newline_pos + acc;
-            }
+        //挿入する行継続マーカとその長さ
+        constexpr char8_t insert_str[] = u8"\\\n";
+        constexpr auto insert_len = sizeof(insert_str) - 1;
+        //行継続を修正したことによって追加された文字数の累積（行継続マーカーの文字数×修正回数）
+        auto acc = 0u;
+
+        //バックスラッシュ+改行を復元する
+        for (auto newline_pos : logical_line.line_offset) {
+          //newline_posは複数存在する場合は常にその論理行頭からの長さになっている
+          if (pos <= newline_pos + acc) {
+            //すでに構成済みの生文字列リテラルの長さ+改行継続された論理行での位置+それまで挿入したバックスラッシュと改行の長さ
+            string.insert(bias + newline_pos + acc, insert_str, insert_len);
+            acc += insert_len;
+            pos = newline_pos + acc;
           }
         }
       };
 
       //プリプロセッシングトークン型を用意
       pp_token token{pp_token_category::raw_string_literal};
-      auto& list = token.lextokens;
+      //構成する字句トークンを保存しておくリスト（↑のメンバへの参照）
+      auto& lextoken_list = token.lextokens;
 
-      list.push_front(*it);
+      //現在の字句トークンを保存
+      lextoken_list.push_front(*it);
       auto pos = token.lextokens.begin();
 
-      //生文字列リテラルを構成する
-      std::pmr::u8string rawstr{(*it).token, std::pmr::polymorphic_allocator<char8_t>{&kusabira::def_mr}};
-      //1行目を戻す
-      undo_rawstr(it, rawstr);
+      //生文字列リテラルを追加していくバッファ
+      std::pmr::u8string rawstr{(*it).token, &kusabira::def_mr };
+      //1行目の行継続を戻す
+      undo_linecontinue(it, rawstr);
 
       do {
+        //次の行をチェックする
         ++it;
         if (it == end or (*it).kind < pp_tokenize_status::Unaccepted) {
           //エラーかな
           return token;
         } else if ((*it).kind != pp_tokenize_status::NewLine) {
-          //生文字列リテラルを改行する
+          //生文字列リテラルを改行する（DuringRawStrステータスは改行によって終了している）
           rawstr.push_back(u8'\n');
           std::size_t length = rawstr.length();
 
           //トークンをまとめて1つのPPトークンにする
           rawstr.append((*it).token);
-          pos = list.emplace_after(pos, *it);
+          pos = lextoken_list.emplace_after(pos, *it);
 
-          undo_rawstr(it, rawstr, length);
+          undo_linecontinue(it, rawstr, length);
         }
         //改行入力はスルーする
 
-        //エラーを除いて、この3つ以外のトークン種別が出てくることはないはず
+        //エラーを除いて、この3つのトークン種別以外が出てくることはないはず
         assert((*it).kind == pp_tokenize_status::RawStrLiteral
                 or (*it).kind == pp_tokenize_status::DuringRawStr
                 or (*it).kind == pp_tokenize_status::NewLine);
@@ -830,17 +939,22 @@ namespace kusabira::PP {
     * @brief 最長一致規則の例外処理
     * @param it トークン列のイテレータ
     * @param end トークン列の終端イテレータ
+    * @detail この関数の終了時、itは常に残りの未処理トークン列の先頭を指す
     * @return 構成した記号列トークン
     */
     template<typename Iterator = iterator, typename Sentinel = sentinel>
-    sfn longest_match_exception_handling(Iterator& it, Sentinel end) -> pptoken_conteiner {
+    sfn longest_match_exception_handling(Iterator& it, Sentinel) -> pptoken_conteiner {
+
+      //改行の出現をチェックする、改行ならtrue
+      auto check_newline = [](auto& it) {
+        return deref(it).kind == pp_tokenize_status::NewLine;
+      };
 
       //事前条件
-      assert(it != end);
       assert((*it).kind == pp_tokenize_status::OPorPunc);
 
       //プリプロセッシングトークンを一時保存しておくリスト
-      pptoken_conteiner tmp_pptoken_list{std::pmr::polymorphic_allocator<pp_token>(&kusabira::def_mr)};
+      pptoken_conteiner tmp_pptoken_list{ &kusabira::def_mr };
 
       bool is_not_handle = (*it).token != u8"<:";
       //現在のプリプロセッシングトークンを保存
@@ -854,7 +968,7 @@ namespace kusabira::PP {
       }
 
       //次のトークンをチェック、記号トークンでなければ処理の必要はない
-      if (it == end or (*it).kind != pp_tokenize_status::OPorPunc) {
+      if (deref(it).kind != pp_tokenize_status::OPorPunc) {
         return tmp_pptoken_list;
       }
 
@@ -871,7 +985,7 @@ namespace kusabira::PP {
       assert(std::size(tmp_pptoken_list) == 2u);
 
       //:単体のトークンである場合のみ最長一致例外処理を行う必要がある
-      if (is_not_handle or it == end) {
+      if (is_not_handle or check_newline(it)) {
         return tmp_pptoken_list;
       }
 
@@ -880,10 +994,10 @@ namespace kusabira::PP {
 
       auto lit = std::begin(tmp_pptoken_list);
       //前2つのトークンを"<"と"::"の2つのトークンに構成する
-      (*lit).token = std::pmr::u8string{ u8"<", std::pmr::polymorphic_allocator<char8_t>{&kusabira::def_mr} };
+      (*lit).token = std::pmr::u8string{ u8"<", &kusabira::def_mr };
       ++lit;
       //2つ目のトークンを::にする
-      (*lit).token = std::pmr::u8string{ u8"::", std::pmr::polymorphic_allocator<char8_t>{&kusabira::def_mr} };
+      (*lit).token = std::pmr::u8string{ u8"::", &kusabira::def_mr };
       //2トークンあるはず
       assert(std::size(tmp_pptoken_list) == 2u);
 
