@@ -67,7 +67,7 @@ namespace kusabira {
   * @details *it
   */
   template<typename I>
-  cfn deref(I& it) -> typename std::iterator_traits<I>::reference {
+  cfn deref(I&& it) -> typename std::iterator_traits<std::remove_cvref_t<I>>::reference {
     return *it;
   }
 
@@ -77,7 +77,7 @@ namespace kusabira {
   * @details std::move(*it), ++i
   */
   template<typename I>
-  cfn deref_inc(I& it) -> typename std::iterator_traits<I>::value_type {
+  cfn deref_inc(I&& it) -> typename std::iterator_traits<std::remove_cvref_t<I>>::value_type {
     auto value = std::move(*it);
     ++it;
     return value;
@@ -124,6 +124,10 @@ namespace kusabira::PP
   */
   struct pp_tokenize_result {
     pp_tokenize_status status;
+
+    operator pp_tokenize_status() const noexcept {
+      return this->status;
+    }
 
     /**
     * @brief 現在の値は受理状態か否か

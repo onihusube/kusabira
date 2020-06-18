@@ -532,130 +532,39 @@ namespace kusabira::PP {
 
     fn pp_tokens(iterator& it, sentinel end, pptoken_conteiner& list) -> parse_status {
       using namespace std::string_view_literals;
-      //プリプロセッシングトークン列を読み出す
-      auto lextoken_category = (*it).kind;
+
+      //現在の字句トークンのカテゴリ
+      auto lextoken_category = deref(it).kind;
+
+      //その行のプリプロセッシングトークン列を読み出す
       while (lextoken_category != pp_tokenize_status::NewLine) {
-        //トークナイザのエラーならそこで終わる
-        if (lextoken_category < pp_tokenize_status::Unaccepted) break;
+        //トークナイザのエラーは別の所で処理するのでここでは考慮しない
+        assert(pp_tokenize_status::Unaccepted < lextoken_category);
 
-        //トークン読み出しとプリプロセッシングトークンの構成
-        switch ((*it).kind.status) {
-          case pp_tokenize_status::Identifier:
-          {
-            //識別子を処理、マクロ置換を行う
-            if (auto opt = preprocessor.is_macro(deref(it).token); opt) {
-              bool is_funcmacro = *opt;
-              if (not is_funcmacro) {
-                //オブジェクトマクロ置換
-                if (auto res_list = preprocessor.objmacro(deref(it)); res_list) {
-                  //置換後リストを末尾にspliceする
-                  list.splice(std::end(list), std::move(*res_list));
-                }
-              } else {
-                //関数マクロ
-                //マクロ名を取得し次へ
-                auto macro_name = deref_inc(it);
-                //実引数リストの取得
-                auto&& arg_list = this->funcmacro_args(it, end);
-
-                if (auto [success, res_list] = preprocessor.funcmacro(*m_reporter, macro_name, *arg_list); success and res_list) {
-                  //置換後リストを末尾にspliceする
-                  list.splice(std::end(list), std::move(*res_list));
-                } else if (not success) {
-                  return kusabira::error(pp_err_info{std::move(macro_name), pp_parse_context::ControlLine});
-                }
-              }
-            } else {
-              //置換対象ではない
-              list.emplace_back(pp_token_category::identifier, std::move(*it));
-            }
-            break;
-          }
-          case pp_tokenize_status::LineComment:  [[fallthrough]];
-          case pp_tokenize_status::BlockComment: [[fallthrough]];
-          case pp_tokenize_status::Whitespaces:  [[fallthrough]];
-          case pp_tokenize_status::Empty:
-            //これらのトークンは無視する
-            break;
-          case pp_tokenize_status::OPorPunc:
-          {
-            auto&& oppunc_list = longest_match_exception_handling(it, end);
-            if (0u < oppunc_list.size()) {
-              list.splice(std::end(list), std::move(oppunc_list));
-            }
-            if (it == end) {
-              return { pp_parse_status::EndOfFile };
-            }
-            lextoken_category = (*it).kind;
-            continue;
-          }
-          case pp_tokenize_status::DuringRawStr:
-          {
-            //生文字列リテラル全体を一つのトークンとして読み出す必要がある
-            auto&& tmp_pptoken = read_rawstring_tokens(it, end);
-
-            TOKNIZE_ERR_CHECK(it);
-
-            list.emplace_back(std::move(tmp_pptoken));
-
-            EOF_CHECK(it, end);
-
-            //次のトークンを調べてユーザー定義リテラルの有無を判断
-            if (strliteral_classify(it, u8" "sv, list.back()) == true) {
-              //そのままおわる
-              break;
-            } else {
-              //falseの時は次のトークンを通常の手順で処理して頂く
-              lextoken_category = (*it).kind;
-              continue;
-            }
-            break;
-          }
-          case pp_tokenize_status::RawStrLiteral: [[fallthrough]];
-          case pp_tokenize_status::StringLiteral:
-          {
-            auto category = (lextoken_category == pp_tokenize_status::RawStrLiteral) ? pp_token_category::raw_string_literal : pp_token_category::string_literal;
-            auto& prev = list.emplace_back(category, std::move(*it));
-
-            EOF_CHECK(it, end);
-
-            //次のトークンを調べてユーザー定義リテラルの有無を判断
-            if (strliteral_classify(it, (*prev.lextokens.begin()).token, list.back()) == true) {
-              //そのままおわる
-              break;
-            } else {
-              //falseの時は次のトークンを通常の手順で処理して頂く
-              lextoken_category = (*it).kind;
-              continue;
-            }
-          }
-          default:
-          {
-            //基本はトークン1つを読み込んでプリプロセッシングトークンを構成する
-            auto category = tokenize_status_to_category(lextoken_category.status);
-            list.emplace_back(category, std::move(*it));
-          }
+        //プリプロセッシングトークン1つを作成する、終了後イテレータは未処理のトークンを指している
+        if (auto err_opt = this->construct_pptoken<true>(it, end, list); err_opt) {
+          //エラーが起きてる
+          return kusabira::error(std::move(*err_opt));
         }
 
-        //トークンを進める
-        EOF_CHECK(it, end);
-        lextoken_category = (*it).kind;
+        lextoken_category = deref(it).kind;
       }
 
-      TOKNIZE_ERR_CHECK(it);
-
-      //改行で終了しているはず
+      //改行で終了
       return this->newline(it, end);
     }
 
     /**
-    * @brief プリプロセッシングトークン1つを構成する
+    * @brief プリプロセッシングトークン1つ（1部のものは複数）を構成する
     * @param it 現在の先頭トークン
     * @param end トークン列の終端
-    * @param list プリプロセッシングトークンリスト
-    * @return エラーが起きた場合、その情報
+    * @param list プリプロセッシングトークンリスト、ここに構成したトークンを入れる
+    * @return エラーが起きた場合その情報、無効値は正常終了
     */
-    fn convert_pptoken(iterator &it, sentinel end, pptoken_conteiner &list) -> std::optional<pp_err_info> {
+    template<bool LeaveWhitespace>
+    fn construct_pptoken(iterator &it, sentinel end, pptoken_conteiner &list) -> std::optional<pp_err_info> {
+
+      using namespace std::string_view_literals;
 
       //終了時にイテレータを進めておく
       kusabira::vocabulary::scope_exit se_inc_itr = [&it]() {
@@ -686,6 +595,7 @@ namespace kusabira::PP {
                 //置換後リストを末尾にspliceする
                 list.splice(std::end(list), std::move(*res_list));
               } else if (not success) {
+                //マクロ実行時のエラーだが、報告済
                 se_inc_itr.release();
                 return pp_err_info{ std::move(macro_name), pp_parse_context::ControlLine };
               }
@@ -728,7 +638,7 @@ namespace kusabira::PP {
         case pp_tokenize_status::RawStrLiteral: [[fallthrough]];
         case pp_tokenize_status::StringLiteral:
         {
-          auto category = (lextoken_category == pp_tokenize_status::RawStrLiteral) ? pp_token_category::raw_string_literal : pp_token_category::string_literal;
+          auto category = (deref(it).kind == pp_tokenize_status::RawStrLiteral) ? pp_token_category::raw_string_literal : pp_token_category::string_literal;
           auto& prev = list.emplace_back(category, std::move(*it));
 
           //次のトークンを調べてユーザー定義リテラルの有無を判断
@@ -742,10 +652,14 @@ namespace kusabira::PP {
         case pp_tokenize_status::Empty:
           //無視
           break;
+        case pp_tokenize_status::NewLine:
+          //来ないはず
+          assert(false);
+          break;
         default:
         {
           //基本はトークン1つを読み込んでプリプロセッシングトークンを構成する
-          auto category = tokenize_status_to_category(lextoken_category.status);
+          auto category = tokenize_status_to_category(deref(it).kind);
           list.emplace_back(category, std::move(*it));
         }
       }
@@ -753,11 +667,59 @@ namespace kusabira::PP {
       return std::nullopt;
     }
 
-    fn funcmacro_args(iterator& it, sentinel) -> kusabira::expected<std::pmr::vector<std::pmr::list<pp_token>>, pp_err_info> {
-      std::pmr::vector<std::pmr::list<pp_token>> args{ &kusabira::def_mr };
-      while (deref(it).category == pp_tokenize_status::OPorPunc and deref(it).token == u8")") {
 
+    fn funcmacro_args(iterator& it, sentinel end) -> kusabira::expected<std::pmr::vector<std::pmr::list<pp_token>>, pp_err_info> {
+      using namespace std::string_view_literals;
+
+      //実引数リスト、カンマごとにプリプロセッシングトークン列を区切る
+      //引数の数が増えると内部でムーブが起きるが、問題ないか？？？
+      std::pmr::vector<std::pmr::list<pp_token>> args{ &kusabira::def_mr };
+      args.reserve(10);
+
+      //実引数リスト1つ分のリスト、作業用
+      std::pmr::list<pp_token> arg_list{&kusabira::def_mr};
+      //実引数リストの区切りカンマまでの間に出現したネストかっこの数
+      std::size_t inner_paren = 0;
+      
+      //関数マクロ呼び出しを終了する閉じ括弧が出るまで引数をパースする
+      while (true) {
+
+        if (deref(it).kind == pp_tokenize_status::OPorPunc) {
+
+          //カンマの出現で1つの実引数のパースを完了する
+          if (inner_paren == 0 and deref(it).token == u8",") {
+            args.emplace_back(std::move(arg_list));
+            //要らないけど、一応
+            arg_list = std::pmr::list<pp_token>{&kusabira::def_mr};
+            //カンマは保存しない
+            ++it;
+            continue;
+          } else if (deref(it).token == u8"(") {
+            //ネストしたかっこの始まり
+            ++inner_paren;
+          } else if (deref(it).token == u8")") {
+            //マクロ終了の閉じかっこ判定
+            if (inner_paren == 0) break;
+            //ネストしてるかっこの閉じかっこ
+            --inner_paren;
+          }
+        } else if (deref(it).kind == pp_tokenize_status::NewLine) {
+          //改行は空白文字として扱う、マクロ引数中の空白文字の並びは1つに圧縮される
+          if (auto &prev_token = arg_list.back(); prev_token.category != pp_token_category::whitespace) {
+            auto& gen_token = arg_list.emplace_back(pp_token_category::whitespace, std::move(*it));
+            gen_token.token = u8" "sv;
+          }
+          ++it;
+          continue;
+        }
+
+        //実引数となるプリプロセッシングトークンを構成する
+        if (auto err_opt = this->construct_pptoken<false>(it, end, arg_list); err_opt) {
+          //エラーが起きてる
+          return kusabira::error(std::move(*err_opt));
+        }
       }
+
       return kusabira::ok(std::move(args));
     }
 
@@ -858,7 +820,7 @@ namespace kusabira::PP {
 
       //事前条件
       assert(it != end);
-      assert((*it).kind == pp_tokenize_status::DuringRawStr or (*it).kind < pp_tokenize_status::Unaccepted);
+      assert((*it).kind == pp_tokenize_status::DuringRawStr);
 
       //生文字列リテラルの行継続を元に戻す
       auto undo_linecontinue = [](auto& iter, auto& string, std::size_t bias = 0) {
@@ -907,7 +869,7 @@ namespace kusabira::PP {
       do {
         //次の行をチェックする
         ++it;
-        if (it == end or (*it).kind < pp_tokenize_status::Unaccepted) {
+        if (it == end or (*it).kind <= pp_tokenize_status::Unaccepted) {
           //エラーかな
           return token;
         } else if ((*it).kind != pp_tokenize_status::NewLine) {
