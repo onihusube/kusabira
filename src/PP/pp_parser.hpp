@@ -542,7 +542,7 @@ namespace kusabira::PP {
         assert(pp_tokenize_status::Unaccepted < lextoken_category);
 
         //プリプロセッシングトークン1つを作成する、終了後イテレータは未処理のトークンを指している
-        if (auto err_opt = this->construct_pptoken<true>(it, end, list); err_opt) {
+        if (auto err_opt = this->construct_next_pptoken<true>(it, end, list); err_opt) {
           //エラーが起きてる
           return kusabira::error(std::move(*err_opt));
         }
@@ -562,7 +562,7 @@ namespace kusabira::PP {
     * @return エラーが起きた場合その情報、無効値は正常終了
     */
     template<bool LeaveWhitespace>
-    fn construct_pptoken(iterator &it, sentinel end, pptoken_conteiner &list) -> std::optional<pp_err_info> {
+    fn construct_next_pptoken(iterator &it, sentinel end, pptoken_conteiner &list) -> std::optional<pp_err_info> {
 
       using namespace std::string_view_literals;
 
@@ -714,13 +714,47 @@ namespace kusabira::PP {
         }
 
         //実引数となるプリプロセッシングトークンを構成する
-        if (auto err_opt = this->construct_pptoken<false>(it, end, arg_list); err_opt) {
+        if (auto err_opt = this->construct_next_pptoken<false>(it, end, arg_list); err_opt) {
           //エラーが起きてる
           return kusabira::error(std::move(*err_opt));
         }
       }
 
       return kusabira::ok(std::move(args));
+    }
+
+    fn further_macro_replacement(iterator &, sentinel, pptoken_conteiner &list) -> bool {
+
+      for (auto list_it = std::begin(list); list_it != std::end(list); ++it) {
+        if (auto opt = preprocessor.is_macro(deref(list_it).token); opt) {
+          bool is_funcmacro = *opt;
+          if (not is_funcmacro) {
+            //オブジェクトマクロ置換
+            if (auto res_list = preprocessor.objmacro(deref(list_it).lextokens.front()); res_list) {
+              //置換後リストを末尾にspliceする
+              auto isert_pos = it;
+              std::advance(it, -1);
+              list.splice(isert_pos, std::move(*res_list));
+            }
+          } else {
+            //関数マクロ
+            //マクロ名を取得し次へ
+            auto macro_name = deref_inc(it);
+            //実引数リストの取得
+            auto&& arg_list = this->funcmacro_args(it, end);
+            if (auto [success, res_list] = preprocessor.funcmacro(*m_reporter, macro_name, *arg_list); success and res_list) {
+              //置換後リストを末尾にspliceする
+              list.splice(std::end(list), std::move(*res_list));
+            } else if (not success) {
+              //マクロ実行時のエラーだが、報告済
+              se_inc_itr.release();
+              return pp_err_info{ std::move(macro_name), pp_parse_context::ControlLine };
+            }
+          }
+        }
+      }
+
+      return false;
     }
 
     /**
