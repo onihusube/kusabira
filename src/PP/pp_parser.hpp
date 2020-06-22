@@ -102,7 +102,7 @@ namespace kusabira::PP {
     using pptoken_conteiner = std::pmr::list<pp_token>;
     using reporter = typename ReporterFactory::reporter_t;
 
-    pptoken_conteiner pptoken_list{std::pmr::polymorphic_allocator<pp_token>(&kusabira::def_mr)};
+    pptoken_conteiner pptoken_list{&kusabira::def_mr};
     pp_directive_manager preprocessor{};
 
   private:
@@ -723,38 +723,12 @@ namespace kusabira::PP {
       return kusabira::ok(std::move(args));
     }
 
-    fn further_macro_replacement(iterator &, sentinel, pptoken_conteiner &list) -> bool {
+    fn further_macro_replacement(pptoken_conteiner &list, iterator&, sentinel) -> std::optional<pp_err_info> {
 
-      for (auto list_it = std::begin(list); list_it != std::end(list); ++it) {
-        if (auto opt = preprocessor.is_macro(deref(list_it).token); opt) {
-          bool is_funcmacro = *opt;
-          if (not is_funcmacro) {
-            //オブジェクトマクロ置換
-            if (auto res_list = preprocessor.objmacro(deref(list_it).lextokens.front()); res_list) {
-              //置換後リストを末尾にspliceする
-              auto isert_pos = it;
-              std::advance(it, -1);
-              list.splice(isert_pos, std::move(*res_list));
-            }
-          } else {
-            //関数マクロ
-            //マクロ名を取得し次へ
-            auto macro_name = deref_inc(it);
-            //実引数リストの取得
-            auto&& arg_list = this->funcmacro_args(it, end);
-            if (auto [success, res_list] = preprocessor.funcmacro(*m_reporter, macro_name, *arg_list); success and res_list) {
-              //置換後リストを末尾にspliceする
-              list.splice(std::end(list), std::move(*res_list));
-            } else if (not success) {
-              //マクロ実行時のエラーだが、報告済
-              se_inc_itr.release();
-              return pp_err_info{ std::move(macro_name), pp_parse_context::ControlLine };
-            }
-          }
-        }
+      for (auto list_it = std::begin(list); list_it != std::end(list); ++list_it) {
+        
       }
-
-      return false;
+      return std::nullopt;
     }
 
     /**
@@ -768,8 +742,8 @@ namespace kusabira::PP {
       assert(it != end);
       assert((*it).kind == pp_tokenize_status::NewLine);
 
-      //プリプロセッサへ行が進んだことを伝える
-      //preprocessor.newline();
+      //改行を保存
+      this->pptoken_list.emplace_back(pp_token_category::newline, std::move(*it));
       //次の行の頭のトークンへ進めて戻る
       ++it;
       return kusabira::ok(pp_parse_status::Complete);

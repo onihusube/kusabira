@@ -279,6 +279,7 @@ namespace kusabira::PP
     }
   };
 
+inline namespace v1 {
 
   /**
   * @brief プリプロセッシングトークンの分類
@@ -534,5 +535,174 @@ namespace kusabira::PP
     //構成する字句トークン列
     std::pmr::forward_list<lex_token> lextokens;
   };
+
+} // namespace v1
+
+
+  // プリプロセッシングトークンと字句トークン型をまとめるようにする変更中
+  namespace v2 {
+
+    enum class pp_token_category : std::int8_t {
+
+      //トークナイズステータス
+      UnknownError = std::numeric_limits<std::int8_t>::min(),
+      FailedRawStrLiteralRead,            //生文字列リテラルの読み取りに失敗した、バグの可能性が高い
+      RawStrLiteralDelimiterOver16Chars,  //生文字列リテラルデリミタの長さが16文字を超えた
+      RawStrLiteralDelimiterInvalid,      //生文字列リテラルデリミタに現れてはいけない文字が現れた
+      UnexpectedNewLine,                  //予期しない改行入力があった
+      Unaccepted = -1,  //非受理状態、トークンの途中
+
+      //プリプロセッシングトークン分類
+      newline = 0,
+      whitespace,
+      empty,
+      line_comment,
+      block_comment,
+
+      header_name,
+      import_keyword,
+      export_keyword,
+      module_keyword,
+      identifier,
+      pp_number,
+      charcter_literal,
+      user_defined_charcter_literal,
+
+      string_literal,
+      user_defined_string_literal,
+      //生文字列リテラル識別のため・・・
+      raw_string_literal,
+      user_defined_raw_string_literal,
+
+      //生文字列リテラルの途中、改行時
+      during_raw_string_literal,
+
+      op_or_punc,
+      other_character,
+
+      //可変引数が空の時の__VA_ARGS__と__VA_OPT__の置換先
+      placemarker_token
+    };
+
+    struct pp_token {
+
+      using line_iterator = std::pmr::forward_list<logical_line>::const_iterator;
+
+      //プリプロセッシングトークン種別
+      pp_token_category category;
+
+      //プリプロセッシングトークン文字列
+      kusabira::vocabulary::whimsy_str_view<> token;
+
+      //トークンの論理行での位置
+      std::size_t column;
+
+      //対応する論理行オブジェクトへのイテレータ
+      line_iterator srcline_ref;
+
+      //構成するトークン列
+      std::pmr::forward_list<pp_token> lextokens;
+
+      pp_token(pp_token_category result, std::u8string_view view, std::size_t col, line_iterator line)
+        : category{ result }
+        , token{ view }
+        , column{ col }
+        , srcline_ref{ std::move(line) }
+        , lextokens{ &kusabira::def_mr}
+      {}
+
+      /**
+      * @brief コピーコンストラクタ
+      * @details polymorphic_allocatorのmemory_resourceがコピーによって伝播しないのを防ぐために定義
+      */
+      pp_token(const pp_token& other)
+        : category{other.category}
+        , token {other.token}
+        , column{ other.column }
+        , srcline_ref{ other.srcline_ref }
+        , lextokens{other.lextokens, &kusabira::def_mr}
+      {}
+
+      /**
+      * @brief コピー代入演算子
+      * @details コピーコンストラクタと同様の理由による
+      */
+      pp_token& operator=(const pp_token& other) {
+        if (this != &other) {
+          pp_token copy = other;
+          *this = std::move(copy);
+        }
+        return *this;
+      }
+
+      /**
+      * @brief ムーブコンストラクタ
+      * @details ムーブ時はmemory_resourceが伝播するのでdefault定義
+      */
+      pp_token(pp_token&&) = default;
+      pp_token& operator=(pp_token&&) = default;
+
+      /**
+      * @brief 同値比較演算子
+      */
+      ffn operator==(const pp_token& lhs, const pp_token& rhs) noexcept -> bool {
+        return lhs.category == rhs.category && lhs.token == rhs.token && lhs.column == rhs.column;
+      }
+
+      /**
+      * @brief バックスラッシュによる行継続が行われているかを判定する
+      * @detail 現在の行は複数の物理行から構成されているかどうか？を取得
+      * @return trueなら論理行は複数の物理行で構成される
+      */
+      fn is_multiple_phlines() const -> bool {
+        return 0u < (*srcline_ref).line_offset.size();
+      }
+
+      /**
+      * @brief 対応する論理行全体の文字列を取得する
+      * @return 論理行文字列へのconstな参照
+      */
+      fn get_line_string() const -> const std::pmr::u8string& {
+        return (*srcline_ref).line;
+      }
+
+      /**
+      * @brief 対応する物理行上の位置を取得する
+      * @return {行, 列}のペア
+      */
+      fn get_phline_pos() const -> std::pair<std::size_t, std::size_t> {
+        if (0u < (*srcline_ref).line_offset.size()) {
+          //物理行とのズレ
+          std::size_t offset{};
+          //確認した行までの文字数
+          std::size_t total_len{};
+
+          //line_offsetの各要素は行継続前の各物理行の文字数（2文字なら2、100文字なら100）が入っている
+          for (auto len : (*srcline_ref).line_offset) {
+            //今の行数までのトータル文字数の間に収まっていれば、その行にあったという事
+            if (this->column < total_len + len) break;
+            //今の行までのトータル文字数を減ずることでその行での本来の文字位置を算出する
+            //total_lenの更新はチェックの後
+            total_len += len;
+            ++offset;
+          }
+
+          return { (*srcline_ref).phisic_line_num + offset, this->column - total_len };
+        } else {
+          return {(*srcline_ref).phisic_line_num, this->column};
+        }
+      }
+
+      /**
+      * @brief 対応する論理行番号を取得する
+      * @return 論理行数
+      */
+      fn get_logicalline_num() const -> std::size_t {
+        return (*srcline_ref).logical_line_num;
+      }
+
+    };
+
+  } // namespace v2
 
 } // namespace kusabira::PP
