@@ -17,7 +17,7 @@ namespace pp_automaton_test
     //最後の文字a、非空白
     auto res = sm.input_char(input.back());
     CHECK_UNARY(res);
-    CHECK_EQ(res, kusabira::PP::pp_tokenize_status::Whitespaces);
+    CHECK_EQ(res, kusabira::PP::pp_token_category::whitespace);
   }
 
   TEST_CASE("identifer test") {
@@ -34,7 +34,7 @@ namespace pp_automaton_test
     //intを受理
     auto res = sm.input_char(input.at(index));
     CHECK_UNARY(res);
-    CHECK_EQ(res, kusabira::PP::pp_tokenize_status::Identifier);
+    CHECK_EQ(res, kusabira::PP::pp_token_category::identifier);
 
     //ホワイトスペース読み込みを終了
     CHECK_UNARY_FALSE(sm.input_char(input.at(index++)));
@@ -47,7 +47,7 @@ namespace pp_automaton_test
     //_numberを受理
     res = sm.input_char(input.at(index));
     CHECK_UNARY(res);
-    CHECK_EQ(res, kusabira::PP::pp_tokenize_status::Identifier);
+    CHECK_EQ(res, kusabira::PP::pp_token_category::identifier);
 
     //ホワイトスペース読み込みを終了
     CHECK_UNARY_FALSE(sm.input_char(input.at(index++)));
@@ -60,19 +60,19 @@ namespace pp_automaton_test
     //l1234QAZ__を受理
     res = sm.input_char(input.at(index));
     CHECK_UNARY(res);
-    CHECK_EQ(res, kusabira::PP::pp_tokenize_status::Identifier);
+    CHECK_EQ(res, kusabira::PP::pp_token_category::identifier);
 
     //{読み取り
     CHECK_UNARY_FALSE(sm.input_char(input.at(index++)));
     res = sm.input_char(input.at(index));
     CHECK_UNARY(res);
-    CHECK_EQ(res, kusabira::PP::pp_tokenize_status::OPorPunc);
+    CHECK_EQ(res, kusabira::PP::pp_token_category::op_or_punc);
 
     //}読み取り
     CHECK_UNARY_FALSE(sm.input_char(input.at(index++)));
     res = sm.input_char(input.at(index));
     CHECK_UNARY(res);
-    CHECK_EQ(res, kusabira::PP::pp_tokenize_status::OPorPunc);
+    CHECK_EQ(res, kusabira::PP::pp_token_category::op_or_punc);
   }
 
   TEST_CASE("punct test") {
@@ -85,14 +85,14 @@ namespace pp_automaton_test
     for (auto i = 1u; i < onechar.length(); ++i) {
       auto res = sm.input_char(onechar.at(i));
       CHECK_UNARY(res);
-      CHECK_EQ(res, kusabira::PP::pp_tokenize_status::OPorPunc);
+      CHECK_EQ(res, kusabira::PP::pp_token_category::op_or_punc);
       //現在文字から読み始めるために再入力
       CHECK_UNARY_FALSE(sm.input_char(onechar.at(i)));
     }
 
     auto semicolon = sm.input_newline();
     CHECK_UNARY(semicolon);
-    CHECK_EQ(semicolon, kusabira::PP::pp_tokenize_status::OPorPunc);
+    CHECK_EQ(semicolon, kusabira::PP::pp_token_category::op_or_punc);
 
     std::u8string_view twochar[] = { u8"<: ", u8":> ", u8"<% ", u8"%> ", u8"%: "/*, u8":: "*/, u8".* ", u8"-> ", u8"+= ", u8"-= ", u8"*= ", u8"/= ", u8"%= ", u8"^= ", u8"&= ", u8"|= ", u8"== ", u8"!= ", u8"<= ", u8">= ", u8"&& ", u8"|| ", u8"<< ", u8">> ", u8"## " };
 
@@ -103,7 +103,7 @@ namespace pp_automaton_test
       //3文字目の読み取り（スペース）によって受理状態へ
       auto res = sm.input_char(op.at(2));
       CHECK_UNARY(res);
-      CHECK_EQ(res, kusabira::PP::pp_tokenize_status::OPorPunc);
+      CHECK_EQ(res, kusabira::PP::pp_token_category::op_or_punc);
     }
 
     std::u8string_view threechar[] = { u8"... ", u8"<<= ", u8">>= ", u8"->* ", u8"<=> " };
@@ -115,7 +115,7 @@ namespace pp_automaton_test
       //4文字目の読み取り（スペース）によって受理状態へ
       auto res = sm.input_char(op.at(3));
       CHECK_UNARY(res);
-      CHECK_EQ(res, kusabira::PP::pp_tokenize_status::OPorPunc);
+      CHECK_EQ(res, kusabira::PP::pp_token_category::op_or_punc);
     }
 
     //最長一致規則の例外対応、代替トークン<:はそのまま受理
@@ -129,7 +129,7 @@ namespace pp_automaton_test
       //::はまとめる
       auto res = sm.input_char(op.at(2));
       CHECK_UNARY(res);
-      CHECK_EQ(res, kusabira::PP::pp_tokenize_status::OPorPunc);
+      CHECK_EQ(res, kusabira::PP::pp_token_category::op_or_punc);
     }
 
     //<::>
@@ -140,14 +140,14 @@ namespace pp_automaton_test
       //<:受理
       auto res = sm.input_char(op.at(2));
       CHECK_UNARY(res);
-      CHECK_EQ(res, kusabira::PP::pp_tokenize_status::OPorPunc);
+      CHECK_EQ(res, kusabira::PP::pp_token_category::op_or_punc);
 
       CHECK_UNARY_FALSE(sm.input_char(op.at(2)));
       CHECK_UNARY_FALSE(sm.input_char(op.at(3)));
       //:>受理
       res = sm.input_char(op.at(4));
       CHECK_UNARY(res);
-      CHECK_EQ(res, kusabira::PP::pp_tokenize_status::OPorPunc);
+      CHECK_EQ(res, kusabira::PP::pp_token_category::op_or_punc);
     }
 
     //<:::>=
@@ -158,21 +158,21 @@ namespace pp_automaton_test
       //<:受理
       auto res = sm.input_char(op.at(2));
       CHECK_UNARY(res);
-      CHECK_EQ(res, kusabira::PP::pp_tokenize_status::OPorPunc);
+      CHECK_EQ(res, kusabira::PP::pp_token_category::op_or_punc);
 
       //::受理
       CHECK_UNARY_FALSE(sm.input_char(op.at(2)));
       CHECK_UNARY_FALSE(sm.input_char(op.at(3)));
       res = sm.input_char(op.at(4));
       CHECK_UNARY(res);
-      CHECK_EQ(res, kusabira::PP::pp_tokenize_status::OPorPunc);
+      CHECK_EQ(res, kusabira::PP::pp_token_category::op_or_punc);
 
       CHECK_UNARY_FALSE(sm.input_char(op.at(4)));
       CHECK_UNARY_FALSE(sm.input_char(op.at(5)));
       //>=受理
       res = sm.input_char(op.at(6));
       CHECK_UNARY(res);
-      CHECK_EQ(res, kusabira::PP::pp_tokenize_status::OPorPunc);
+      CHECK_EQ(res, kusabira::PP::pp_token_category::op_or_punc);
     }
 
     //<:::
@@ -183,14 +183,14 @@ namespace pp_automaton_test
       //<:受理
       auto res = sm.input_char(op.at(2));
       CHECK_UNARY(res);
-      CHECK_EQ(res, kusabira::PP::pp_tokenize_status::OPorPunc);
+      CHECK_EQ(res, kusabira::PP::pp_token_category::op_or_punc);
 
       //::受理
       CHECK_UNARY_FALSE(sm.input_char(op.at(2)));
       CHECK_UNARY_FALSE(sm.input_char(op.at(3)));
       res = sm.input_char(op.at(4));
       CHECK_UNARY(res);
-      CHECK_EQ(res, kusabira::PP::pp_tokenize_status::OPorPunc);
+      CHECK_EQ(res, kusabira::PP::pp_token_category::op_or_punc);
     }
   }
 
@@ -206,7 +206,7 @@ namespace pp_automaton_test
       //文字列リテラル読み込み終了
       auto res = sm.input_char(' ');
       CHECK_UNARY(res);
-      CHECK_EQ(res, kusabira::PP::pp_tokenize_status::StringLiteral);
+      CHECK_EQ(res, kusabira::PP::pp_token_category::string_literal);
     }
 
     {
@@ -220,7 +220,7 @@ namespace pp_automaton_test
       //文字リテラル読み込み終了
       auto res = sm.input_char(' ');
       CHECK_UNARY(res);
-      CHECK_EQ(res, kusabira::PP::pp_tokenize_status::StringLiteral);
+      CHECK_EQ(res, kusabira::PP::pp_token_category::string_literal);
     }
   }
 
@@ -236,7 +236,7 @@ namespace pp_automaton_test
       //生文字列リテラル読み込み終了
       auto res = sm.input_char(' ');
       CHECK_UNARY(res);
-      CHECK_EQ(res, kusabira::PP::pp_tokenize_status::RawStrLiteral);
+      CHECK_EQ(res, kusabira::PP::pp_token_category::raw_string_literal);
     }
 
     {
@@ -250,7 +250,7 @@ namespace pp_automaton_test
       //生文字列リテラル読み込み終了
       auto res = sm.input_char(' ');
       CHECK_UNARY(res);
-      CHECK_EQ(res, kusabira::PP::pp_tokenize_status::RawStrLiteral);
+      CHECK_EQ(res, kusabira::PP::pp_token_category::raw_string_literal);
     }
 
     {
@@ -264,7 +264,7 @@ namespace pp_automaton_test
       //生文字列リテラル読み込み終了
       auto res = sm.input_char(' ');
       CHECK_UNARY(res);
-      CHECK_EQ(res, kusabira::PP::pp_tokenize_status::RawStrLiteral);
+      CHECK_EQ(res, kusabira::PP::pp_token_category::raw_string_literal);
     }
 
     {
@@ -278,7 +278,7 @@ namespace pp_automaton_test
       //生文字列リテラル読み込み終了
       auto res = sm.input_char(' ');
       CHECK_UNARY(res);
-      CHECK_EQ(res, kusabira::PP::pp_tokenize_status::RawStrLiteral);
+      CHECK_EQ(res, kusabira::PP::pp_token_category::raw_string_literal);
     }
 
     {
@@ -311,7 +311,7 @@ namespace pp_automaton_test
       //生文字列リテラル読み込み終了
       auto res = sm.input_char(' ');
       CHECK_UNARY(res);
-      CHECK_EQ(res, kusabira::PP::pp_tokenize_status::RawStrLiteral);
+      CHECK_EQ(res, kusabira::PP::pp_token_category::raw_string_literal);
     }
   }
 
@@ -328,7 +328,7 @@ namespace pp_automaton_test
       //改行入力、行コメント終了
       auto res = sm.input_newline();
       CHECK_UNARY(res);
-      CHECK_EQ(res, kusabira::PP::pp_tokenize_status::LineComment);
+      CHECK_EQ(res, kusabira::PP::pp_token_category::line_comment);
     }
 
     {
@@ -343,7 +343,7 @@ namespace pp_automaton_test
       //ブロック閉じ後の1文字入力
       auto res = sm.input_char(u8' ');
       CHECK_UNARY(res);
-      CHECK_EQ(res, kusabira::PP::pp_tokenize_status::BlockComment);
+      CHECK_EQ(res, kusabira::PP::pp_token_category::block_comment);
     }
 
     {
@@ -376,7 +376,7 @@ namespace pp_automaton_test
       //ブロック閉じ後の1文字入力
       auto res = sm.input_char(u8' ');
       CHECK_UNARY(res);
-      CHECK_EQ(res, kusabira::PP::pp_tokenize_status::BlockComment);
+      CHECK_EQ(res, kusabira::PP::pp_token_category::block_comment);
     }
 
     {
@@ -409,7 +409,7 @@ namespace pp_automaton_test
       //英数字とドット、'以外のもの
       auto res = sm.input_char(u8';');
       CHECK_UNARY(res);
-      CHECK_EQ(res, kusabira::PP::pp_tokenize_status::NumberLiteral);
+      CHECK_EQ(res, kusabira::PP::pp_token_category::pp_number);
     }
 
     {
@@ -424,7 +424,7 @@ namespace pp_automaton_test
       //英数字とドット、'以外のもの
       auto res = sm.input_char(u8';');
       CHECK_UNARY(res);
-      CHECK_EQ(res, kusabira::PP::pp_tokenize_status::NumberLiteral);
+      CHECK_EQ(res, kusabira::PP::pp_token_category::pp_number);
     }
 
     {
@@ -439,7 +439,7 @@ namespace pp_automaton_test
       //英数字とドット、'以外のもの
       auto res = sm.input_char(u8';');
       CHECK_UNARY(res);
-      CHECK_EQ(res, kusabira::PP::pp_tokenize_status::NumberLiteral);
+      CHECK_EQ(res, kusabira::PP::pp_token_category::pp_number);
     }
 
     {
@@ -454,7 +454,7 @@ namespace pp_automaton_test
       //英数字とドット、'以外のもの
       auto res = sm.input_char(u8';');
       CHECK_UNARY(res);
-      CHECK_EQ(res, kusabira::PP::pp_tokenize_status::NumberLiteral);
+      CHECK_EQ(res, kusabira::PP::pp_token_category::pp_number);
     }
 
     {
@@ -469,7 +469,7 @@ namespace pp_automaton_test
       //英数字とドット、'以外のもの
       auto res = sm.input_char(u8';');
       CHECK_UNARY(res);
-      CHECK_EQ(res, kusabira::PP::pp_tokenize_status::NumberLiteral);
+      CHECK_EQ(res, kusabira::PP::pp_token_category::pp_number);
     }
 
     {
@@ -484,7 +484,7 @@ namespace pp_automaton_test
       //英数字とドット、'以外のもの
       auto res = sm.input_char(u8';');
       CHECK_UNARY(res);
-      CHECK_EQ(res, kusabira::PP::pp_tokenize_status::NumberLiteral);
+      CHECK_EQ(res, kusabira::PP::pp_token_category::pp_number);
     }
 
     {
@@ -495,7 +495,7 @@ namespace pp_automaton_test
       //ユーザー定義リテラルは別
       auto res = sm.input_char(u8'_');
       CHECK_UNARY(res);
-      CHECK_EQ(res, kusabira::PP::pp_tokenize_status::NumberLiteral);
+      CHECK_EQ(res, kusabira::PP::pp_token_category::pp_number);
     }
 
     {
@@ -506,7 +506,7 @@ namespace pp_automaton_test
       //16進数までしか考慮しない
       auto res = sm.input_char(u8'g');
       CHECK_UNARY(res);
-      CHECK_EQ(res, kusabira::PP::pp_tokenize_status::NumberLiteral);
+      CHECK_EQ(res, kusabira::PP::pp_token_category::pp_number);
     }
 
     {
@@ -517,7 +517,7 @@ namespace pp_automaton_test
       CHECK_UNARY_FALSE(sm.input_char(u8'f'));
       auto res = sm.input_char(u8'_');
       CHECK_UNARY(res);
-      CHECK_EQ(res, kusabira::PP::pp_tokenize_status::NumberLiteral);
+      CHECK_EQ(res, kusabira::PP::pp_token_category::pp_number);
     }
   }
 
@@ -532,7 +532,7 @@ namespace pp_automaton_test
 
     auto res = sm.input_newline();
     CHECK_UNARY(res);
-    CHECK_EQ(res, kusabira::PP::pp_tokenize_status::Whitespaces);
+    CHECK_EQ(res, kusabira::PP::pp_token_category::whitespace);
 
 
     //コメントっぽい？
@@ -541,7 +541,7 @@ namespace pp_automaton_test
     res = sm.input_newline();
     CHECK_UNARY(res);
     //記号です
-    CHECK_EQ(res, kusabira::PP::pp_tokenize_status::OPorPunc);
+    CHECK_EQ(res, kusabira::PP::pp_token_category::op_or_punc);
 
 
     //生文字列リテラルぽい？
@@ -550,7 +550,7 @@ namespace pp_automaton_test
     res = sm.input_newline();
     CHECK_UNARY(res);
     //識別子
-    CHECK_EQ(res, kusabira::PP::pp_tokenize_status::Identifier);
+    CHECK_EQ(res, kusabira::PP::pp_token_category::identifier);
 
     //生文字列リテラルぽい？2
     CHECK_UNARY_FALSE(sm.input_char(u8'R'));
@@ -561,7 +561,7 @@ namespace pp_automaton_test
     res = sm.input_newline();
     CHECK_UNARY(res);
     //生文字列リテラルの途中
-    CHECK_EQ(res, kusabira::PP::pp_tokenize_status::DuringRawStr);
+    CHECK_EQ(res, kusabira::PP::pp_token_category::during_raw_string_literal);
 
     CHECK_UNARY_FALSE(sm.input_char(u8'b'));
     CHECK_UNARY_FALSE(sm.input_char(u8')'));
@@ -570,7 +570,7 @@ namespace pp_automaton_test
     res = sm.input_newline();
     CHECK_UNARY(res);
     //生文字列リテラル
-    CHECK_EQ(res, kusabira::PP::pp_tokenize_status::RawStrLiteral);
+    CHECK_EQ(res, kusabira::PP::pp_token_category::raw_string_literal);
 
     //L文字列リテラルぽい？
     CHECK_UNARY_FALSE(sm.input_char(u8'L'));
@@ -578,7 +578,7 @@ namespace pp_automaton_test
     res = sm.input_newline();
     CHECK_UNARY(res);
     //識別子
-    CHECK_EQ(res, kusabira::PP::pp_tokenize_status::Identifier);
+    CHECK_EQ(res, kusabira::PP::pp_token_category::identifier);
 
 
     //u文字列リテラルぽい？
@@ -587,7 +587,7 @@ namespace pp_automaton_test
     res = sm.input_newline();
     CHECK_UNARY(res);
     //識別子
-    CHECK_EQ(res, kusabira::PP::pp_tokenize_status::Identifier);
+    CHECK_EQ(res, kusabira::PP::pp_token_category::identifier);
 
 
     //文字列リテラル
@@ -596,7 +596,7 @@ namespace pp_automaton_test
     res = sm.input_newline();
     CHECK_UNARY(res);
     //エラー
-    CHECK_EQ(res, kusabira::PP::pp_tokenize_status::UnexpectedNewLine);
+    CHECK_EQ(res, kusabira::PP::pp_token_category::UnexpectedNewLine);
 
 
     //文字リテラル
@@ -605,7 +605,7 @@ namespace pp_automaton_test
     res = sm.input_newline();
     CHECK_UNARY(res);
     //エラー
-    CHECK_EQ(res, kusabira::PP::pp_tokenize_status::UnexpectedNewLine);
+    CHECK_EQ(res, kusabira::PP::pp_token_category::UnexpectedNewLine);
 
 
     //エスケープシーケンス
@@ -616,7 +616,7 @@ namespace pp_automaton_test
     res = sm.input_newline();
     CHECK_UNARY(res);
     //エラー
-    CHECK_EQ(res, kusabira::PP::pp_tokenize_status::UnexpectedNewLine);
+    CHECK_EQ(res, kusabira::PP::pp_token_category::UnexpectedNewLine);
 
 
     //識別子
@@ -624,7 +624,7 @@ namespace pp_automaton_test
 
     res = sm.input_newline();
     CHECK_UNARY(res);
-    CHECK_EQ(res, kusabira::PP::pp_tokenize_status::Identifier);
+    CHECK_EQ(res, kusabira::PP::pp_token_category::identifier);
 
 
     //数値リテラル
@@ -634,7 +634,7 @@ namespace pp_automaton_test
 
     res = sm.input_newline();
     CHECK_UNARY(res);
-    CHECK_EQ(res, kusabira::PP::pp_tokenize_status::NumberLiteral);
+    CHECK_EQ(res, kusabira::PP::pp_token_category::pp_number);
 
 
     //浮動小数点リテラル、指数部
@@ -644,7 +644,7 @@ namespace pp_automaton_test
 
     res = sm.input_newline();
     CHECK_UNARY(res);
-    CHECK_EQ(res, kusabira::PP::pp_tokenize_status::NumberLiteral);
+    CHECK_EQ(res, kusabira::PP::pp_token_category::pp_number);
 
 
     //記号列
@@ -653,6 +653,6 @@ namespace pp_automaton_test
 
     res = sm.input_newline();
     CHECK_UNARY(res);
-    CHECK_EQ(res, kusabira::PP::pp_tokenize_status::OPorPunc);
+    CHECK_EQ(res, kusabira::PP::pp_token_category::op_or_punc);
   }
 }

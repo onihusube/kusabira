@@ -24,13 +24,13 @@ namespace kusabira::PP {
 
   struct pp_err_info {
 
-    template<typename Token = lex_token>
+    template<typename Token = pp_token>
     pp_err_info(Token&& lextoken, pp_parse_context err_from)
       : token(std::forward<Token>(lextoken))
       , context(err_from)
     {}
 
-    lex_token token;
+    pp_token token;
     pp_parse_context context;
   };
 
@@ -56,12 +56,12 @@ namespace kusabira::PP {
 
     auto check_status = [](auto kind) -> bool {
       //ホワイトスペース列とブロックコメントはスルー
-      return kind == pp_tokenize_status::Whitespaces or kind == pp_tokenize_status::BlockComment;
+      return kind == pp_token_category::whitespace or kind == pp_token_category::block_comment;
     };
 
     do {
       ++it;
-    } while (it != end and check_status(deref(it).kind));
+    } while (it != end and check_status(deref(it).category));
 
     return it != end;
   }
@@ -74,7 +74,7 @@ namespace kusabira::PP {
 
 //トークナイザのエラーチェック
 #define TOKNIZE_ERR_CHECK(iterator)                                               \
-  if (auto status_kind = (*iterator).kind.status; status_kind < pp_tokenize_status::Unaccepted) \
+  if (auto status_kind = (*iterator).category; status_kind < pp_token_category::Unaccepted) \
   return make_error(iterator, pp_parse_context{static_cast<std::underlying_type_t<decltype(status_kind)>>(status_kind)})
 
 //イテレータを一つ進めるとともに終端チェック
@@ -122,13 +122,13 @@ namespace kusabira::PP {
 
       //空のファイル判定
       if (it == se) return {};
-      if (auto kind = (*it).kind; kind == pp_tokenize_status::Whitespaces or kind == pp_tokenize_status::BlockComment) {
+      if (auto kind = (*it).category; kind == pp_token_category::whitespace or kind == pp_token_category::block_comment) {
         //空に等しいファイルだった
         SKIP_WHITESPACE(it, se);
       }
 
       //モジュールファイルを識別
-      if (auto& top_token = *it; top_token.kind == pp_tokenize_status::Identifier) {
+      if (auto& top_token = *it; top_token.category == pp_token_category::identifier) {
         using namespace std::string_view_literals;
 
         if (auto str = top_token.token; str == u8"module" or str == u8"export") {
@@ -163,19 +163,19 @@ namespace kusabira::PP {
       using namespace std::string_view_literals;
 
       //ホワイトスペース列を読み飛ばす
-      if (auto kind = (*it).kind; kind == pp_tokenize_status::Whitespaces or kind == pp_tokenize_status::BlockComment) {
+      if (auto kind = (*it).category; kind == pp_token_category::whitespace or kind == pp_token_category::block_comment) {
         SKIP_WHITESPACE(it, end);
       }
 
-      if (auto& token = *it; token.kind == pp_tokenize_status::OPorPunc) {
+      if (auto& token = *it; token.category == pp_token_category::op_or_punc) {
         //先頭#から始まればプリプロセッシングディレクティブ
         if (token.token == u8"#") {
           //ホワイトスペース列を読み飛ばす
           SKIP_WHITESPACE(it, end);
 
           //なにかしらの識別子が来てるはず
-          if (auto& next_token = *it; next_token.kind != pp_tokenize_status::Identifier) {
-            if (next_token.kind == pp_tokenize_status::NewLine) {
+          if (auto& next_token = *it; next_token.category != pp_token_category::identifier) {
+            if (next_token.category == pp_token_category::newline) {
               //空のプリプロセッシングディレクティブ
               return this->newline(it, end);
             }
@@ -202,7 +202,7 @@ namespace kusabira::PP {
         }
       }
 
-      if ((*it).kind == pp_tokenize_status::Identifier) {
+      if ((*it).category == pp_token_category::identifier) {
         if ((*it).token == u8"import" or (*it).token == u8"export") {
             // モジュールのインポート宣言
             // pp-importに直接行ってもいい気がする
@@ -216,7 +216,7 @@ namespace kusabira::PP {
 
     fn control_line(iterator& it, sentinel end) -> parse_status {
       // 事前条件
-      assert((*it).kind == pp_tokenize_status::Identifier);
+      assert((*it).category == pp_token_category::identifier);
       assert(it != end);
 
       auto tokenstr = (*it).token;
@@ -230,7 +230,7 @@ namespace kusabira::PP {
         });
       } else if (tokenstr == u8"undef") {
         SKIP_WHITESPACE(it, end);
-        if (deref(it).kind != pp_tokenize_status::Identifier) {
+        if (deref(it).category != pp_token_category::identifier) {
           //マクロ名以外のものが指定されている
           m_reporter->pp_err_report(m_filename, *it, pp_parse_context::Define_InvalidDirective);
           return kusabira::error(pp_err_info{ std::move(*it), pp_parse_context::Define_InvalidDirective });
@@ -268,10 +268,10 @@ namespace kusabira::PP {
       //ホワイトスペース列を読み飛ばす
       SKIP_WHITESPACE(it, end);
 
-      if ((*it).kind != pp_tokenize_status::Identifier) {
+      if ((*it).category != pp_token_category::identifier) {
         // #defineディレクティブのエラー、マクロ名が無い
-        m_reporter->pp_err_report(m_filename, *it, pp_parse_context::Define_No_Identifier);
-        return kusabira::error(pp_err_info{std::move(*it),  pp_parse_context::Define_No_Identifier});
+        m_reporter->pp_err_report(m_filename, *it, pp_parse_context::Define_No_identifier);
+        return kusabira::error(pp_err_info{std::move(*it),  pp_parse_context::Define_No_identifier});
       }
 
       //マクロ名となるトークン
@@ -283,7 +283,7 @@ namespace kusabira::PP {
       //オブジェクトマクロは逆に必ずスペースが入る
       
       //オブジェクト形式マクロの登録
-      if (deref(it).kind == pp_tokenize_status::Whitespaces) {
+      if (deref(it).category == pp_token_category::whitespace) {
         //置換リストの取得
         return this->replacement_list(it, end).and_then([&, this](auto&& replacement_token_list) -> parse_status {
           //マクロの登録
@@ -295,7 +295,7 @@ namespace kusabira::PP {
       }
       
       //関数マクロの登録
-      if (deref(it).kind == pp_tokenize_status::OPorPunc and deref(it).token == u8"(") {
+      if (deref(it).category == pp_token_category::op_or_punc and deref(it).token == u8"(") {
         //引数リストの取得
         return this->identifier_list(it, end).and_then([&, this](auto&& value) -> parse_status {
           auto& [arg_status, arglist] = value;
@@ -313,7 +313,7 @@ namespace kusabira::PP {
             arglist.emplace_back(u8"...");
             //閉じかっこを探す
             SKIP_WHITESPACE(it, end);
-            if (deref(it).kind == pp_tokenize_status::OPorPunc and deref(it).token == u8")") {
+            if (deref(it).category == pp_token_category::op_or_punc and deref(it).token == u8")") {
               ++it;
             } else {
               //閉じ括弧が出現しない場合はエラー
@@ -359,10 +359,10 @@ namespace kusabira::PP {
         if (skip_whitespaces(it, end) == false)
           return kusabira::error(pp_err_info{std::move(*it), pp_parse_context::UnexpectedEOF});
 
-        if (deref(it).kind == pp_tokenize_status::Identifier) {
+        if (deref(it).category == pp_token_category::identifier) {
           //普通の識別子なら仮引数名
           param_list.emplace_back((*it).token);
-        } else if (deref(it).kind == pp_tokenize_status::OPorPunc) {
+        } else if (deref(it).category == pp_token_category::op_or_punc) {
           //記号が出てきたら可変長マクロか閉じ括弧の可能性がある
           if (deref(it).token == u8"...") {
             return kusabira::ok(std::make_pair(pp_parse_status::DefineVA, std::move(param_list)));
@@ -383,7 +383,7 @@ namespace kusabira::PP {
         if (skip_whitespaces(it, end) == false)
           return kusabira::error(pp_err_info{std::move(*it), pp_parse_context::UnexpectedEOF});
 
-        if (deref(it).kind == pp_tokenize_status::OPorPunc) {
+        if (deref(it).category == pp_token_category::op_or_punc) {
           if (deref(it).token == u8",") {
             //残りの引数リストをパースする
             continue;
@@ -448,7 +448,7 @@ namespace kusabira::PP {
         //ホワイトスペース列を読み飛ばす
         SKIP_WHITESPACE(it, end);
 
-        if (auto kind = (*it).kind; kind != pp_tokenize_status::Identifier) {
+        if (auto kind = (*it).category; kind != pp_token_category::identifier) {
           //識別子以外が出てきたらエラー
           return make_error(it, pp_parse_context::IfGroup_Invalid);
         }
@@ -462,7 +462,7 @@ namespace kusabira::PP {
       //ホワイトスペース列を読み飛ばす
       SKIP_WHITESPACE(it, end);
 
-      if (auto kind = (*it).kind; kind != pp_tokenize_status::NewLine) {
+      if (auto kind = (*it).category; kind != pp_token_category::newline) {
         //改行文字以外が出てきたらエラー
         return make_error(it, pp_parse_context::IfGroup_Invalid);
       }
@@ -497,7 +497,7 @@ namespace kusabira::PP {
       //ホワイトスペース列を読み飛ばす
       SKIP_WHITESPACE(it, end);
 
-      if (auto kind = (*it).kind; kind != pp_tokenize_status::NewLine) {
+      if (auto kind = (*it).category; kind != pp_token_category::newline) {
         //改行文字以外が出てきたらエラー
         return make_error(it, pp_parse_context::ElseGroup);
       }
@@ -513,7 +513,7 @@ namespace kusabira::PP {
         SKIP_WHITESPACE(it, end);
 
         //改行が現れなければならない
-        if (it != end and (*it).kind == pp_tokenize_status::NewLine) {
+        if (it != end and (*it).category == pp_token_category::newline) {
           //正常終了
           return this->newline(it, end);
         } else {
@@ -534,12 +534,12 @@ namespace kusabira::PP {
       using namespace std::string_view_literals;
 
       //現在の字句トークンのカテゴリ
-      auto lextoken_category = deref(it).kind;
+      auto lextoken_category = deref(it).category;
 
       //その行のプリプロセッシングトークン列を読み出す
-      while (lextoken_category != pp_tokenize_status::NewLine) {
+      while (lextoken_category != pp_token_category::newline) {
         //トークナイザのエラーは別の所で処理するのでここでは考慮しない
-        assert(pp_tokenize_status::Unaccepted < lextoken_category);
+        assert(pp_token_category::Unaccepted < lextoken_category);
 
         //プリプロセッシングトークン1つを作成する、終了後イテレータは未処理のトークンを指している
         if (auto err_opt = this->construct_next_pptoken<true>(it, end, list); err_opt) {
@@ -547,7 +547,7 @@ namespace kusabira::PP {
           return kusabira::error(std::move(*err_opt));
         }
 
-        lextoken_category = deref(it).kind;
+        lextoken_category = deref(it).category;
       }
 
       //改行で終了
@@ -572,8 +572,8 @@ namespace kusabira::PP {
       };
 
       //トークン読み出しとプリプロセッシングトークンの構成
-      switch (deref(it).kind.status) {
-        case pp_tokenize_status::Identifier:
+      switch (deref(it).category.status) {
+        case pp_token_category::identifier:
         {
           //識別子を処理、マクロ置換を行う
           if (auto opt = preprocessor.is_macro(deref(it).token); opt) {
@@ -606,12 +606,12 @@ namespace kusabira::PP {
           }
           break;
         }
-        case pp_tokenize_status::LineComment:  [[fallthrough]];
-        case pp_tokenize_status::BlockComment: [[fallthrough]];
-        case pp_tokenize_status::Whitespaces:
+        case pp_token_category::line_comment:  [[fallthrough]];
+        case pp_token_category::block_comment: [[fallthrough]];
+        case pp_token_category::whitespace:
           //マクロの引数パース時のみ処理が必要
           break;
-        case pp_tokenize_status::OPorPunc:
+        case pp_token_category::op_or_punc:
         {
           auto&& oppunc_list = longest_match_exception_handling(it, end);
           if (0u < oppunc_list.size()) {
@@ -621,7 +621,7 @@ namespace kusabira::PP {
           se_inc_itr.release();
           break;
         }
-        case pp_tokenize_status::DuringRawStr:
+        case pp_token_category::during_raw_string_literal:
         {
           //改行されている生文字列リテラルの1行目
           //生文字列リテラル全体を一つのトークンとして読み出す必要がある
@@ -635,11 +635,11 @@ namespace kusabira::PP {
           }
           break;
         }
-        case pp_tokenize_status::RawStrLiteral: [[fallthrough]];
-        case pp_tokenize_status::StringLiteral:
+        case pp_token_category::raw_string_literal: [[fallthrough]];
+        case pp_token_category::string_literal:
         {
-          auto category = (deref(it).kind == pp_tokenize_status::RawStrLiteral) ? pp_token_category::raw_string_literal : pp_token_category::string_literal;
-          auto& prev = list.emplace_back(category, std::move(*it));
+          //auto category = (deref(it).category == pp_token_category::RawStrLiteral) ? pp_token_category::raw_string_literal : pp_token_category::string_literal;
+          auto& prev = list.emplace_back(deref(it).category, std::move(*it));
 
           //次のトークンを調べてユーザー定義リテラルの有無を判断
           ++it;
@@ -649,18 +649,18 @@ namespace kusabira::PP {
           }
           break;
         }
-        case pp_tokenize_status::Empty:
+        case pp_token_category::empty:
           //無視
           break;
-        case pp_tokenize_status::NewLine:
+        case pp_token_category::newline:
           //来ないはず
           assert(false);
           break;
         default:
         {
           //基本はトークン1つを読み込んでプリプロセッシングトークンを構成する
-          auto category = tokenize_status_to_category(deref(it).kind);
-          list.emplace_back(category, std::move(*it));
+          //auto category = tokenize_status_to_category(deref(it).category);
+          list.emplace_back(std::move(*it));
         }
       }
 
@@ -684,7 +684,7 @@ namespace kusabira::PP {
       //関数マクロ呼び出しを終了する閉じ括弧が出るまで引数をパースする
       while (true) {
 
-        if (deref(it).kind == pp_tokenize_status::OPorPunc) {
+        if (deref(it).category == pp_token_category::op_or_punc) {
 
           //カンマの出現で1つの実引数のパースを完了する
           if (inner_paren == 0 and deref(it).token == u8",") {
@@ -703,7 +703,7 @@ namespace kusabira::PP {
             //ネストしてるかっこの閉じかっこ
             --inner_paren;
           }
-        } else if (deref(it).kind == pp_tokenize_status::NewLine) {
+        } else if (deref(it).category == pp_token_category::newline) {
           //改行は空白文字として扱う、マクロ引数中の空白文字の並びは1つに圧縮される
           if (auto &prev_token = arg_list.back(); prev_token.category != pp_token_category::whitespace) {
             auto& gen_token = arg_list.emplace_back(pp_token_category::whitespace, std::move(*it));
@@ -740,7 +740,7 @@ namespace kusabira::PP {
     fn newline(iterator& it, sentinel end) -> parse_status {
       //事前条件
       assert(it != end);
-      assert((*it).kind == pp_tokenize_status::NewLine);
+      assert((*it).category == pp_token_category::newline);
 
       //改行を保存
       this->pptoken_list.emplace_back(pp_token_category::newline, std::move(*it));
@@ -755,26 +755,26 @@ namespace kusabira::PP {
     * @param status トークナイザの出力分類
     * @return プリプセッシングトークン分類
     */
-    sfn tokenize_status_to_category(pp_tokenize_status status) -> pp_token_category {
-      switch (status)
-      {
-      case kusabira::PP::pp_tokenize_status::Identifier:
-        return pp_token_category::identifier;
-      case kusabira::PP::pp_tokenize_status::NumberLiteral:
-        return pp_token_category::pp_number;
-      case kusabira::PP::pp_tokenize_status::OPorPunc:
-        return pp_token_category::op_or_punc;
-      case kusabira::PP::pp_tokenize_status::OtherChar:
-        return pp_token_category::other_character;
-      case kusabira::PP::pp_tokenize_status::NewLine:
-        return pp_token_category::newline;
-      default:
-        //ここに来たら上でバグってる
-        assert(false);
-        return pp_token_category{};
-        break;
-      }
-    }
+    //sfn tokenize_status_to_category(pp_token_category status) -> pp_token_category {
+    //  switch (status)
+    //  {
+    //  case kusabira::PP::pp_token_category::identifier:
+    //    return pp_token_category::identifier;
+    //  case kusabira::PP::pp_token_category::NumberLiteral:
+    //    return pp_token_category::pp_number;
+    //  case kusabira::PP::pp_token_category::op_or_punc:
+    //    return pp_token_category::op_or_punc;
+    //  case kusabira::PP::pp_token_category::OtherChar:
+    //    return pp_token_category::other_character;
+    //  case kusabira::PP::pp_token_category::newline:
+    //    return pp_token_category::newline;
+    //  default:
+    //    //ここに来たら上でバグってる
+    //    assert(false);
+    //    return pp_token_category{};
+    //    break;
+    //  }
+    //}
 
 
     /**
@@ -797,7 +797,7 @@ namespace kusabira::PP {
       }
 
       //イテレータは既に一つ進められているものとして扱う
-      if ((*it).kind == pp_tokenize_status::Identifier) {
+      if ((*it).category == pp_token_category::identifier) {
         using enum_int = std::underlying_type_t<decltype(last_pptoken.category)>;
         //文字列のすぐあとが識別子ならユーザー定義リテラル
         //どちらにせよ1つ進めれば適切なカテゴリになる
@@ -828,7 +828,7 @@ namespace kusabira::PP {
 
       //事前条件
       assert(it != end);
-      assert((*it).kind == pp_tokenize_status::DuringRawStr);
+      assert((*it).category == pp_token_category::during_raw_string_literal);
 
       //生文字列リテラルの行継続を元に戻す
       auto undo_linecontinue = [](auto& iter, auto& string, std::size_t bias = 0) {
@@ -877,10 +877,10 @@ namespace kusabira::PP {
       do {
         //次の行をチェックする
         ++it;
-        if (it == end or (*it).kind <= pp_tokenize_status::Unaccepted) {
+        if (it == end or (*it).category <= pp_token_category::Unaccepted) {
           //エラーかな
           return token;
-        } else if ((*it).kind != pp_tokenize_status::NewLine) {
+        } else if ((*it).category != pp_token_category::newline) {
           //生文字列リテラルを改行する（DuringRawStrステータスは改行によって終了している）
           rawstr.push_back(u8'\n');
           std::size_t length = rawstr.length();
@@ -894,11 +894,11 @@ namespace kusabira::PP {
         //改行入力はスルーする
 
         //エラーを除いて、この3つのトークン種別以外が出てくることはないはず
-        assert((*it).kind == pp_tokenize_status::RawStrLiteral
-                or (*it).kind == pp_tokenize_status::DuringRawStr
-                or (*it).kind == pp_tokenize_status::NewLine);
+        assert((*it).category == pp_token_category::raw_string_literal
+                or (*it).category == pp_token_category::during_raw_string_literal
+                or (*it).category == pp_token_category::newline);
 
-      } while ((*it).kind != pp_tokenize_status::RawStrLiteral);
+      } while ((*it).category != pp_token_category::raw_string_literal);
 
       token.token = std::move(rawstr);
 
@@ -917,11 +917,11 @@ namespace kusabira::PP {
 
       //改行の出現をチェックする、改行ならtrue
       auto check_newline = [](auto& it) {
-        return deref(it).kind == pp_tokenize_status::NewLine;
+        return deref(it).category == pp_token_category::newline;
       };
 
       //事前条件
-      assert((*it).kind == pp_tokenize_status::OPorPunc);
+      assert((*it).category == pp_token_category::op_or_punc);
 
       //プリプロセッシングトークンを一時保存しておくリスト
       pptoken_conteiner tmp_pptoken_list{ &kusabira::def_mr };
@@ -938,7 +938,7 @@ namespace kusabira::PP {
       }
 
       //次のトークンをチェック、記号トークンでなければ処理の必要はない
-      if (deref(it).kind != pp_tokenize_status::OPorPunc) {
+      if (deref(it).category != pp_token_category::op_or_punc) {
         return tmp_pptoken_list;
       }
 

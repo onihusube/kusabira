@@ -169,9 +169,6 @@ namespace kusabira::PP
     }
   };
 
-
-  inline namespace v1 {
-
   /**
   * @brief ソースコードの論理行での1行を表現する型
   * @detail 改行継続（バックスラッシュ+改行）後にソースファイルの物理行との対応を取るためのもの
@@ -200,6 +197,9 @@ namespace kusabira::PP
     logical_line(logical_line &&) = default;
     logical_line &operator=(logical_line &&) = default;
   };
+
+
+  namespace v1 {
 
   /**
   * @brief 字句トークン1つを表現する型
@@ -541,7 +541,7 @@ namespace kusabira::PP
 
 
   // プリプロセッシングトークンと字句トークン型をまとめるようにする変更中
-  namespace v2 {
+  inline namespace v2 {
 
     enum class pp_token_category : std::int8_t {
 
@@ -684,6 +684,14 @@ namespace kusabira::PP
         , column{ col }
         , srcline_ref{ std::move(line) }
         , lextokens{ &kusabira::def_mr}
+      {}
+
+      pp_token(pp_token_category cat)
+        : category{ cat }
+        , token{}
+        , column{0}
+        , srcline_ref{}
+        , lextokens{ &kusabira::def_mr }
       {}
 
       /**

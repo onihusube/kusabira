@@ -201,12 +201,12 @@ namespace kusabira::report {
   public:
 
     /**
-    * @brief 指定文字列を直接出力する
+    * @brief 指定文字列を周辺情報と一緒に出力する
     * @param message 本文
     * @param filename ソースファイル名
     * @param context 出力のきっかけとなった場所を示す字句トークン
     */
-    void print_report(std::u8string_view message, const fs::path& filename, const PP::lex_token& context, report_category cat = report_category::error) const {
+    void print_report(std::u8string_view message, const fs::path& filename, const PP::pp_token& context, report_category cat = report_category::error) const {
       //<file名>:<行>:<列>: <メッセージのカテゴリ>: <本文>
       //の形式で出力
 
@@ -232,7 +232,7 @@ namespace kusabira::report {
     * @param token エラー発生時の字句トークン
     * @param context エラー発生箇所の文脈
     */
-    void pp_err_report(const fs::path &filename, PP::lex_token token, PP::pp_parse_context context, report_category cat = report_category::error) const {
+    void pp_err_report(const fs::path &filename, PP::pp_token token, PP::pp_parse_context context, report_category cat = report_category::error) const {
 
       //エラーメッセージ本文出力
       this->print_report(this->pp_context_to_message(context), filename, token, cat);

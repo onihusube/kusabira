@@ -807,7 +807,7 @@ namespace kusabira::PP {
     * @return 登録が恙なく完了したかどうか
     */
     template <typename Reporter, typename ReplacementList = std::pmr::list<pp_token>, typename ParamList = std::nullptr_t>
-    fn define(Reporter &reporter, const PP::lex_token& macro_name, ReplacementList &&tokenlist, [[maybe_unused]] ParamList&& params = {}, [[maybe_unused]] bool is_va = false) -> bool {
+    fn define(Reporter &reporter, const PP::pp_token& macro_name, ReplacementList &&tokenlist, [[maybe_unused]] ParamList&& params = {}, [[maybe_unused]] bool is_va = false) -> bool {
       using namespace std::string_view_literals;
 
       bool redefinition_err = false;
@@ -815,7 +815,7 @@ namespace kusabira::PP {
 
       if constexpr (std::is_same_v<ParamList, std::nullptr_t>) {
         //オブジェクトマクロの登録
-        const auto [pos, is_registered] = m_funcmacros.try_emplace(macro_name.token, std::forward<ReplacementList>(tokenlist));
+        const auto [pos, is_registered] = m_funcmacros.try_emplace(macro_name.token.to_view(), std::forward<ReplacementList>(tokenlist));
 
         if (not is_registered) {
           if ((*pos).second.is_identical({}, tokenlist)) return true;
@@ -830,7 +830,7 @@ namespace kusabira::PP {
       } else {
         static_assert([] { return false; }() || std::is_same_v<std::remove_cvref_t<ParamList>, std::pmr::vector<std::u8string_view>>, "ParamList must be std::pmr::vector<std::u8string_view>.");
         //関数マクロの登録
-        const auto [pos, is_registered] = m_funcmacros.try_emplace(macro_name.token, std::forward<ParamList>(params), std::forward<ReplacementList>(tokenlist), is_va);
+        const auto [pos, is_registered] = m_funcmacros.try_emplace(macro_name.token.to_view(), std::forward<ParamList>(params), std::forward<ReplacementList>(tokenlist), is_va);
 
         if (not is_registered) {
           if ((*pos).second.is_identical(params, tokenlist)) return true;
@@ -880,12 +880,12 @@ namespace kusabira::PP {
     * @param macro_name マクロ名
     * @return 処理結果、無効値は対象外
     */
-    fn predefined_macro(const lex_token& macro_name) const -> std::optional<std::pmr::list<pp_token>> {
+    fn predefined_macro(const pp_token& macro_name) const -> std::optional<std::pmr::list<pp_token>> {
 
       //結果プリプロセッシングトークンリストを作成する処理
-      auto make_result = [&macro_name, &mr = kusabira::def_mr](auto str, auto pptoken_cat, auto lextoken_cat) {
+      auto make_result = [&macro_name, &mr = kusabira::def_mr](auto str, auto pptoken_cat) {
         std::pmr::list<pp_token> result_list{&mr};
-        auto &linenum_token = result_list.emplace_back(pptoken_cat, lex_token{{lextoken_cat}, u8"", macro_name.column, macro_name.srcline_ref});
+        auto &linenum_token = result_list.emplace_back(pptoken_cat, u8"", macro_name.column, macro_name.srcline_ref);
         linenum_token.token = std::move(str);
 
         return result_list;
@@ -911,7 +911,7 @@ namespace kusabira::PP {
         assert(ec == std::errc{});
         std::pmr::u8string line_num_str{ reinterpret_cast<const char8_t*>(buf), reinterpret_cast<const char8_t*>(ptr), &kusabira::def_mr };
 
-        return make_result(std::move(line_num_str), pp_token_category::pp_number, pp_tokenize_status::NumberLiteral);
+        return make_result(std::move(line_num_str), pp_token_category::pp_number);
       }
       if (macro_name.token == u8"__FILE__") {
         std::pmr::u8string filename_str{&kusabira::def_mr};
@@ -923,7 +923,7 @@ namespace kusabira::PP {
           filename_str = std::pmr::u8string{m_filename.filename().u8string(), &kusabira::def_mr};
         }
 
-        return make_result(std::move(filename_str), pp_token_category::string_literal, pp_tokenize_status::StringLiteral);
+        return make_result(std::move(filename_str), pp_token_category::string_literal);
       }
       if (macro_name.token == u8"__DATE__") {
         //月毎の基礎文字列対応
@@ -971,7 +971,7 @@ namespace kusabira::PP {
         //失敗しないはず・・・
         assert(ec1 == std::errc{} and ec2 == std::errc{});
 
-        return make_result(std::move(date_str), pp_token_category::string_literal, pp_tokenize_status::StringLiteral);
+        return make_result(std::move(date_str), pp_token_category::string_literal);
       }
       if (macro_name.token == u8"__TIME__") {
 
@@ -1006,12 +1006,12 @@ namespace kusabira::PP {
         //失敗しないはず・・・
         assert(ec1 == std::errc{} and ec2 == std::errc{} and ec3 == std::errc{});
 
-        return make_result(std::move(time_str), pp_token_category::string_literal, pp_tokenize_status::StringLiteral);
+        return make_result(std::move(time_str), pp_token_category::string_literal);
       }
 
       if (auto pos = m_predef_macro.find(macro_name.token); pos != m_predef_macro.end()) {
         //その他事前定義マクロの処理
-        return make_result(deref(pos).second, pp_token_category::pp_number, pp_tokenize_status::NumberLiteral);
+        return make_result(deref(pos).second, pp_token_category::pp_number);
       }
 
       return std::nullopt;
@@ -1046,7 +1046,7 @@ namespace kusabira::PP {
     * @param macro_name 識別子トークン名
     * @return 置換リストのoptional、無効地なら置換対象ではなかった
     */
-    fn objmacro(const lex_token& macro_name) const -> std::optional<std::pmr::list<pp_token>> {
+    fn objmacro(const pp_token& macro_name) const -> std::optional<std::pmr::list<pp_token>> {
       
       //4つの事前定義マクロを処理
       if (auto result = predefined_macro(macro_name); result) {
@@ -1073,7 +1073,7 @@ namespace kusabira::PP {
     * @return {エラーの有無, 置換リストのoptional}
     */
     template<typename Reporter>
-    fn funcmacro(Reporter& reporter, const lex_token& macro_name, const std::pmr::vector<std::pmr::list<pp_token>>& args) const -> std::pair<bool, std::optional<std::pmr::list<pp_token>>> {
+    fn funcmacro(Reporter& reporter, const pp_token& macro_name, const std::pmr::vector<std::pmr::list<pp_token>>& args) const -> std::pair<bool, std::optional<std::pmr::list<pp_token>>> {
       return fetch_macro(macro_name.token, [&mr = kusabira::def_mr, &args, &reporter, &macro_name, this](const auto& macro) -> std::pair<bool, std::optional<std::pmr::list<pp_token>>> {
         //引数長さのチェック
         if (not macro.validate_argnum(args)) {
@@ -1196,7 +1196,7 @@ namespace kusabira::PP {
       //#errorの次のホワイトスペースでないトークン以降を出力
       this->skip_whitespace(it, end);
 
-      if ((*it).kind != pp_tokenize_status::NewLine) {
+      if ((*it).category != pp_token_category::newline) {
         //行は1から、列は0から・・・
         const auto [row, col] = (*it).get_phline_pos();
 
@@ -1227,7 +1227,7 @@ namespace kusabira::PP {
       //あらゆるpragmaを無視、仮実装
       do {
         ++it;
-      } while (it != end and (*it).kind != pp_tokenize_status::NewLine);
+      } while (it != end and (*it).category != pp_token_category::newline);
     }
 
     /**
@@ -1239,7 +1239,7 @@ namespace kusabira::PP {
     void skip_whitespace(TokensIterator& it, TokensSentinel end) const {
       do {
         ++it;
-      } while (it != end and (*it).kind == pp_tokenize_status::Whitespaces);
+      } while (it != end and (*it).category == pp_token_category::whitespace);
     }
 
   };  

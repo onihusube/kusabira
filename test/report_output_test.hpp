@@ -39,10 +39,9 @@ namespace kusabira_test::report
   TEST_CASE("print_report() test") {
 
     using namespace std::literals;
-    using kusabira::PP::lex_token;
+    using kusabira::PP::pp_token;
     using kusabira::PP::logical_line;
-    using kusabira::PP::pp_tokenize_status;
-    using kusabira::PP::pp_tokenize_result;
+    using kusabira::PP::pp_token_category;
 
     // 現在の出力状態をリセットする
     test_out::extract_string();
@@ -55,7 +54,7 @@ namespace kusabira_test::report
     //論理行オブジェクト1
     pos = ll.emplace_after(pos, 1, 1);
     (*pos).line = u8"#error test error out";
-    lex_token token1(pp_tokenize_result{ .status = pp_tokenize_status::Identifier }, u8"error", 1, pos);
+    pp_token token1(pp_token_category::identifier, u8"error", 1, pos);
 
     auto reporter = kusabira::report::reporter_factory<test_out>::create();
     reporter->print_report(u8"test error out", L"testdummy.cpp", token1);
