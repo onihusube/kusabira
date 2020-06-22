@@ -170,6 +170,8 @@ namespace kusabira::PP
   };
 
 
+  inline namespace v1 {
+
   /**
   * @brief ソースコードの論理行での1行を表現する型
   * @detail 改行継続（バックスラッシュ+改行）後にソースファイルの物理行との対応を取るためのもの
@@ -279,7 +281,6 @@ namespace kusabira::PP
     }
   };
 
-inline namespace v1 {
 
   /**
   * @brief プリプロセッシングトークンの分類
@@ -584,6 +585,80 @@ inline namespace v1 {
       placemarker_token
     };
 
+    /**
+    * @brief pp_token_categoryに演算子オーバーロードを追加する
+    * @details 名前空間スコープに演算子オーバーロードをばら撒かないため
+    */
+    struct pptokencat_op {
+
+      pp_token_category& cat;
+
+      /**
+      * @brief プリプロセッシングトークンカテゴリを連結する
+      * @details 結果がfalseなら変更されない
+      * @return 連結が妥当か否かを示すbool値
+      */
+      [[nodiscard]]
+      friend constexpr auto operator+=(pptokencat_op&& lhs, pp_token_category rhs) -> bool {
+
+        assert(pp_token_category::identifier <= lhs.cat and pp_token_category::identifier <= rhs);
+
+        switch (lhs.cat) {
+        case pp_token_category::identifier:
+          if (rhs == pp_token_category::identifier) {
+            //識別子と識別子 -> 識別子
+            return true;
+          }
+          if (rhs == pp_token_category::pp_number) {
+            //識別子と数値 -> 識別子
+            return true;
+          }
+          break;
+        case pp_token_category::pp_number:
+          if (rhs == pp_token_category::pp_number) {
+            //数値と数値 -> 数値
+            return true;
+          }
+          if (rhs == pp_token_category::identifier) {
+            //数値と識別子 -> ユーザー定義数値リテラル
+            return true;
+          }
+          break;
+        case pp_token_category::op_or_punc:
+          if (rhs == pp_token_category::op_or_punc) {
+            //記号同士 -> 記号（妥当性は外でチェック
+            return true;
+          }
+          break;
+        case pp_token_category::charcter_literal: [[fallthrough]];
+        case pp_token_category::string_literal: [[fallthrough]];
+        case pp_token_category::raw_string_literal:
+          if (rhs == pp_token_category::identifier) {
+            //文字/文字列リテラルと識別子 -> ユーザー定義文字/文字列リテラル
+            using enum_int = std::underlying_type_t<pp_token_category>;
+            lhs.cat = static_cast<pp_token_category>(static_cast<enum_int>(lhs.cat) + enum_int(1u));
+            return true;
+          }
+          break;
+        case pp_token_category::user_defined_charcter_literal: [[fallthrough]];
+        case pp_token_category::user_defined_string_literal: [[fallthrough]];
+        case pp_token_category::user_defined_raw_string_literal:
+          if (rhs == pp_token_category::identifier) {
+            //ユーザー定義文字/文字列リテラルと識別子 -> ユーザー定義文字/文字列リテラル
+            return true;
+          }
+        default:
+          break;
+        }
+
+        //それ以外はとりあえずダメ
+        return false;
+      }
+    };
+
+    /**
+    * @brief プリプロセッシングトークン1つを表現する
+    */
     struct pp_token {
 
       using line_iterator = std::pmr::forward_list<logical_line>::const_iterator;
@@ -699,6 +774,103 @@ inline namespace v1 {
       */
       fn get_logicalline_num() const -> std::size_t {
         return (*srcline_ref).logical_line_num;
+      }
+
+
+      /**
+      * @brief 2つのプリプロセッシングトークンを結合する
+      * @details 左辺←右辺に結合、結合が妥当でなくても引数は変更される
+      * @param lhs 結合されるトークン、直接変更される（結合が不正でも変更されている）
+      * @param rhs 結合するトークン、ムーブす（結合が妥当である時のみ破壊的変更が起きる）
+      * @return 結合が妥当であるか否か
+      */
+      friend auto operator+=(pp_token& lhs, pp_token&& rhs) -> bool {
+        /*不正なトークンの結合は未定義動作、とりあえず戻り値で表現
+          結合できるのは
+          - 識別子と識別子 -> 識別子
+          - 数値と数値 -> 数値
+          - 記号同士（内容による） -> 記号
+          - 識別子と数値 -> 識別子
+          - 識別子と（ユーザー定義）文字/文字列リテラル -> 文字/文字列リテラル
+          - 文字/文字列リテラルと識別子 -> ユーザー定義文字/文字列リテラル
+          - 数値と識別子 -> ユーザー定義数値リテラル
+          - ユーザー定義文字/文字列リテラルと識別子 -> ユーザー定義文字/文字列リテラル
+          - ユーザー定義数値リテラルと識別子 -> ユーザー定義数値リテラル
+        */
+
+        //プレイスメーカートークンが右辺にある時
+        if (rhs.category == pp_token_category::placemarker_token) {
+          //何もしなくていい
+          return true;
+        }
+        //左辺にあるとき
+        if (lhs.category == pp_token_category::placemarker_token) {
+          lhs = std::move(rhs);
+          return true;
+        }
+
+        //構成文字列の連結
+        auto&& tmp_str = lhs.token.to_string();
+        tmp_str.append(rhs.token);
+        lhs.token = std::move(tmp_str);
+
+        if (bool is_concatenated = pptokencat_op{ lhs.category } += rhs.category; not is_concatenated) {
+          //特別扱い
+          if (lhs.category != pp_token_category::identifier) return false;
+          if (not (pp_token_category::charcter_literal <= rhs.category and rhs.category <= pp_token_category::user_defined_raw_string_literal)) return false;
+
+          //識別子と（ユーザー定義）文字/文字列リテラル -> （ユーザー定義）文字/文字列リテラル
+          const auto str = lhs.token.to_view();
+          auto index = 0ull;
+          bool is_rowstr = false;
+
+          if (str[index] == u8'u') {
+            ++index;
+            if (str[index] != u8'8') return false;
+            ++index;
+          } else if (str[index] == u8'U') {
+            ++index;
+          } else if (str[index] == u8'L') {
+            ++index;
+          }
+          if (str[index] == u8'R') {
+            ++index;
+            is_rowstr = true;
+          }
+          if (str[index] != u8'"' and str[index] != u8'\'') return false;
+          //文字/文字列リテラルとして妥当だった
+
+          if (is_rowstr) {
+            //文字リテラルが来てたらおかしい
+            assert(pp_token_category::string_literal <= rhs.category);
+
+            //生文字列リテラル化
+            using enum_int = std::underlying_type_t<pp_token_category>;
+            lhs.category = static_cast<pp_token_category>(static_cast<enum_int>(rhs.category) + enum_int(2u));
+          }
+        } else if (lhs.category == pp_token_category::op_or_punc) {
+          //記号の妥当性のチェック
+          auto row = 0;
+          const auto str = lhs.token.to_view();
+          const auto len = str.length();
+          auto index = 0ull;
+          do {
+            //トークナイザで使ってるテーブルを引いてチェックする
+            row = table::ref_symbol_table(str[index], row);
+            ++index;
+          } while (0 < row and index < len);
+
+          //ここに来る場合は妥当な記号列同士の連結になっているはずで連結結果が妥当なら文字列を全て見ることになる
+          //その上で、テーブル参照結果が0以上なら妥当
+          if (index != len or row < 0) return false;
+        }
+
+        //トークンを構成するトークン列の連結
+        std::pmr::forward_list<pp_token> tmp{ std::move(rhs.lextokens) };
+        tmp.splice_after(tmp.before_begin(), std::move(lhs.lextokens));
+        lhs.lextokens = std::move(tmp);
+
+        return true;
       }
 
     };
