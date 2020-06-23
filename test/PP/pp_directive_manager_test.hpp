@@ -832,7 +832,7 @@ namespace kusabira_test::preprocessor {
 
     const auto& pptoken = str_list.front();
     CHECK_EQ(pptoken.category, pp_token_category::string_literal);
-    CHECK_EQ(3ull, std::distance(pptoken.lextokens.begin(), pptoken.lextokens.end()));
+    CHECK_EQ(5ull, std::distance(pptoken.lextokens.begin(), pptoken.lextokens.end()));
     auto str = u8R"**("test, L\"abcd\\aaa\\\\ggg\\\"sv, 12345ull")**"sv;
     CHECK_UNARY(pptoken.token == str);
 

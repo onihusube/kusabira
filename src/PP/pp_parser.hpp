@@ -647,7 +647,7 @@ namespace kusabira::PP {
 
           //次のトークンを調べてユーザー定義リテラルの有無を判断
           ++it;
-          if (strliteral_classify(it, deref(prev.lextokens.begin()).token, list.back()) == false) {
+          if (strliteral_classify(it, prev.token, list.back()) == false) {
             //ファイル終端に到達した
             se_inc_itr.release();
           }

@@ -186,7 +186,8 @@ namespace kusabira::PP {
       }
 
       //構成する字句トークン列への参照を保存しておく
-      insert_pos = first.lextokens.insert_after(insert_pos, (*it).lextokens.begin(), (*it).lextokens.end());
+      //insert_pos = first.lextokens.insert_after(insert_pos, (*it).lextokens.begin(), (*it).lextokens.end());
+      insert_pos = first.lextokens.insert_after(insert_pos, std::move(*it));
     }
 
     str.append(u8"\"");
@@ -259,9 +260,6 @@ namespace kusabira::PP {
         if (auto& front =  *it; front.token == u8"##"sv) ptr = &front;
 
         if (ptr != nullptr) {
-          //まあこれは起こらないと思う
-          assert((*ptr).lextokens.begin() != (*ptr).lextokens.end());
-
           //##トークンが置換リストの前後に出現している
           m_replist_err = std::make_pair(pp_parse_context::Define_Sharp2BothEnd, std::move(*ptr));
           return;
@@ -852,7 +850,7 @@ namespace kusabira::PP {
       if (replist_err != nullptr) {
         //置換リストを見ただけで分かるエラーの報告
         const auto &[context, pptoken] = *replist_err;
-        reporter.pp_err_report(m_filename, pptoken.lextokens.front(), context);
+        reporter.pp_err_report(m_filename, pptoken, context);
         return false;
       }
 
@@ -1088,7 +1086,7 @@ namespace kusabira::PP {
         } else {
           //エラー報告（##で不正なトークンが生成された）
           const auto [context, pptoken] = result.error();
-          reporter.pp_err_report(m_filename, pptoken.lextokens.front(), context);
+          reporter.pp_err_report(m_filename, pptoken, context);
           return {false, std::nullopt};
         }
 
@@ -1136,14 +1134,14 @@ namespace kusabira::PP {
 
       if ((*it).category != pp_token_category::pp_number) {
         //#line の後のトークンが数値では無い、構文エラー
-        reporter.pp_err_report(m_filename, (*it).lextokens.front(), pp_parse_context::ControlLine_Line_Num);
+        reporter.pp_err_report(m_filename, deref(it), pp_parse_context::ControlLine_Line_Num);
         return false;
       }
 
       //現在行番号の変更
 
       //本当の論理行番号
-      auto true_line = deref(it).lextokens.front().get_logicalline_num();
+      auto true_line = deref(it).get_logicalline_num();
       auto tokenstr = (*it).token.to_view();
       //数値文字列の先頭
       auto* first = reinterpret_cast<const char*>(tokenstr.data());
@@ -1153,9 +1151,8 @@ namespace kusabira::PP {
         //論理行数に対して指定された行数の対応を取っておく
         m_line_map.emplace_hint(m_line_map.end(), std::make_pair(true_line, value));
       } else {
-        assert((*it).lextokens.empty() == false);
         //浮動小数点数が指定されていた？エラー
-        reporter.pp_err_report(m_filename, (*it).lextokens.front(), pp_parse_context::ControlLine_Line_Num);
+        reporter.pp_err_report(m_filename, deref(it), pp_parse_context::ControlLine_Line_Num);
         return false;
       }
 
@@ -1173,7 +1170,7 @@ namespace kusabira::PP {
 
       if (it != end or (*it).category != pp_token_category::newline) {
         //ここにきた場合は未定義に当たるはずなので、警告出して継続する
-        reporter.pp_err_report(m_filename, (*it).lextokens.front(), pp_parse_context::ControlLine_Line_ManyToken, report::report_category::warning);
+        reporter.pp_err_report(m_filename, deref(it), pp_parse_context::ControlLine_Line_ManyToken, report::report_category::warning);
       }
 
       return true;

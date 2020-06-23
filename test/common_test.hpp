@@ -240,7 +240,7 @@ namespace kusabira_test::common
       REQUIRE_UNARY(is_success);
       CHECK_UNARY(token1.token == u8R"(R"string"sv)"sv);
       CHECK_EQ(pp_token_category::user_defined_raw_string_literal, token1.category);
-      CHECK_EQ(3, std::distance(token1.lextokens.begin(), token1.lextokens.end()));
+      CHECK_EQ(2, std::distance(token1.lextokens.begin(), token1.lextokens.end()));
 
       //プレイスメーカートークンの右からの連結
       is_success = token1 += pp_token{pp_token_category::placemarker_token};
@@ -248,7 +248,7 @@ namespace kusabira_test::common
       REQUIRE_UNARY(is_success);
       CHECK_UNARY(token1.token == u8R"(R"string"sv)"sv);
       CHECK_EQ(pp_token_category::user_defined_raw_string_literal, token1.category);
-      CHECK_EQ(3, std::distance(token1.lextokens.begin(), token1.lextokens.end()));
+      CHECK_EQ(2, std::distance(token1.lextokens.begin(), token1.lextokens.end()));
 
       //プレイスメーカートークンの左からの連結
       pp_token placemaker{pp_token_category::placemarker_token};
@@ -257,7 +257,7 @@ namespace kusabira_test::common
       REQUIRE_UNARY(is_success);
       CHECK_UNARY(placemaker.token == u8R"(R"string"sv)"sv);
       CHECK_EQ(pp_token_category::user_defined_raw_string_literal, token1.category);
-      CHECK_EQ(3, std::distance(placemaker.lextokens.begin(), placemaker.lextokens.end()));
+      CHECK_EQ(2, std::distance(placemaker.lextokens.begin(), placemaker.lextokens.end()));
     }
 
     pos = ll.emplace_after(pos, 1, 1);
@@ -274,7 +274,7 @@ namespace kusabira_test::common
       REQUIRE_UNARY(is_success);
       CHECK_UNARY(token1.token == u8"<<="sv);
       CHECK_EQ(pp_token_category::op_or_punc, token1.category);
-      CHECK_EQ(3, std::distance(token1.lextokens.begin(), token1.lextokens.end()));
+      CHECK_EQ(2, std::distance(token1.lextokens.begin(), token1.lextokens.end()));
     }
 
     pos = ll.emplace_after(pos, 1, 1);
@@ -289,7 +289,7 @@ namespace kusabira_test::common
       REQUIRE_UNARY(is_success);
       CHECK_UNARY(token1.token == u8"|="sv);
       CHECK_EQ(pp_token_category::op_or_punc, token1.category);
-      CHECK_EQ(2, std::distance(token1.lextokens.begin(), token1.lextokens.end()));
+      CHECK_EQ(1, std::distance(token1.lextokens.begin(), token1.lextokens.end()));
     }
 
     pos = ll.emplace_after(pos, 1, 1);
@@ -304,7 +304,7 @@ namespace kusabira_test::common
       REQUIRE_UNARY(is_success);
       CHECK_UNARY(token1.token == u8"->*"sv);
       CHECK_EQ(pp_token_category::op_or_punc, token1.category);
-      CHECK_EQ(2, std::distance(token1.lextokens.begin(), token1.lextokens.end()));
+      CHECK_EQ(1, std::distance(token1.lextokens.begin(), token1.lextokens.end()));
     }
 
     pos = ll.emplace_after(pos, 1, 1);
