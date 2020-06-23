@@ -10,12 +10,14 @@ namespace pp_paser_test {
   TEST_CASE("make error test") {
 
     using namespace std::literals;
-    using kusabira::PP::lex_token;
+    using kusabira::PP::pp_token;
     using kusabira::PP::pp_parse_context;
-    using kusabira::PP::pp_tokenize_status;
+    using kusabira::PP::pp_token_category;
 
-    std::vector<lex_token> test_tokens{};
-    test_tokens.emplace_back(lex_token{{pp_tokenize_status::Identifier}, u8"test"sv, 0, {}});
+    using lint_it = pp_token::line_iterator;
+
+    std::vector<pp_token> test_tokens{};
+    test_tokens.emplace_back(pp_token_category::identifier, u8"test"sv, 0, lint_it{});
 
     using kusabira::PP::make_error;
 
@@ -32,34 +34,34 @@ namespace pp_paser_test {
 
   //テストのためのトークン型
   struct test_token {
-    kusabira::PP::pp_tokenize_status kind;
+    kusabira::PP::pp_token_category category;
     std::u8string_view token{};
   };
 
   TEST_CASE("skip whitespace token test") {
 
-    using kusabira::PP::pp_tokenize_status;
+    using kusabira::PP::pp_token_category;
 
     //トークン列を準備
     std::vector<test_token> test_tokens{};
     test_tokens.reserve(23);
 
     for (auto i = 0u; i < 5u; ++ i) {
-      test_tokens.emplace_back(test_token{.kind = pp_tokenize_status::Whitespaces});
+      test_tokens.emplace_back(test_token{.category = pp_token_category::whitespace});
     }
-    test_tokens.emplace_back(test_token{.kind = pp_tokenize_status::Identifier});
+    test_tokens.emplace_back(test_token{.category = pp_token_category::identifier});
 
     for (auto i = 0u; i < 7u; ++ i) {
-      test_tokens.emplace_back(test_token{.kind = pp_tokenize_status::BlockComment});
+      test_tokens.emplace_back(test_token{.category = pp_token_category::block_comment});
     }
-    test_tokens.emplace_back(test_token{.kind = pp_tokenize_status::NumberLiteral});
+    test_tokens.emplace_back(test_token{.category = pp_token_category::pp_number});
 
     for (auto i = 0u; i < 11u; ++ i) {
-      test_tokens.emplace_back(test_token{.kind = pp_tokenize_status::Whitespaces});
-      test_tokens.emplace_back(test_token{.kind = pp_tokenize_status::BlockComment});
+      test_tokens.emplace_back(test_token{.category = pp_token_category::whitespace});
+      test_tokens.emplace_back(test_token{.category = pp_token_category::block_comment});
     }
-    test_tokens.emplace_back(test_token{.kind = pp_tokenize_status::StringLiteral});
-    test_tokens.emplace_back(test_token{.kind = pp_tokenize_status::NewLine});
+    test_tokens.emplace_back(test_token{.category = pp_token_category::string_literal});
+    test_tokens.emplace_back(test_token{.category = pp_token_category::newline});
 
     //テスト開始
     auto it = std::begin(test_tokens);
@@ -68,36 +70,36 @@ namespace pp_paser_test {
     using kusabira::PP::skip_whitespaces;
 
     CHECK_UNARY(skip_whitespaces(it, end));
-    CHECK_EQ((*it).kind, pp_tokenize_status::Identifier);
+    CHECK_EQ((*it).category, pp_token_category::identifier);
 
     CHECK_UNARY(skip_whitespaces(it, end));
-    CHECK_EQ((*it).kind, pp_tokenize_status::NumberLiteral);
+    CHECK_EQ((*it).category, pp_token_category::pp_number);
 
     CHECK_UNARY(skip_whitespaces(it, end));
-    CHECK_EQ((*it).kind, pp_tokenize_status::StringLiteral);
+    CHECK_EQ((*it).category, pp_token_category::string_literal);
 
     CHECK_UNARY(skip_whitespaces(it, end));
-    CHECK_EQ((*it).kind, pp_tokenize_status::NewLine);
+    CHECK_EQ((*it).category, pp_token_category::newline);
 
     CHECK_UNARY_FALSE(skip_whitespaces(it, end));
   }
 
-  TEST_CASE("status to category test") {
+  // TEST_CASE("status to category test") {
     
-    using ll_paser = kusabira::PP::ll_paser<kusabira::PP::tokenizer<kusabira::PP::filereader, kusabira::PP::pp_tokenizer_sm>>;
-    using kusabira::PP::pp_tokenize_status;
-    using kusabira::PP::pp_token_category;
+  //   using ll_paser = kusabira::PP::ll_paser<kusabira::PP::tokenizer<kusabira::PP::filereader, kusabira::PP::pp_tokenizer_sm>>;
+  //   using kusabira::PP::pp_token_category;
+  //   using kusabira::PP::pp_token_category;
 
-    CHECK_EQ(ll_paser::tokenize_status_to_category(pp_tokenize_status::Identifier), pp_token_category::identifier);
-    CHECK_EQ(ll_paser::tokenize_status_to_category(pp_tokenize_status::NumberLiteral), pp_token_category::pp_number);
-    CHECK_EQ(ll_paser::tokenize_status_to_category(pp_tokenize_status::OPorPunc), pp_token_category::op_or_punc);
-    CHECK_EQ(ll_paser::tokenize_status_to_category(pp_tokenize_status::OtherChar), pp_token_category::other_character);
-  }
+  //   CHECK_EQ(ll_paser::tokenize_status_to_category(pp_token_category::identifier), pp_token_category::identifier);
+  //   CHECK_EQ(ll_paser::tokenize_status_to_category(pp_token_category::pp_number), pp_token_category::pp_number);
+  //   CHECK_EQ(ll_paser::tokenize_status_to_category(pp_token_category::op_or_punc), pp_token_category::op_or_punc);
+  //   CHECK_EQ(ll_paser::tokenize_status_to_category(pp_token_category::other_character), pp_token_category::other_character);
+  // }
 
   TEST_CASE("string literal calssify test") {
     
     using ll_paser = kusabira::PP::ll_paser<kusabira::PP::tokenizer<kusabira::PP::filereader, kusabira::PP::pp_tokenizer_sm>>;
-    using kusabira::PP::pp_tokenize_status;
+    using kusabira::PP::pp_token_category;
     using kusabira::PP::pp_token_category;
     using namespace std::literals;
     using my_strview = kusabira::vocabulary::whimsy_str_view<>;
@@ -105,7 +107,7 @@ namespace pp_paser_test {
     //トークン列を準備
     std::vector<test_token> test_tokens{};
     test_tokens.reserve(12);
-    test_tokens.emplace_back(test_token{.kind = pp_tokenize_status::Identifier, .token = u8"sv"sv});
+    test_tokens.emplace_back(test_token{.category = pp_token_category::identifier, .token = u8"sv"sv});
 
     //一つ前に出現したトークン
     kusabira::PP::pp_token pptoken{pp_token_category::string_literal};
@@ -136,17 +138,17 @@ namespace pp_paser_test {
 
     //何もしないはずのトークン種別の入力
     test_tokens.clear();
-    test_tokens.emplace_back(test_token{ .kind = pp_tokenize_status::Whitespaces });
-    test_tokens.emplace_back(test_token{ .kind = pp_tokenize_status::LineComment });
-    test_tokens.emplace_back(test_token{ .kind = pp_tokenize_status::BlockComment });
-    test_tokens.emplace_back(test_token{ .kind = pp_tokenize_status::NumberLiteral });
-    test_tokens.emplace_back(test_token{ .kind = pp_tokenize_status::StringLiteral });
-    test_tokens.emplace_back(test_token{ .kind = pp_tokenize_status::RawStrLiteral });
-    test_tokens.emplace_back(test_token{ .kind = pp_tokenize_status::DuringRawStr });
-    test_tokens.emplace_back(test_token{ .kind = pp_tokenize_status::OPorPunc });
-    test_tokens.emplace_back(test_token{ .kind = pp_tokenize_status::OtherChar });
-    test_tokens.emplace_back(test_token{ .kind = pp_tokenize_status::NewLine });
-    test_tokens.emplace_back(test_token{ .kind = pp_tokenize_status::Empty });
+    test_tokens.emplace_back(test_token{ .category = pp_token_category::whitespace });
+    test_tokens.emplace_back(test_token{ .category = pp_token_category::line_comment });
+    test_tokens.emplace_back(test_token{ .category = pp_token_category::block_comment });
+    test_tokens.emplace_back(test_token{ .category = pp_token_category::pp_number });
+    test_tokens.emplace_back(test_token{ .category = pp_token_category::string_literal });
+    test_tokens.emplace_back(test_token{ .category = pp_token_category::raw_string_literal });
+    test_tokens.emplace_back(test_token{ .category = pp_token_category::during_raw_string_literal });
+    test_tokens.emplace_back(test_token{ .category = pp_token_category::op_or_punc });
+    test_tokens.emplace_back(test_token{ .category = pp_token_category::other_character });
+    test_tokens.emplace_back(test_token{ .category = pp_token_category::newline });
+    test_tokens.emplace_back(test_token{ .category = pp_token_category::empty });
 
     it = std::begin(test_tokens);
     auto end = std::end(test_tokens);
@@ -164,17 +166,16 @@ namespace pp_paser_test {
   TEST_CASE("build raw string test") {
 
     using ll_paser = kusabira::PP::ll_paser<kusabira::PP::tokenizer<kusabira::PP::filereader, kusabira::PP::pp_tokenizer_sm>>;
-    using kusabira::PP::lex_token;
+    using kusabira::PP::pp_token;
     using kusabira::PP::logical_line;
     using kusabira::PP::pp_token_category;
-    using kusabira::PP::pp_tokenize_result;
-    using kusabira::PP::pp_tokenize_status;
+    using kusabira::PP::pp_token_category;
     using namespace std::literals;
 
     //論理行保持コンテナ
     std::pmr::forward_list<logical_line> ll{};
     //トークン列
-    std::vector<lex_token> tokens{};
+    std::vector<pp_token> tokens{};
     tokens.reserve(10);
 
     auto pos = ll.before_begin();
@@ -186,20 +187,20 @@ namespace pp_paser_test {
     (*pos).line_offset.emplace_back(7 + 3);
     (*pos).line_offset.emplace_back(7 + 3 + 6);
     {
-      auto &r = tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::DuringRawStr}, (*pos).line, 0, pos);
+      auto &r = tokens.emplace_back(pp_token_category::during_raw_string_literal, (*pos).line, 0, pos);
       CHECK_UNARY(r.is_multiple_phlines());
     }
-    tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::NewLine}, u8""sv, (*pos).line.length(), pos);
+    tokens.emplace_back(pp_token_category::newline, u8""sv, (*pos).line.length(), pos);
 
     //論理行オブジェクト2
     pos = ll.emplace_after(pos, 4, 4);
     (*pos).line = u8"testline1";
     (*pos).line_offset.emplace_back(4);
     {
-      auto &r = tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::DuringRawStr}, (*pos).line, 0, pos);
+      auto &r = tokens.emplace_back(pp_token_category::during_raw_string_literal, (*pos).line, 0, pos);
       CHECK_UNARY(r.is_multiple_phlines());
     }
-    tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::NewLine}, u8""sv, (*pos).line.length(), pos);
+    tokens.emplace_back(pp_token_category::newline, u8""sv, (*pos).line.length(), pos);
 
     //論理行オブジェクト３
     pos = ll.emplace_after(pos, 6, 6);
@@ -207,7 +208,7 @@ namespace pp_paser_test {
     (*pos).line_offset.emplace_back(4);
     (*pos).line_offset.emplace_back(4 + 7);
     {
-      auto &r = tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::RawStrLiteral}, (*pos).line, 0, pos);
+      auto &r = tokens.emplace_back(pp_token_category::raw_string_literal, (*pos).line, 0, pos);
       CHECK_UNARY(r.is_multiple_phlines());
     }
 
@@ -235,8 +236,8 @@ line2)")**"sv;
     tokens.clear();
     pos = ll.emplace_after(pos, 9, 9);
     (*pos).line = u8"R\"(testrawstri";
-    tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::DuringRawStr}, (*pos).line, 0, pos);
-    tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::NewLine}, u8""sv, (*pos).line.length(), pos);
+    tokens.emplace_back(pp_token_category::during_raw_string_literal, (*pos).line, 0, pos);
+    tokens.emplace_back(pp_token_category::newline, u8""sv, (*pos).line.length(), pos);
 
     it = std::begin(tokens);
     end = std::end(tokens);
@@ -250,11 +251,11 @@ line2)")**"sv;
     tokens.clear();
     pos = ll.emplace_after(pos, 10, 10);
     (*pos).line = u8"R\"(rwastring read error";
-    tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::DuringRawStr}, (*pos).line, 0, pos);
+    tokens.emplace_back(pp_token_category::during_raw_string_literal, (*pos).line, 0, pos);
   
     pos = ll.emplace_after(pos, 11, 11);
     (*pos).line = u8"";
-    tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::FailedRawStrLiteralRead}, (*pos).line, 0, pos);
+    tokens.emplace_back(pp_token_category::FailedRawStrLiteralRead, (*pos).line, 0, pos);
 
     it = std::begin(tokens);
     end = std::end(tokens);
@@ -268,11 +269,11 @@ line2)")**"sv;
     tokens.clear();
     pos = ll.emplace_after(pos, 11, 11);
     (*pos).line = u8"R\"(rawstring test";
-    tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::DuringRawStr}, (*pos).line, 0, pos);
-    tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::NewLine}, u8""sv, (*pos).line.length(), pos);
+    tokens.emplace_back(pp_token_category::during_raw_string_literal, (*pos).line, 0, pos);
+    tokens.emplace_back(pp_token_category::newline, u8""sv, (*pos).line.length(), pos);
     pos = ll.emplace_after(pos, 12, 12);
     (*pos).line = u8R"**(newline)")**";
-    tokens.emplace_back(pp_tokenize_result{.status = pp_tokenize_status::RawStrLiteral}, (*pos).line, 0, pos);
+    tokens.emplace_back(pp_token_category::raw_string_literal, (*pos).line, 0, pos);
 
     it = std::begin(tokens);
     end = std::end(tokens);
@@ -291,17 +292,15 @@ newline)")**"sv;
   TEST_CASE("longest match exception test") {
 
     using ll_paser = kusabira::PP::ll_paser<kusabira::PP::tokenizer<kusabira::PP::filereader, kusabira::PP::pp_tokenizer_sm>>;
-    using kusabira::PP::lex_token;
+    using kusabira::PP::pp_token;
     using kusabira::PP::logical_line;
     using kusabira::PP::pp_token_category;
-    using kusabira::PP::pp_tokenize_result;
-    using kusabira::PP::pp_tokenize_status;
     using namespace std::literals;
 
     //論理行保持コンテナ
     std::pmr::forward_list<logical_line> ll{};
     //トークン列
-    std::vector<lex_token> tokens{};
+    std::vector<pp_token> tokens{};
     tokens.reserve(10);
 
     auto pos = ll.before_begin();
@@ -310,9 +309,9 @@ newline)")**"sv;
     pos = ll.emplace_after(pos, 0, 0);
     (*pos).line = u8"<::Foo>;";
 
-    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::OPorPunc }, u8"<:"sv, 0, pos);
-    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::OPorPunc }, u8":"sv, 2, pos);
-    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::Identifier }, u8"Foo"sv, 3, pos);
+    tokens.emplace_back(pp_token_category::op_or_punc, u8"<:"sv, 0, pos);
+    tokens.emplace_back(pp_token_category::op_or_punc, u8":"sv, 2, pos);
+    tokens.emplace_back(pp_token_category::identifier, u8"Foo"sv, 3, pos);
 
     {
       auto it = std::begin(tokens);
@@ -337,9 +336,9 @@ newline)")**"sv;
     (*pos).line = u8"<:::Foo::value:>;";
 
     tokens.clear();
-    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::OPorPunc }, u8"<:"sv, 0, pos);
-    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::OPorPunc }, u8"::"sv, 2, pos);
-    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::Identifier }, u8"Foo"sv, 4, pos);
+    tokens.emplace_back(pp_token_category::op_or_punc, u8"<:"sv, 0, pos);
+    tokens.emplace_back(pp_token_category::op_or_punc, u8"::"sv, 2, pos);
+    tokens.emplace_back(pp_token_category::identifier, u8"Foo"sv, 4, pos);
 
     {
       auto it = std::begin(tokens);
@@ -363,10 +362,10 @@ newline)")**"sv;
     (*pos).line = u8"<:::> "; //こんなトークンエラーでは・・・
 
     tokens.clear();
-    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::OPorPunc }, u8"<:"sv, 0, pos);
-    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::OPorPunc }, u8"::"sv, 2, pos);
-    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::OPorPunc }, u8">"sv,4, pos);
-    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::Whitespaces }, u8" "sv, 5, pos);
+    tokens.emplace_back(pp_token_category::op_or_punc, u8"<:"sv, 0, pos);
+    tokens.emplace_back(pp_token_category::op_or_punc, u8"::"sv, 2, pos);
+    tokens.emplace_back(pp_token_category::op_or_punc, u8">"sv,4, pos);
+    tokens.emplace_back(pp_token_category::whitespace, u8" "sv, 5, pos);
 
     {
       auto it = std::begin(tokens);
@@ -390,9 +389,9 @@ newline)")**"sv;
     (*pos).line = u8"<::> = {}";
 
     tokens.clear();
-    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::OPorPunc }, u8"<:"sv, 0, pos);
-    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::OPorPunc }, u8":>"sv, 2, pos);
-    tokens.emplace_back(pp_tokenize_result{ .status = pp_tokenize_status::Whitespaces }, u8" "sv, 4, pos);
+    tokens.emplace_back(pp_token_category::op_or_punc, u8"<:"sv, 0, pos);
+    tokens.emplace_back(pp_token_category::op_or_punc, u8":>"sv, 2, pos);
+    tokens.emplace_back(pp_token_category::whitespace, u8" "sv, 4, pos);
 
     {
       auto it = std::begin(tokens);

@@ -686,9 +686,17 @@ namespace kusabira::PP
         , lextokens{ &kusabira::def_mr}
       {}
 
-      pp_token(pp_token_category cat)
+      explicit pp_token(pp_token_category cat)
         : category{ cat }
         , token{}
+        , column{0}
+        , srcline_ref{}
+        , lextokens{ &kusabira::def_mr }
+      {}
+
+      pp_token(pp_token_category cat, std::u8string_view view)
+        : category{ cat }
+        , token{view}
         , column{0}
         , srcline_ref{}
         , lextokens{ &kusabira::def_mr }
@@ -729,7 +737,7 @@ namespace kusabira::PP
       * @brief 同値比較演算子
       */
       ffn operator==(const pp_token& lhs, const pp_token& rhs) noexcept -> bool {
-        return lhs.category == rhs.category && lhs.token == rhs.token && lhs.column == rhs.column;
+        return lhs.category == rhs.category && lhs.token == rhs.token/* && lhs.column == rhs.column*/;
       }
 
       /**
