@@ -832,7 +832,7 @@ namespace kusabira_test::preprocessor {
 
     const auto& pptoken = str_list.front();
     CHECK_EQ(pptoken.category, pp_token_category::string_literal);
-    CHECK_EQ(5ull, std::distance(pptoken.lextokens.begin(), pptoken.lextokens.end()));
+    CHECK_EQ(5ull, std::distance(pptoken.composed_tokens.begin(), pptoken.composed_tokens.end()));
     auto str = u8R"**("test, L\"abcd\\aaa\\\\ggg\\\"sv, 12345ull")**"sv;
     CHECK_UNARY(pptoken.token == str);
 
@@ -844,7 +844,7 @@ namespace kusabira_test::preprocessor {
 
     const auto& emptystr_token = empty_str_list.front();
     CHECK_EQ(emptystr_token.category, pp_token_category::string_literal);
-    CHECK_EQ(0ull, std::distance(emptystr_token.lextokens.begin(), emptystr_token.lextokens.end()));
+    CHECK_EQ(0ull, std::distance(emptystr_token.composed_tokens.begin(), emptystr_token.composed_tokens.end()));
     CHECK_UNARY(emptystr_token.token == u8R"("")"sv);
   }
 

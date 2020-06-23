@@ -251,15 +251,15 @@ namespace kusabira::PP {
       //対応する論理行オブジェクトへのイテレータ
       line_iterator srcline_ref;
 
-      //構成するトークン列
-      std::pmr::forward_list<pp_token> lextokens;
+      //構成するトークン列、結合した場合などにここに直列していく
+      std::pmr::forward_list<pp_token> composed_tokens;
 
       pp_token(pp_token_category result, std::u8string_view view, std::size_t col, line_iterator line)
         : category{ result }
         , token{ view }
         , column{ col }
         , srcline_ref{ std::move(line) }
-        , lextokens{ &kusabira::def_mr}
+        , composed_tokens{ &kusabira::def_mr}
       {}
 
       explicit pp_token(pp_token_category cat)
@@ -267,7 +267,7 @@ namespace kusabira::PP {
         , token{}
         , column{0}
         , srcline_ref{}
-        , lextokens{ &kusabira::def_mr }
+        , composed_tokens{ &kusabira::def_mr }
       {}
 
       pp_token(pp_token_category cat, std::u8string_view view)
@@ -275,7 +275,7 @@ namespace kusabira::PP {
         , token{view}
         , column{0}
         , srcline_ref{}
-        , lextokens{ &kusabira::def_mr }
+        , composed_tokens{ &kusabira::def_mr }
       {}
 
       /**
@@ -287,7 +287,7 @@ namespace kusabira::PP {
         , token {other.token}
         , column{ other.column }
         , srcline_ref{ other.srcline_ref }
-        , lextokens{other.lextokens, &kusabira::def_mr}
+        , composed_tokens{other.composed_tokens, &kusabira::def_mr}
       {}
 
       /**
@@ -461,10 +461,10 @@ namespace kusabira::PP {
         //lhsを構成するトークン > rhs > rhsを構成するトークン、の順序で直列化
         //lhs自身はそのままなので、長さは連結したトークン数-1になる
         std::pmr::forward_list<pp_token> tmp{&kusabira::def_mr};
-        tmp.splice_after(tmp.before_begin(), std::move(rhs.lextokens));
+        tmp.splice_after(tmp.before_begin(), std::move(rhs.composed_tokens));
         tmp.insert_after(tmp.before_begin(), std::move(rhs));
-        tmp.splice_after(tmp.before_begin(), std::move(lhs.lextokens));
-        lhs.lextokens = std::move(tmp);
+        tmp.splice_after(tmp.before_begin(), std::move(lhs.composed_tokens));
+        lhs.composed_tokens = std::move(tmp);
 
         return true;
       }

@@ -868,11 +868,11 @@ namespace kusabira::PP {
       //プリプロセッシングトークン型を用意
       pp_token token{pp_token_category::raw_string_literal};
       //構成する字句トークンを保存しておくリスト（↑のメンバへの参照）
-      auto& lextoken_list = token.lextokens;
+      auto& lextoken_list = token.composed_tokens;
 
       //現在の字句トークンを保存
       lextoken_list.push_front(*it);
-      auto pos = token.lextokens.begin();
+      auto pos = token.composed_tokens.begin();
 
       //生文字列リテラルを追加していくバッファ
       std::pmr::u8string rawstr{(*it).token, &kusabira::def_mr };

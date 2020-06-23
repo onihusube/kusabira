@@ -230,7 +230,7 @@ line2)")**"sv;
 
     CHECK_UNARY(pptoken.token == expect);
     CHECK_EQ(pptoken.category, pp_token_category::raw_string_literal);
-    CHECK_EQ(std::distance(pptoken.lextokens.begin(), pptoken.lextokens.end()), 3u);
+    CHECK_EQ(std::distance(pptoken.composed_tokens.begin(), pptoken.composed_tokens.end()), 3u);
 
     //途中で切れてるやつ
     tokens.clear();
@@ -245,7 +245,7 @@ line2)")**"sv;
     pptoken = ll_paser::read_rawstring_tokens(it, end);
     CHECK_UNARY(it == end);
     CHECK_UNARY(pptoken.token.to_view().empty());
-    CHECK_UNARY_FALSE(pptoken.lextokens.empty());
+    CHECK_UNARY_FALSE(pptoken.composed_tokens.empty());
 
     //途中でトークナイズエラーが出る
     tokens.clear();
@@ -263,7 +263,7 @@ line2)")**"sv;
     pptoken = ll_paser::read_rawstring_tokens(it, end);
     CHECK_UNARY_FALSE(it == end);
     CHECK_UNARY(pptoken.token.to_view().empty());
-    CHECK_UNARY_FALSE(pptoken.lextokens.empty());
+    CHECK_UNARY_FALSE(pptoken.composed_tokens.empty());
 
     //単に改行されてる生文字列リテラル
     tokens.clear();
@@ -286,7 +286,7 @@ newline)")**"sv;
 
     CHECK_UNARY(pptoken.token == expect);
     CHECK_EQ(pptoken.category, pp_token_category::raw_string_literal);
-    CHECK_EQ(std::distance(pptoken.lextokens.begin(), pptoken.lextokens.end()), 2u);
+    CHECK_EQ(std::distance(pptoken.composed_tokens.begin(), pptoken.composed_tokens.end()), 2u);
   }
 
   TEST_CASE("longest match exception test") {

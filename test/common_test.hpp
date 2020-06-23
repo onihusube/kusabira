@@ -69,146 +69,146 @@ namespace kusabira_test::common
 
   TEST_CASE("pp_token_category += test") {
     using kusabira::PP::pp_token_category;
-    using kusabira::PP::pptokencat_op;
+    using kusabira::PP::add_op;
 
     auto lhs = pp_token_category::identifier;
 
-    CHECK_UNARY(pptokencat_op{ lhs } += pp_token_category::identifier);
+    CHECK_UNARY(add_op{ lhs } += pp_token_category::identifier);
     CHECK_EQ(pp_token_category::identifier, lhs);
-    CHECK_UNARY(pptokencat_op{ lhs } += pp_token_category::pp_number);
+    CHECK_UNARY(add_op{ lhs } += pp_token_category::pp_number);
     CHECK_EQ(pp_token_category::identifier, lhs);
 
     lhs = pp_token_category::pp_number;
 
-    CHECK_UNARY(pptokencat_op{ lhs } += pp_token_category::identifier);
+    CHECK_UNARY(add_op{ lhs } += pp_token_category::identifier);
     CHECK_EQ(pp_token_category::pp_number, lhs);
-    CHECK_UNARY(pptokencat_op{ lhs } += pp_token_category::pp_number);
+    CHECK_UNARY(add_op{ lhs } += pp_token_category::pp_number);
     CHECK_EQ(pp_token_category::pp_number, lhs);
 
     lhs = pp_token_category::op_or_punc;
 
-    CHECK_UNARY(pptokencat_op{ lhs } += pp_token_category::op_or_punc);
+    CHECK_UNARY(add_op{ lhs } += pp_token_category::op_or_punc);
     CHECK_EQ(pp_token_category::op_or_punc, lhs);
 
     lhs = pp_token_category::charcter_literal;
 
-    CHECK_UNARY(pptokencat_op{ lhs } += pp_token_category::identifier);
+    CHECK_UNARY(add_op{ lhs } += pp_token_category::identifier);
     CHECK_EQ(pp_token_category::user_defined_charcter_literal, lhs);
-    CHECK_UNARY(pptokencat_op{ lhs } += pp_token_category::identifier);
+    CHECK_UNARY(add_op{ lhs } += pp_token_category::identifier);
     CHECK_EQ(pp_token_category::user_defined_charcter_literal, lhs);
 
     lhs = pp_token_category::string_literal;
 
-    CHECK_UNARY(pptokencat_op{ lhs } += pp_token_category::identifier);
+    CHECK_UNARY(add_op{ lhs } += pp_token_category::identifier);
     CHECK_EQ(pp_token_category::user_defined_string_literal, lhs);
-    CHECK_UNARY(pptokencat_op{ lhs } += pp_token_category::identifier);
+    CHECK_UNARY(add_op{ lhs } += pp_token_category::identifier);
     CHECK_EQ(pp_token_category::user_defined_string_literal, lhs);
 
     lhs = pp_token_category::raw_string_literal;
 
-    CHECK_UNARY(pptokencat_op{ lhs } += pp_token_category::identifier);
+    CHECK_UNARY(add_op{ lhs } += pp_token_category::identifier);
     CHECK_EQ(pp_token_category::user_defined_raw_string_literal, lhs);
-    CHECK_UNARY(pptokencat_op{ lhs } += pp_token_category::identifier);
+    CHECK_UNARY(add_op{ lhs } += pp_token_category::identifier);
     CHECK_EQ(pp_token_category::user_defined_raw_string_literal, lhs);
 
     lhs = pp_token_category::identifier;
 
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::charcter_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::user_defined_charcter_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::string_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::user_defined_string_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::raw_string_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::user_defined_raw_string_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::op_or_punc);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::other_character);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::charcter_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::user_defined_charcter_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::string_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::user_defined_string_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::raw_string_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::user_defined_raw_string_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::op_or_punc);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::other_character);
 
     lhs = pp_token_category::pp_number;
 
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::charcter_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::user_defined_charcter_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::string_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::user_defined_string_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::raw_string_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::user_defined_raw_string_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::op_or_punc);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::other_character);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::charcter_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::user_defined_charcter_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::string_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::user_defined_string_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::raw_string_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::user_defined_raw_string_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::op_or_punc);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::other_character);
 
     lhs = pp_token_category::op_or_punc;
 
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::identifier);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::charcter_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::user_defined_charcter_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::string_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::user_defined_string_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::raw_string_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::user_defined_raw_string_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::other_character);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::identifier);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::charcter_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::user_defined_charcter_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::string_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::user_defined_string_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::raw_string_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::user_defined_raw_string_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::other_character);
 
     lhs = pp_token_category::charcter_literal;
 
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::charcter_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::user_defined_charcter_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::string_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::user_defined_string_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::raw_string_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::user_defined_raw_string_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::op_or_punc);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::other_character);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::charcter_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::user_defined_charcter_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::string_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::user_defined_string_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::raw_string_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::user_defined_raw_string_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::op_or_punc);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::other_character);
 
     lhs = pp_token_category::user_defined_charcter_literal;
 
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::charcter_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::user_defined_charcter_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::string_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::user_defined_string_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::raw_string_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::user_defined_raw_string_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::op_or_punc);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::other_character);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::charcter_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::user_defined_charcter_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::string_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::user_defined_string_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::raw_string_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::user_defined_raw_string_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::op_or_punc);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::other_character);
 
     lhs = pp_token_category::string_literal;
 
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::charcter_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::user_defined_charcter_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::string_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::user_defined_string_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::raw_string_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::user_defined_raw_string_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::op_or_punc);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::other_character);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::charcter_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::user_defined_charcter_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::string_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::user_defined_string_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::raw_string_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::user_defined_raw_string_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::op_or_punc);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::other_character);
 
     lhs = pp_token_category::user_defined_string_literal;
 
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::charcter_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::user_defined_charcter_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::string_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::user_defined_string_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::raw_string_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::user_defined_raw_string_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::op_or_punc);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::other_character);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::charcter_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::user_defined_charcter_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::string_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::user_defined_string_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::raw_string_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::user_defined_raw_string_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::op_or_punc);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::other_character);
 
     lhs = pp_token_category::raw_string_literal;
 
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::charcter_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::user_defined_charcter_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::string_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::user_defined_string_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::raw_string_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::user_defined_raw_string_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::op_or_punc);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::other_character);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::charcter_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::user_defined_charcter_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::string_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::user_defined_string_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::raw_string_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::user_defined_raw_string_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::op_or_punc);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::other_character);
 
     lhs = pp_token_category::user_defined_raw_string_literal;
 
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::charcter_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::user_defined_charcter_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::string_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::user_defined_string_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::raw_string_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::user_defined_raw_string_literal);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::op_or_punc);
-    CHECK_UNARY_FALSE(pptokencat_op{ lhs } += pp_token_category::other_character);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::charcter_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::user_defined_charcter_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::string_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::user_defined_string_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::raw_string_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::user_defined_raw_string_literal);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::op_or_punc);
+    CHECK_UNARY_FALSE(add_op{ lhs } += pp_token_category::other_character);
   }
 
   TEST_CASE("pp_token += test") {
@@ -240,7 +240,7 @@ namespace kusabira_test::common
       REQUIRE_UNARY(is_success);
       CHECK_UNARY(token1.token == u8R"(R"string"sv)"sv);
       CHECK_EQ(pp_token_category::user_defined_raw_string_literal, token1.category);
-      CHECK_EQ(2, std::distance(token1.lextokens.begin(), token1.lextokens.end()));
+      CHECK_EQ(2, std::distance(token1.composed_tokens.begin(), token1.composed_tokens.end()));
 
       //プレイスメーカートークンの右からの連結
       is_success = token1 += pp_token{pp_token_category::placemarker_token};
@@ -248,7 +248,7 @@ namespace kusabira_test::common
       REQUIRE_UNARY(is_success);
       CHECK_UNARY(token1.token == u8R"(R"string"sv)"sv);
       CHECK_EQ(pp_token_category::user_defined_raw_string_literal, token1.category);
-      CHECK_EQ(2, std::distance(token1.lextokens.begin(), token1.lextokens.end()));
+      CHECK_EQ(2, std::distance(token1.composed_tokens.begin(), token1.composed_tokens.end()));
 
       //プレイスメーカートークンの左からの連結
       pp_token placemaker{pp_token_category::placemarker_token};
@@ -257,7 +257,7 @@ namespace kusabira_test::common
       REQUIRE_UNARY(is_success);
       CHECK_UNARY(placemaker.token == u8R"(R"string"sv)"sv);
       CHECK_EQ(pp_token_category::user_defined_raw_string_literal, token1.category);
-      CHECK_EQ(2, std::distance(placemaker.lextokens.begin(), placemaker.lextokens.end()));
+      CHECK_EQ(2, std::distance(placemaker.composed_tokens.begin(), placemaker.composed_tokens.end()));
     }
 
     pos = ll.emplace_after(pos, 1, 1);
@@ -274,7 +274,7 @@ namespace kusabira_test::common
       REQUIRE_UNARY(is_success);
       CHECK_UNARY(token1.token == u8"<<="sv);
       CHECK_EQ(pp_token_category::op_or_punc, token1.category);
-      CHECK_EQ(2, std::distance(token1.lextokens.begin(), token1.lextokens.end()));
+      CHECK_EQ(2, std::distance(token1.composed_tokens.begin(), token1.composed_tokens.end()));
     }
 
     pos = ll.emplace_after(pos, 1, 1);
@@ -289,7 +289,7 @@ namespace kusabira_test::common
       REQUIRE_UNARY(is_success);
       CHECK_UNARY(token1.token == u8"|="sv);
       CHECK_EQ(pp_token_category::op_or_punc, token1.category);
-      CHECK_EQ(1, std::distance(token1.lextokens.begin(), token1.lextokens.end()));
+      CHECK_EQ(1, std::distance(token1.composed_tokens.begin(), token1.composed_tokens.end()));
     }
 
     pos = ll.emplace_after(pos, 1, 1);
@@ -304,7 +304,7 @@ namespace kusabira_test::common
       REQUIRE_UNARY(is_success);
       CHECK_UNARY(token1.token == u8"->*"sv);
       CHECK_EQ(pp_token_category::op_or_punc, token1.category);
-      CHECK_EQ(1, std::distance(token1.lextokens.begin(), token1.lextokens.end()));
+      CHECK_EQ(1, std::distance(token1.composed_tokens.begin(), token1.composed_tokens.end()));
     }
 
     pos = ll.emplace_after(pos, 1, 1);

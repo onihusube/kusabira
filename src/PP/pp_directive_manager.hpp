@@ -153,7 +153,7 @@ namespace kusabira::PP {
     //トークン列を順に文字列化するための一時文字列
     std::pmr::u8string str{u8"\""sv , &kusabira::def_mr};
     //字句トークン列挿入位置
-    auto insert_pos = first.lextokens.before_begin();
+    auto insert_pos = first.composed_tokens.before_begin();
 
     for (; it != end; ++it) {
       auto&& tmp = (*it).token.to_string();
@@ -187,7 +187,7 @@ namespace kusabira::PP {
 
       //構成する字句トークン列への参照を保存しておく
       //insert_pos = first.lextokens.insert_after(insert_pos, (*it).lextokens.begin(), (*it).lextokens.end());
-      insert_pos = first.lextokens.insert_after(insert_pos, std::move(*it));
+      insert_pos = first.composed_tokens.insert_after(insert_pos, std::move(*it));
     }
 
     str.append(u8"\"");
