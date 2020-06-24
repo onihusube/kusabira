@@ -578,9 +578,7 @@ namespace kusabira::PP {
             //最後の引数にはカンマをつけない
             if (va_index != (N - 1)) {
               //カンマの追加
-              auto& comma = arg_list.emplace_back(pp_token_category::op_or_punc);
-              comma.token = u8","sv;
-              //エラーメッセージのためにコンテキストを補う必要がある？
+              arg_list.emplace_back(pp_token_category::op_or_punc, u8","sv);
             }
           }
         } else if (arg_index != std::size_t(-1)) {

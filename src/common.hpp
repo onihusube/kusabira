@@ -96,10 +96,10 @@ namespace kusabira::PP {
     std::pmr::u8string line;
 
     //物理行番号
-    std::size_t phisic_line_num;
+    const std::size_t phisic_line_num;
 
     //論理行番号
-    std::size_t logical_line_num;
+    const std::size_t logical_line_num;
 
     //1行毎の文字列長、このvectorの長さ=継続行数
     std::pmr::vector<std::size_t> line_offset;
@@ -254,28 +254,36 @@ namespace kusabira::PP {
       //構成するトークン列、結合した場合などにここに直列していく
       std::pmr::forward_list<pp_token> composed_tokens;
 
-      pp_token(pp_token_category result, std::u8string_view view, std::size_t col, line_iterator line)
-        : category{ result }
+      //生成されたトークンであるか否か、生成された場合ソースコードコンテキストに関する情報を持たない
+      bool is_generated = false;
+
+      /**
+      * @brief コンストラクタ
+      * @param cat プリプロセッシングトークンのカテゴリ
+      * @param view トークン文字列、std::stringを入れたいときは初期化後に明示的に代入する
+      * @param col 論理行上での位置（先頭からの文字数）
+      * @param line 論理行オブジェクトへの参照（イテレータ）
+      */
+      pp_token(pp_token_category cat, std::u8string_view view, std::size_t col, line_iterator line)
+        : category{ cat }
         , token{ view }
         , column{ col }
         , srcline_ref{ std::move(line) }
         , composed_tokens{ &kusabira::def_mr}
       {}
 
-      explicit pp_token(pp_token_category cat)
-        : category{ cat }
-        , token{}
-        , column{0}
-        , srcline_ref{}
-        , composed_tokens{ &kusabira::def_mr }
-      {}
-
-      pp_token(pp_token_category cat, std::u8string_view view)
+      /**
+      * @brief コンストラクタ
+      * @param cat プリプロセッシングトークンのカテゴリ
+      * @param view トークン文字列、std::stringを入れたいときは初期化後に明示的に代入する
+      */
+      explicit pp_token(pp_token_category cat, std::u8string_view view = {})
         : category{ cat }
         , token{view}
         , column{0}
         , srcline_ref{}
         , composed_tokens{ &kusabira::def_mr }
+        , is_generated{true}
       {}
 
       /**
@@ -288,6 +296,7 @@ namespace kusabira::PP {
         , column{ other.column }
         , srcline_ref{ other.srcline_ref }
         , composed_tokens{other.composed_tokens, &kusabira::def_mr}
+        , is_generated{other.is_generated}
       {}
 
       /**
@@ -322,6 +331,7 @@ namespace kusabira::PP {
       * @return trueなら論理行は複数の物理行で構成される
       */
       fn is_multiple_phlines() const -> bool {
+        assert(is_generated);
         return 0u < (*srcline_ref).line_offset.size();
       }
 
@@ -330,6 +340,7 @@ namespace kusabira::PP {
       * @return 論理行文字列へのconstな参照
       */
       fn get_line_string() const -> const std::pmr::u8string& {
+        assert(is_generated);
         return (*srcline_ref).line;
       }
 
@@ -338,6 +349,8 @@ namespace kusabira::PP {
       * @return {行, 列}のペア
       */
       fn get_phline_pos() const -> std::pair<std::size_t, std::size_t> {
+        assert(is_generated);
+
         if (0u < (*srcline_ref).line_offset.size()) {
           //物理行とのズレ
           std::size_t offset{};
@@ -365,6 +378,7 @@ namespace kusabira::PP {
       * @return 論理行数
       */
       fn get_logicalline_num() const -> std::size_t {
+        assert(is_generated);
         return (*srcline_ref).logical_line_num;
       }
 
@@ -470,6 +484,11 @@ namespace kusabira::PP {
       }
 
     };
+
+    static_assert(std::is_copy_constructible_v<pp_token>);
+    static_assert(std::is_copy_assignable_v<pp_token>);
+    static_assert(std::is_nothrow_move_constructible_v<pp_token>);
+    static_assert(std::is_move_assignable_v<pp_token>);
 
   } // namespace v2
 

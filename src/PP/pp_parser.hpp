@@ -131,7 +131,7 @@ namespace kusabira::PP {
       if (auto& top_token = *it; top_token.category == pp_token_category::identifier) {
         using namespace std::string_view_literals;
 
-        if (auto str = top_token.token; str == u8"module" or str == u8"export") {
+        if (auto str = top_token.token.to_view(); str == u8"module" or str == u8"export") {
           //モジュールファイルとして読むため、終了後はそのまま終わり
           return this->module_file(it, se);
         }
@@ -671,7 +671,13 @@ namespace kusabira::PP {
       return std::nullopt;
     }
 
-
+    /**
+    * @brief 関数マクロの実引数プリプロセッシングトークンを構成する
+    * @param it 現在の先頭トークン
+    * @param end トークン列の終端
+    * @details 呼び出し開始の開きかっこ"("の直後から開始すること
+    * @return エラーが起きた場合その情報、正常終了すれば実引数リスト
+    */
     fn funcmacro_args(iterator& it, sentinel end) -> kusabira::expected<std::pmr::vector<std::pmr::list<pp_token>>, pp_err_info> {
       using namespace std::string_view_literals;
 

@@ -7,7 +7,7 @@
 namespace kusabira_test::common
 {
 
-  TEST_CASE("lex token test") {
+  TEST_CASE("pp_token test") {
     using kusabira::PP::pp_token;
     using kusabira::PP::logical_line;
     using kusabira::PP::pp_token_category;
