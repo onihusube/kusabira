@@ -331,7 +331,7 @@ namespace kusabira::PP {
       * @return trueなら論理行は複数の物理行で構成される
       */
       fn is_multiple_phlines() const -> bool {
-        assert(is_generated);
+        assert(not is_generated);
         return 0u < (*srcline_ref).line_offset.size();
       }
 
@@ -340,7 +340,7 @@ namespace kusabira::PP {
       * @return 論理行文字列へのconstな参照
       */
       fn get_line_string() const -> const std::pmr::u8string& {
-        assert(is_generated);
+        assert(not is_generated);
         return (*srcline_ref).line;
       }
 
@@ -349,7 +349,7 @@ namespace kusabira::PP {
       * @return {行, 列}のペア
       */
       fn get_phline_pos() const -> std::pair<std::size_t, std::size_t> {
-        assert(is_generated);
+        assert(not is_generated);
 
         if (0u < (*srcline_ref).line_offset.size()) {
           //物理行とのズレ
@@ -378,7 +378,7 @@ namespace kusabira::PP {
       * @return 論理行数
       */
       fn get_logicalline_num() const -> std::size_t {
-        assert(is_generated);
+        assert(not is_generated);
         return (*srcline_ref).logical_line_num;
       }
 
