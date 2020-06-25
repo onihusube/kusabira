@@ -764,52 +764,52 @@ namespace kusabira::PP {
       return kusabira::ok(std::move(args));
     }
 
-    template<typename OuterMacros = std::pmr::unordered_set<std::u8string_view>>
-    fn further_macro_replacement(pptoken_conteiner &list, iterator&, sentinel, OuterMacros& ignore_list) -> std::optional<pp_err_info> {
-      auto list_end = std::end(list);
+    //template<typename OuterMacros = std::pmr::unordered_set<std::u8string_view>>
+    //fn further_macro_replacement(pptoken_conteiner &list, iterator&, sentinel, OuterMacros& ignore_list) -> std::optional<pp_err_info> {
+    //  auto list_end = std::end(list);
 
-      for (auto list_it = std::begin(list); list_it != list_end;) {
-        //識別子以外は無視
-        if (deref(list_it).category != pp_token_category::identifier) continue;
-        //外側マクロを無視
-        if (ignore_list.contains(deref(list_it).token) == false) continue;
+    //  for (auto list_it = std::begin(list); list_it != list_end;) {
+    //    //識別子以外は無視
+    //    if (deref(list_it).category != pp_token_category::identifier) continue;
+    //    //外側マクロを無視
+    //    if (ignore_list.contains(deref(list_it).token) == false) continue;
 
-        //識別子を処理、マクロ置換を行う
-        if (auto opt = preprocessor.is_macro(deref(list_it).token); opt) {
-          bool is_funcmacro = *opt;
-          if (not is_funcmacro) {
-            //オブジェクトマクロ置換
-            if (auto res_list = preprocessor.objmacro(deref(list_it)); res_list) {
-              //置換後リストを現在のトークンの前にspliceする
-              list.splice(list_it, std::move(*res_list));
-              //置換済みトークンを削除
-              list_it = list.erase(list_it);
-            }
-          } else {
-            //関数マクロ
-            //マクロ名を取得し次へ
-            auto macro_name = deref_inc(list_it);
-            //無視リストに現在のマクロを登録
-            ignore_list.emplace(macro_name.token);
-            //実引数リストの取得
-            auto&& arg_list = this->funcmacro_args(list_it, list_end, ignore_list);
+    //    //識別子を処理、マクロ置換を行う
+    //    if (auto opt = preprocessor.is_macro(deref(list_it).token); opt) {
+    //      bool is_funcmacro = *opt;
+    //      if (not is_funcmacro) {
+    //        //オブジェクトマクロ置換
+    //        if (auto res_list = preprocessor.objmacro(deref(list_it)); res_list) {
+    //          //置換後リストを現在のトークンの前にspliceする
+    //          list.splice(list_it, std::move(*res_list));
+    //          //置換済みトークンを削除
+    //          list_it = list.erase(list_it);
+    //        }
+    //      } else {
+    //        //関数マクロ
+    //        //マクロ名を取得し次へ
+    //        auto macro_name = deref_inc(list_it);
+    //        //無視リストに現在のマクロを登録
+    //        ignore_list.emplace(macro_name.token);
+    //        //実引数リストの取得
+    //        auto&& arg_list = this->funcmacro_args(list_it, list_end, ignore_list);
 
-            if (auto [success, res_list] = preprocessor.funcmacro(*m_reporter, macro_name, *arg_list); success and res_list) {
-              //置換後リストを末尾にspliceする
-              list.splice(std::end(list), std::move(*res_list));
-            } else if (not success) {
-              //マクロ実行時のエラーだが、報告済
-              se_inc_itr.release();
-              return kusabira::error(pp_err_info{std::move(macro_name), pp_parse_context::ControlLine});
-            }
-            ignore_list.erase(macro_name.token);
-          }
-        }
-        
-        //マクロ展開済みプリプロセッシングトークンリスト
-      }
-      return std::nullopt;
-    }
+    //        if (auto [success, res_list] = preprocessor.funcmacro(*m_reporter, macro_name, *arg_list); success and res_list) {
+    //          //置換後リストを末尾にspliceする
+    //          list.splice(std::end(list), std::move(*res_list));
+    //        } else if (not success) {
+    //          //マクロ実行時のエラーだが、報告済
+    //          se_inc_itr.release();
+    //          return kusabira::error(pp_err_info{std::move(macro_name), pp_parse_context::ControlLine});
+    //        }
+    //        ignore_list.erase(macro_name.token);
+    //      }
+    //    }
+    //    
+    //    //マクロ展開済みプリプロセッシングトークンリスト
+    //  }
+    //  return std::nullopt;
+    //}
 
     /**
     * @brief 改行処理を行う
