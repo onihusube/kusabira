@@ -50,7 +50,7 @@ namespace kusabira::PP {
     ElseGroup,         // 改行の前に不正なトークンが現れている
     EndifLine_Mistake, // #endifがくるべき所に別のものが来ている
     EndifLine_Invalid, // #endif ~ 改行までの間に不正なトークンが現れている
-    TextLine           // 改行が現れる前にファイル終端に達した？バグっぽい
+    TextLine          // 改行が現れる前にファイル終端に達した？バグっぽい
   };
 }
 
