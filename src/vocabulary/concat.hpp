@@ -23,9 +23,9 @@ namespace kusabira::vocabulary {
     static_assert(std::is_same_v<typename std::iterator_traits<Iterator1>::reference, typename std::iterator_traits<Iterator2>::reference>);
 
     Iterator1 m_it1;
-    Sentinel1 m_end1;
     Iterator2 m_it2;
-    Sentinel2 m_end2;
+    [[no_unique_address]] Sentinel1 m_end1;
+    [[no_unique_address]] Sentinel2 m_end2;
 
     typename std::iterator_traits<Iterator1>::value_type* m_val = nullptr;
     bool m_is_first_half = true;
@@ -55,7 +55,7 @@ namespace kusabira::vocabulary {
       using iterator_category = std::input_iterator_tag;
 
       concat_iterator() = default;
-      constexpr concat_iterator(concat& parent) : m_parent{std::addressof(parent)} {}
+      constexpr explicit concat_iterator(concat& parent) : m_parent{std::addressof(parent)} {}
 
       concat_iterator(const concat_iterator&) = delete;
       concat_iterator(concat_iterator&&) = default;
@@ -70,7 +70,9 @@ namespace kusabira::vocabulary {
             m_parent->m_val = std::addressof(*m_parent->m_it1);
           } else {
             m_parent->m_is_first_half = false;
-            if (m_parent->m_it2 != m_parent->m_end2) m_parent->m_val = std::addressof(*m_parent->m_it2);
+            if (m_parent->m_it2 != m_parent->m_end2) {
+              m_parent->m_val = std::addressof(*m_parent->m_it2);
+            }
           }
         } else {
           ++m_parent->m_it2;
@@ -104,7 +106,7 @@ namespace kusabira::vocabulary {
     friend constexpr auto begin(concat& self) -> concat_iterator {
       if (self.m_is_first_half) self.m_val = std::addressof(*self.m_it1);
       else if (self.m_it2 != self.m_end2) self.m_val = std::addressof(*self.m_it2);
-      return { self };
+      return concat_iterator{ self };
     }
 
     [[nodiscard]]
@@ -116,5 +118,20 @@ namespace kusabira::vocabulary {
   
   template<typename Iterator1, typename Sentinel1, typename Iterator2, typename Sentinel2>
   concat(Iterator1, Sentinel1, Iterator2, Sentinel2) -> concat<Iterator1, Sentinel1, Iterator2, Sentinel2>;
+
+  namespace detail {
+    template<typename Iterator1, typename Sentinel1, typename Iterator2, typename Sentinel2>
+    auto is_cancat_iterator(concat<Iterator1, Sentinel1, Iterator2, Sentinel2>&) -> std::true_type;
+
+    template<typename T>
+    auto is_cancat_iterator(T&&) -> std::false_type;
+  }
+
+  /**
+  * @brief 型がconcatであるかを判定する
+  * @tparam I 任意の型
+  */
+  template<typename T>
+  inline constexpr bool is_concat_iterator_v = decltype(detail::is_cancat_iterator(std::declval<T&>()))::value;
     
 } // namespace kusabira::vocabulary
