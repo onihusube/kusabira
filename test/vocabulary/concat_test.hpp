@@ -11,7 +11,6 @@
 namespace kusabira::concat_test {
 
   using kusabira::vocabulary::concat;
-  using kusabira::vocabulary::is_concat_iterator_v;
 
   TEST_CASE("concat_view test") {
 

@@ -11,6 +11,7 @@
 #include "pp_automaton.hpp"
 #include "pp_tokenizer.hpp"
 #include "pp_directive_manager.hpp"
+#include "vocabulary/concat.hpp"
 
 namespace kusabira::PP {
 
@@ -575,14 +576,15 @@ namespace kusabira::PP {
     * @brief プリプロセッシングトークン1つ（1部のものは複数）を構成する
     * @tparam LeaveWhitespace ホワイトスペースを消すかどうか。trueで消す、マクロ引数パース時は残す
     * @param it 現在の先頭トークン
-    * @param end トークン列の終端
+    * @param it_end トークン列の終端
     * @param list プリプロセッシングトークンリスト、ここに構成したトークンを入れる
     * @return エラーが起きた場合その情報、無効値は正常終了
     */
     template<bool LeaveWhitespace, typename OuterMacros = std::pmr::unordered_set<std::u8string_view>>
-    fn construct_next_pptoken(iterator &it, sentinel end, OuterMacros& ignore_list) -> kusabira::expected<pptoken_conteiner, pp_err_info> {
+    fn construct_next_pptoken(iterator &it, sentinel it_end, OuterMacros& ignore_list) -> kusabira::expected<pptoken_conteiner, pp_err_info> {
 
       using namespace std::string_view_literals;
+      using kusabira::vocabulary::concat;
 
       pptoken_conteiner list{&kusabira::def_mr};
 
@@ -595,16 +597,29 @@ namespace kusabira::PP {
       switch (deref(it).category) {
         case pp_token_category::identifier:
         {
-          if (ignore_list.contains(deref(it).token) == true){
+          if (ignore_list.contains(deref(it).token) == true) {
             //識別子を処理、マクロ置換を行う
             if (auto opt = preprocessor.is_macro(deref(it).token); opt) {
               bool is_funcmacro = *opt;
               if (not is_funcmacro) {
+                //無視リストに現在のマクロを登録
+                ignore_list.emplace(deref(it).token);
                 //オブジェクトマクロ置換
                 if (auto res_list = preprocessor.objmacro(deref(it)); res_list) {
+                  // // 結果リストと残りのトークン列を連結してマクロ展開を続行する
+                  // auto new_range = concat{res_list->begin(), res_list->end(), it, it_end};
+                  // // さらにマクロ展開を行う
+                  // auto new_it = begin(new_range);
+                  // if (auto res = construct_next_pptoken<LeaveWhitespace>(new_it, end(new_range), ignore_list); res) {
+                  //   //置換後リストを末尾にspliceする
+                  //   list.splice(std::end(list), std::move(*res));
+                  // } else {
+                  //   // error
+                  // }
                   //置換後リストを末尾にspliceする
                   list.splice(std::end(list), std::move(*res_list));
                 }
+                ignore_list.erase(deref(it).token);
               } else {
                 //関数マクロ
                 //マクロ名を取得し次へ
@@ -612,9 +627,10 @@ namespace kusabira::PP {
                 //無視リストに現在のマクロを登録
                 ignore_list.emplace(macro_name.token);
                 //実引数リストの取得
-                auto&& arg_list = this->funcmacro_args(it, end, ignore_list);
+                auto &&arg_list = this->funcmacro_args(it, it_end, ignore_list);
 
                 if (auto [success, res_list] = preprocessor.funcmacro(*m_reporter, macro_name, *arg_list); success and res_list) {
+                  //auto new_range = concat{res_list.begin(), res_list.end(), it, end};
                   //置換後リストを末尾にspliceする
                   list.splice(std::end(list), std::move(*res_list));
                 } else if (not success) {
@@ -638,7 +654,7 @@ namespace kusabira::PP {
           break;
         case pp_token_category::op_or_punc:
         {
-          auto&& oppunc_list = longest_match_exception_handling(it, end);
+          auto &&oppunc_list = longest_match_exception_handling(it, it_end);
           if (0u < oppunc_list.size()) {
             list.splice(std::end(list), std::move(oppunc_list));
           }
@@ -650,7 +666,7 @@ namespace kusabira::PP {
         {
           //改行されている生文字列リテラルの1行目
           //生文字列リテラル全体を一つのトークンとして読み出す必要がある
-          list.emplace_back(read_rawstring_tokens(it, end));
+          list.emplace_back(read_rawstring_tokens(it, it_end));
 
           //次のトークンを調べてユーザー定義リテラルの有無を判断
           ++it;
