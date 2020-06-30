@@ -36,8 +36,8 @@ namespace kusabira::vocabulary {
 
     constexpr concat(Iterator1 it1, Sentinel1 end1, Iterator2 it2, Sentinel2 end2)
       : m_it1{ it1 }
-      , m_end1{ end1 }
       , m_it2{ it2 }
+      , m_end1{ end1 }
       , m_end2{ end2 }
       , m_is_first_half{ it1 != end1 }
     {}
@@ -96,6 +96,14 @@ namespace kusabira::vocabulary {
             && m_parent->m_it2 == m_parent->m_end2;
       }
 
+#if __GNUC__  < 10
+
+      constexpr bool operator!=(concat_sentinel) const {
+        return !(*this == concat_sentinel{});
+      }
+
+#endif
+
     };
 
   public:
@@ -115,23 +123,5 @@ namespace kusabira::vocabulary {
     }
 
   };
-  
-  template<typename Iterator1, typename Sentinel1, typename Iterator2, typename Sentinel2>
-  concat(Iterator1, Sentinel1, Iterator2, Sentinel2) -> concat<Iterator1, Sentinel1, Iterator2, Sentinel2>;
-
-  namespace detail {
-    template<typename Iterator1, typename Sentinel1, typename Iterator2, typename Sentinel2>
-    auto is_cancat_iterator(concat<Iterator1, Sentinel1, Iterator2, Sentinel2>&) -> std::true_type;
-
-    template<typename T>
-    auto is_cancat_iterator(T&&) -> std::false_type;
-  }
-
-  /**
-  * @brief 型がconcatであるかを判定する
-  * @tparam I 任意の型
-  */
-  template<typename T>
-  inline constexpr bool is_concat_iterator_v = decltype(detail::is_cancat_iterator(std::declval<T&>()))::value;
     
 } // namespace kusabira::vocabulary
