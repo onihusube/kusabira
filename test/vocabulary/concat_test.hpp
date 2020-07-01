@@ -39,8 +39,6 @@ namespace kusabira::concat_test {
     CHECK_UNARY(it == se);
   }
 
-#ifndef __GNUC__
-
   TEST_CASE("iterator concat test") {
 
     std::vector<int> v1 = { 1, 2, 3, 4, 5 };
@@ -127,25 +125,4 @@ namespace kusabira::concat_test {
     }
   }
 
-#else
-
-  // g++がイテレータのbegin()とend()の型が違うと怒るので、最小限のテスト
-  TEST_CASE("concat_view gcc test") {
-
-    std::vector<int> v1 = { 1, 2, 3, 4, 5 };
-    std::list<int>   ls = { 6, 7, 8, 9, 10};
-
-    auto concat_view = concat(v1.begin(), v1.end(), ls.begin(), ls.end());
-  
-    auto it = begin(concat_view);
-    auto se = end(concat_view);
-
-    int expect = 1;
-    for (; it != se; ++it) {
-      CHECK_EQ(expect, *it);
-      ++expect;
-    }
-  }
-
-#endif // __GNUC__
 }

@@ -34,9 +34,10 @@ namespace kusabira::vocabulary {
 
     concat() = default;
 
-    constexpr concat(Iterator1 it1, Sentinel1 end1, Iterator2 it2, Sentinel2 end2)
-      : m_it1{ it1 }
-      , m_it2{ it2 }
+    template<typename It1, typename It2>
+    constexpr concat(It1&& it1, Sentinel1 end1, It2&& it2, Sentinel2 end2)
+      : m_it1{ std::forward<It1>(it1) }
+      , m_it2{ std::forward<It2>(it2) }
       , m_end1{ end1 }
       , m_end2{ end2 }
       , m_is_first_half{ it1 != end1 }
@@ -48,9 +49,9 @@ namespace kusabira::vocabulary {
       concat* m_parent;
 
     public:
-      using value_type = typename Iterator1::value_type;
+      using value_type = typename std::iterator_traits<Iterator1>::value_type;
       using pointer = value_type*;
-      using reference = typename Iterator1::reference;
+      using reference = typename std::iterator_traits<Iterator1>::reference;
       using difference_type = std::ptrdiff_t;
       using iterator_category = std::input_iterator_tag;
 
@@ -123,5 +124,8 @@ namespace kusabira::vocabulary {
     }
 
   };
+
+  template<typename Iterator1, typename Sentinel1, typename Iterator2, typename Sentinel2>	
+  concat(Iterator1, Sentinel1, Iterator2, Sentinel2) -> concat<Iterator1, Sentinel1, Iterator2, Sentinel2>;
     
 } // namespace kusabira::vocabulary
