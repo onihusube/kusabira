@@ -569,21 +569,20 @@ namespace kusabira::PP {
     fn construct_next_pptoken(iterator &it, sentinel end) -> kusabira::expected<pptoken_conteiner, pp_err_info> {
       //マクロ展開中にそれ自身と同じマクロが内部に出てきても無視する、その際に名前だけでも覚えておくリスト
       std::pmr::unordered_set<std::u8string_view> ignore_macro_list{&kusabira::def_mr};
-      return this->construct_next_pptoken<true>(it, end, ignore_macro_list);
+      return this->construct_next_pptoken<false>(it, end, ignore_macro_list);
     }
 
     /**
     * @brief プリプロセッシングトークン1つ（1部のものは複数）を構成する
-    * @tparam LeaveWhitespace ホワイトスペースを消すかどうか。trueで消す、マクロ引数パース時は残す
+    * @tparam ParsingMacroArgs マクロ引数パースを行なっているか否か、マクロ展開を実行せず、ホワイトスペースを残す
     * @param it 現在の先頭トークン
     * @param it_end トークン列の終端
     * @return {結果となるプリプロセッシングトークンリスト | エラー情報}
     */
-    template<bool LeaveWhitespace, typename Iterator, typename Sentinel, typename OuterMacros = std::pmr::unordered_set<std::u8string_view>>
+    template<bool ParsingMacroArgs = false, typename Iterator, typename Sentinel, typename OuterMacros = std::pmr::unordered_set<std::u8string_view>>
     fn construct_next_pptoken(Iterator &it, Sentinel it_end, OuterMacros& ignore_list) -> kusabira::expected<pptoken_conteiner, pp_err_info> {
 
       using namespace std::string_view_literals;
-      using kusabira::vocabulary::concat;
 
       pptoken_conteiner list{&kusabira::def_mr};
 
@@ -596,40 +595,43 @@ namespace kusabira::PP {
       switch (deref(it).category) {
         case pp_token_category::identifier:
         {
-          if (ignore_list.contains(deref(it).token) == true) {
-            //識別子を処理、マクロ置換を行う
-            if (auto opt = preprocessor.is_macro(deref(it).token); opt) {
-              bool is_funcmacro = *opt;
-              if (not is_funcmacro) {
-                //無視リストに現在のマクロを登録
-                ignore_list.emplace(deref(it).token);
-                //オブジェクトマクロ置換
-                if (auto res_list = preprocessor.objmacro(deref(it)); res_list) {
-                  //置換後リストを末尾にspliceする
-                  list.splice(std::end(list), std::move(*res_list));
-                }
-                ignore_list.erase(deref(it).token);
-              } else {
-                //関数マクロ
-                //マクロ名を取得し次へ
-                auto macro_name = deref_inc(it);
-                //無視リストに現在のマクロを登録
-                ignore_list.emplace(macro_name.token);
-                //実引数リストの取得
-                auto &&arg_list = this->funcmacro_args(it, it_end, ignore_list);
+          // マクロ引数の構築時はマクロ展開をしない
+          if constexpr (not ParsingMacroArgs) {
+            if (ignore_list.contains(deref(it).token) == true) {
+              //識別子を処理、マクロ置換を行う
+              if (auto opt = preprocessor.is_macro(deref(it).token); opt) {
+                bool is_funcmacro = *opt;
+                if (not is_funcmacro) {
+                  //無視リストに現在のマクロを登録
+                  ignore_list.emplace(deref(it).token);
+                  //オブジェクトマクロ置換
+                  if (auto res_list = preprocessor.objmacro(deref(it)); res_list) {
+                    //置換後リストを末尾にspliceする
+                    list.splice(std::end(list), std::move(*res_list));
+                  }
+                  ignore_list.erase(deref(it).token);
+                } else {
+                  //関数マクロ
+                  //マクロ名を取得し次へ
+                  auto macro_name = deref_inc(it);
+                  //無視リストに現在のマクロを登録
+                  ignore_list.emplace(macro_name.token);
+                  //実引数リストの取得
+                  auto &&arg_list = this->funcmacro_args(it, it_end, ignore_list);
 
-                if (auto [success, res_list] = preprocessor.funcmacro(*m_reporter, macro_name, *arg_list); success and res_list) {
-                  //auto new_range = concat{res_list.begin(), res_list.end(), it, end};
-                  //置換後リストを末尾にspliceする
-                  list.splice(std::end(list), std::move(*res_list));
-                } else if (not success) {
-                  //マクロ実行時のエラーだが、報告済
-                  se_inc_itr.release();
-                  return kusabira::error(pp_err_info{std::move(macro_name), pp_parse_context::ControlLine});
+                  if (auto [success, res_list] = preprocessor.funcmacro(*m_reporter, macro_name, *arg_list); success and res_list) {
+                    //auto new_range = concat{res_list.begin(), res_list.end(), it, end};
+                    //置換後リストを末尾にspliceする
+                    list.splice(std::end(list), std::move(*res_list));
+                  } else if (not success) {
+                    //マクロ実行時のエラーだが、報告済
+                    se_inc_itr.release();
+                    return kusabira::error(pp_err_info{std::move(macro_name), pp_parse_context::ControlLine});
+                  }
+                  ignore_list.erase(macro_name.token);
                 }
-                ignore_list.erase(macro_name.token);
+                break;
               }
-              break;
             }
           }
           //置換対象ではない
@@ -705,6 +707,7 @@ namespace kusabira::PP {
     * @param it 現在の先頭トークン
     * @param end トークン列の終端
     * @details 呼び出し開始の開きかっこ"("の直後から開始すること
+    * @details 各引数トークン列はマクロ置換をせずにプリプロセッサへ転送する、引数内マクロはプリプロセッサ内で置換の直前に展開される
     * @return エラーが起きた場合その情報、正常終了すれば実引数リスト
     */
     template<typename Iterator, typename Sentinel, typename OuterMacros = std::pmr::unordered_set<std::u8string_view>>
@@ -755,7 +758,7 @@ namespace kusabira::PP {
         }
 
         //実引数となるプリプロセッシングトークンを構成する
-        if (auto result = this->construct_next_pptoken<false>(it, end, ignore_macros); result) {
+        if (auto result = this->construct_next_pptoken<true>(it, end, ignore_macros); result) {
           arg_list.splice(arg_list.end(), std::move(*result));
         } else {
           //エラーが起きてる
@@ -769,56 +772,56 @@ namespace kusabira::PP {
       return kusabira::ok(std::move(args));
     }
 
-    template<typename OuterMacros = std::pmr::unordered_set<std::u8string_view>>
-    fn further_macro_replacement(pptoken_conteiner &list, iterator&, sentinel, const OuterMacros& ignore_list) -> std::optional<pp_err_info> {
-     auto list_end = std::end(list);
+    // template<typename OuterMacros = std::pmr::unordered_set<std::u8string_view>>
+    // fn further_macro_replacement(pptoken_conteiner &list, iterator&, sentinel, const OuterMacros& ignore_list) -> std::optional<pp_err_info> {
+    //  auto list_end = std::end(list);
 
-     for (auto list_it = std::begin(list); list_it != list_end;) {
-       // ループ終了後インクリメント
-       kusabira::vocabulary::scope_exit se = [&list_it]() {
-         ++list_it;
-       };
+    //  for (auto list_it = std::begin(list); list_it != list_end;) {
+    //    // ループ終了後インクリメント
+    //    kusabira::vocabulary::scope_exit se = [&list_it]() {
+    //      ++list_it;
+    //    };
 
-       OuterMacros local_ignore_list{&usabira::def_mr};
+    //    OuterMacros local_ignore_list{&kusabira::def_mr};
 
-       auto is_ignore = [&ignore_list, &local_ignore_list](auto name) -> bool {
-         return ignore_list.contains(name) and local_ignore_list.contains(name);
-       };
+    //    auto is_ignore = [&ignore_list, &local_ignore_list](auto name) -> bool {
+    //      return ignore_list.contains(name) and local_ignore_list.contains(name);
+    //    };
 
-       //識別子以外は無視（処理済みなので）
-       if (deref(list_it).category != pp_token_category::identifier) continue;
-       //外側マクロを無視
-       if (ignore_list.contains(deref(list_it).token) == false) continue;
+    //    //識別子以外は無視（処理済みなので）
+    //    if (deref(list_it).category != pp_token_category::identifier) continue;
+    //    //外側マクロを無視
+    //    if (ignore_list.contains(deref(list_it).token) == false) continue;
 
-       //識別子を処理、マクロ置換を行う
-       if (auto opt = preprocessor.is_macro(deref(list_it).token); opt) {
-         bool is_funcmacro = *opt;
-         if (not is_funcmacro) {
-          //オブジェクトマクロ、そのまま置換しsplice
+    //    //識別子を処理、マクロ置換を行う
+    //    if (auto opt = preprocessor.is_macro(deref(list_it).token); opt) {
+    //      bool is_funcmacro = *opt;
+    //      if (not is_funcmacro) {
+    //       //オブジェクトマクロ、そのまま置換しsplice
 
-          //無視リストに現在のマクロを登録
-          ignore_list.emplace(deref(list_it).token);
+    //       //無視リストに現在のマクロを登録
+    //       ignore_list.emplace(deref(list_it).token);
 
-          //オブジェクトマクロ置換
-          if (auto res_list = preprocessor.objmacro(deref(list_it)); res_list) {
-            //着目するトークンを置換後の先頭に変更
-            auto erase_pos = list_it;
-            list_it = std::begin(res_list);
-            //置換後リストを現在のトークン前にsplice、置換後トークンを削除
-            list.splice(erase_pos, std::move(*res_list));
-            list.erase(erase_pos);
+    //       //オブジェクトマクロ置換
+    //       if (auto res_list = preprocessor.objmacro(deref(list_it)); res_list) {
+    //         //着目するトークンを置換後の先頭に変更
+    //         auto erase_pos = list_it;
+    //         list_it = std::begin(res_list);
+    //         //置換後リストを現在のトークン前にsplice、置換後トークンを削除
+    //         list.splice(erase_pos, std::move(*res_list));
+    //         list.erase(erase_pos);
 
-            se.release();
-          }
-         } else {
-           //関数マクロ
-         }
-       }
+    //         se.release();
+    //       }
+    //      } else {
+    //        //関数マクロ
+    //      }
+    //    }
        
-       //マクロ展開済みプリプロセッシングトークンリスト
-     }
-     return std::nullopt;
-    }
+    //    //マクロ展開済みプリプロセッシングトークンリスト
+    //  }
+    //  return std::nullopt;
+    // }
 
     /**
     * @brief 改行処理を行う

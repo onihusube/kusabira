@@ -40,7 +40,7 @@ namespace kusabira::vocabulary {
       , m_it2{ std::forward<It2>(it2) }
       , m_end1{ end1 }
       , m_end2{ end2 }
-      , m_is_first_half{ it1 != end1 }
+      , m_is_first_half{ m_it1 != m_end1 }
     {}
 
   private:
