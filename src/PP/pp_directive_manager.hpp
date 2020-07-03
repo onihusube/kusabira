@@ -1048,6 +1048,40 @@ namespace kusabira::PP {
       return found_op((*pos).second);
     }
 
+    template<typename Reporter>
+    fn macro_replacement(Reporter& reporter, std::pmr::list<pp_token>& list, std::u8string_view outer_macro) -> bool {
+
+      auto it = std::begin(list);
+      const auto fin = std::end(list);
+
+      while (it != fin) {
+        //識別子以外は無視
+        if (deref(it).category != pp_token_category::identifier) continue;
+        //外側マクロを無視
+        if (outer_macro == deref(it).token) continue;
+
+        //マクロ置換
+        if (auto opt = this->is_macro(deref(it).token); opt) {
+          const bool is_funcmacro = *opt;
+
+          std::optional<std::pmr::list<pp_token>> result{};
+
+          if (not is_funcmacro) {
+            //オブジェクトマクロ置換
+            result = this->objmacro(*it);
+          } else {
+            //関数マクロ置換
+            std::tie(std::ignore, result) = this->funcmacro(reporter, *it, {});
+          }
+          //成功するのでエラーチェックしない
+          //リストの再スキャンとさらなるマクロ展開はここではやらない
+          list.splice(it, std::move(*result));
+          it = list.erase(it);
+        }
+
+      }
+    }
+
   public:
 
     /**
