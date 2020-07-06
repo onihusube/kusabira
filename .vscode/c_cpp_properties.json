@@ -17,7 +17,7 @@
                 "/Library/Frameworks"
             ],
             "defines": [],
-            "compilerPath": "/usr/local/bin/g++-9",
+            "compilerPath": "/usr/local/bin/g++-10",
             "cStandard": "c11",
             "cppStandard": "c++20",
             "intelliSenseMode": "gcc-x64",

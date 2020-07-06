@@ -401,7 +401,8 @@ namespace kusabira::PP {
     * @param args 実引数列（カンマ区切り毎のトークン列のvector
     * @return マクロ置換後のトークンリスト
     */
-    fn func_macro_impl(const std::pmr::vector<std::pmr::list<pp_token>>& args) const -> macro_result_t {
+    template<typename F>
+    fn func_macro_impl(const std::pmr::vector<std::pmr::list<pp_token>>& args, F&& f) const -> macro_result_t {
       //置換対象のトークンシーケンスをコピー（終了後そのまま置換結果となる）
       std::pmr::list<pp_token> result_list{ m_tokens, &kusabira::def_mr };
 
@@ -432,7 +433,9 @@ namespace kusabira::PP {
           } else if (not (sharp2_op or sharp2_op_rhs)) {
             //##の左右のトークンはマクロ置換をしない
             //それ以外のトークンは置換の前に単体のプリプロセッシングトークン列としてマクロ置換を完了しておく
-
+            //falseが帰ってきた場合はマクロ置換中のエラー
+            if (not f(arg_list))
+              return kusabira::error(std::make_pair(pp_parse_context::Funcmacro_ReplacementFail, std::move(*it)));
           } 
 
           //結果リストにsplice
@@ -469,7 +472,8 @@ namespace kusabira::PP {
     * @param args 実引数列（カンマ区切り毎のトークン列のvector
     * @return マクロ置換後のトークンリスト
     */
-    fn va_macro_impl(const std::pmr::vector<std::pmr::list<pp_token>>& args) const -> macro_result_t {
+    template<typename F>
+    fn va_macro_impl(const std::pmr::vector<std::pmr::list<pp_token>>& args, F&& f) const -> macro_result_t {
       using namespace std::string_view_literals;
 
       //置換対象のトークンシーケンスをコピー（終了後そのまま置換結果となる）
@@ -609,7 +613,9 @@ namespace kusabira::PP {
         } else if (not skip_macro_expand) {
           //##の左右のトークンはマクロ置換をしない
           //それ以外のトークンは置換の前に単体のプリプロセッシングトークン列としてマクロ置換を完了しておく
-          
+          //falseが帰ってきた場合はマクロ置換中のエラー
+          if (not f(arg_list))
+            return kusabira::error(std::make_pair(pp_parse_context::Funcmacro_ReplacementFail, std::move(*it)));
         } 
 
         //結果リストにsplice
@@ -766,9 +772,24 @@ namespace kusabira::PP {
     fn operator()(const std::pmr::vector<std::pmr::list<pp_token>>& args) const -> macro_result_t {
       //可変引数マクロと処理を分ける
       if (m_is_va) {
-        return this->va_macro_impl(args);
+        return this->va_macro_impl(args, [](auto&&) { return true; });
       } else {
-        return this->func_macro_impl(args);
+        return this->func_macro_impl(args, [](auto &&) { return true; });
+      }
+    }
+
+    /**
+    * @brief 関数マクロを実行する
+    * @param args 実引数列
+    * @return 置換結果のトークンリスト
+    */
+    template<typename F>
+    fn operator()(const std::pmr::vector<std::pmr::list<pp_token>>& args, F&& f) const -> macro_result_t {
+      //可変引数マクロと処理を分ける
+      if (m_is_va) {
+        return this->va_macro_impl(args, std::forward<F>(f));
+      } else {
+        return this->func_macro_impl(args, std::forward<F>(f));
       }
     }
   };
@@ -1048,17 +1069,69 @@ namespace kusabira::PP {
       return found_op((*pos).second);
     }
 
+    /**
+    * @brief 関数マクロの引数内のマクロを展開する
+    * @param reporter エラー出力先
+    * @param list 引数1つのプリプロセッシングトークン列
+    * @param outer_macro 外側のマクロ名
+    * @details ここでは置換後の再スキャンとさらなるマクロ展開を行わない
+    * @return 成功？
+    */
     template<typename Reporter>
-    fn macro_replacement(Reporter& reporter, std::pmr::list<pp_token>& list, std::u8string_view outer_macro) -> bool {
+    fn macro_replacement(Reporter& reporter, std::pmr::list<pp_token>& list, std::u8string_view outer_macro) const -> bool {
+
+      auto pars_arg = [&mr = kusabira::def_mr](auto it, auto end) {
+        using namespace std::string_view_literals;
+
+        std::pmr::vector<std::pmr::list<pp_token>> args{ &mr };
+        args.reserve(10);
+
+        std::pmr::list<pp_token> arg_list{&mr};
+        std::size_t paren = 0;
+
+        for (; it != end; ++it) {
+          if (deref(it).category == pp_token_category::op_or_punc) {
+            //カンマの出現で1つの実引数のパースを完了する
+            if (paren == 1 and deref(it).token == u8","sv) {
+              args.emplace_back(std::move(arg_list));
+              //要らないけど、一応
+              arg_list = std::pmr::list<pp_token>{&mr};
+              //カンマは保存しない
+              continue;
+            } else if (deref(it).token == u8"("sv) {
+              //かっこの始まり
+              ++paren;
+            } else if (deref(it).token == u8")"sv) {
+              //マクロ終了の閉じかっこ判定
+              if (paren == 1) break;
+              //閉じかっこ
+              --paren;
+            }
+          }
+          //改行はホワイトスペースになってるはずだし、ホワイトスペースは1つに畳まれているはず
+          //妥当なプリプロセッシングトークン列としも構成済みのはず
+          //従って、ここではその処理を行わない
+          //そして、マクロ引数列中のマクロもはここでは展開しない
+
+          //ここmoveしたいけど、マクロが正常に閉じるかが分からないのでmoveはしない
+          arg_list.emplace_back(*it);
+        }
+
+        return std::make_pair(it, std::move(args));
+      };
 
       auto it = std::begin(list);
       const auto fin = std::end(list);
 
       while (it != fin) {
         //識別子以外は無視
-        if (deref(it).category != pp_token_category::identifier) continue;
         //外側マクロを無視
-        if (outer_macro == deref(it).token) continue;
+        if (deref(it).category != pp_token_category::identifier or
+            outer_macro == deref(it).token)
+        {
+          ++it;
+          continue;
+        }
 
         //マクロ置換
         if (auto opt = this->is_macro(deref(it).token); opt) {
@@ -1068,18 +1141,31 @@ namespace kusabira::PP {
 
           if (not is_funcmacro) {
             //オブジェクトマクロ置換
-            result = this->objmacro(*it);
+            result = this->objmacro<true>(reporter, *it);
           } else {
+            //マクロの閉じ位置と引数リスト取得
+            const auto [macro_end, args] = pars_arg(it, fin);
+            //マクロが閉じる前に終端に達した場合、何もしない
+            if (macro_end == fin) break;
+
+            bool success;
             //関数マクロ置換
-            std::tie(std::ignore, result) = this->funcmacro(reporter, *it, {});
+            std::tie(success, result) = this->funcmacro<true>(reporter, *it, args);
+            if (not success) return false;
+
+            //マクロの閉じ括弧を残して削除
+            it = list.erase(it, macro_end);
           }
           //成功するのでエラーチェックしない
           //リストの再スキャンとさらなるマクロ展開はここではやらない
           list.splice(it, std::move(*result));
           it = list.erase(it);
+        } else {
+          ++it;
         }
-
       }
+
+      return true;
     }
 
   public:
@@ -1089,16 +1175,25 @@ namespace kusabira::PP {
     * @param macro_name 識別子トークン名
     * @return 置換リストのoptional、無効地なら置換対象ではなかった
     */
-    fn objmacro(const pp_token& macro_name) const -> std::optional<std::pmr::list<pp_token>> {
+    template<bool MacroExpandOff, typename Reporter>
+    fn objmacro(Reporter& reporter, const pp_token& macro_name) const -> std::optional<std::pmr::list<pp_token>> {
       
       //4つの事前定義マクロを処理
       if (auto result = predefined_macro(macro_name); result) {
         return result;
       }
 
-      return fetch_macro(macro_name.token, [&mr = kusabira::def_mr](const auto& macro) {
+      return fetch_macro(macro_name.token, [&reporter, &macro_name, &mr = kusabira::def_mr, this](const auto& macro) {
         //置換結果取得
-        if (auto&& result = macro({}); result) {
+        unified_macro::macro_result_t result{};
+
+        if constexpr (MacroExpandOff) {
+          result = macro({});
+        } else {
+          result = macro({}, [&, this](auto &list) { return this->macro_replacement(reporter, list, macro_name.token); });
+        }
+
+        if (result) {
           //optionalで包んで返す
           return std::optional<std::pmr::list<pp_token>>{std::in_place, std::move(*result), &mr};
         } else {
@@ -1111,11 +1206,12 @@ namespace kusabira::PP {
 
     /**
     * @brief 関数マクロによる置換リストを取得する
+    * @tparam MacroExpandOff さらにマクロ展開を行うか否か
     * @param macro_name マクロ名
     * @param args 関数マクロの実引数トークン列
     * @return {エラーの有無, 置換リストのoptional}
     */
-    template<typename Reporter>
+    template<bool MacroExpandOff, typename Reporter>
     fn funcmacro(Reporter& reporter, const pp_token& macro_name, const std::pmr::vector<std::pmr::list<pp_token>>& args) const -> std::pair<bool, std::optional<std::pmr::list<pp_token>>> {
       return fetch_macro(macro_name.token, [&mr = kusabira::def_mr, &args, &reporter, &macro_name, this](const auto& macro) -> std::pair<bool, std::optional<std::pmr::list<pp_token>>> {
         //引数長さのチェック
@@ -1124,8 +1220,16 @@ namespace kusabira::PP {
           return {false, std::nullopt};
         }
 
+        unified_macro::macro_result_t result{};
+
+        if constexpr (MacroExpandOff) {
+          result = macro(args);
+        } else {
+          result = macro(args, [&, this](auto &list) { return this->macro_replacement(reporter, list, macro_name.token); });
+        }
+
         //置換結果取得
-        if (auto&& result = macro(args); result) {
+        if (result) {
           //optionalで包んで返す
           return {true, std::optional<std::pmr::list<pp_token>>{std::in_place, std::move(*result), &mr}};
         } else {

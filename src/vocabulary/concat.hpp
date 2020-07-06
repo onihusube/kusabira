@@ -96,15 +96,6 @@ namespace kusabira::vocabulary {
         return m_parent->m_it1 == m_parent->m_end1
             && m_parent->m_it2 == m_parent->m_end2;
       }
-
-#if __GNUC__  < 10
-
-      constexpr bool operator!=(concat_sentinel) const {
-        return !(*this == concat_sentinel{});
-      }
-
-#endif
-
     };
 
   public:

@@ -6,10 +6,9 @@
 #include <forward_list>
 #include <string>
 #include <string_view>
-#if defined(_MSC_VER) && defined(__cpp_impl_three_way_comparison)
 #include <compare>
-#endif
 #include <cassert>
+#include <iterator>
 
 #ifdef __EDG__
   #include "../subprojects/tlexpected/include/tl/expected.hpp"

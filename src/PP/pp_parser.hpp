@@ -605,7 +605,7 @@ namespace kusabira::PP {
                   //無視リストに現在のマクロを登録
                   ignore_list.emplace(deref(it).token);
                   //オブジェクトマクロ置換
-                  if (auto res_list = preprocessor.objmacro(deref(it)); res_list) {
+                  if (auto res_list = preprocessor.objmacro<false>(*m_reporter, deref(it)); res_list) {
                     //置換後リストを末尾にspliceする
                     list.splice(std::end(list), std::move(*res_list));
                   }
@@ -619,7 +619,7 @@ namespace kusabira::PP {
                   //実引数リストの取得
                   auto &&arg_list = this->funcmacro_args(it, it_end, ignore_list);
 
-                  if (auto [success, res_list] = preprocessor.funcmacro(*m_reporter, macro_name, *arg_list); success and res_list) {
+                  if (auto [success, res_list] = preprocessor.funcmacro<false>(*m_reporter, macro_name, *arg_list); success and res_list) {
                     //auto new_range = concat{res_list.begin(), res_list.end(), it, end};
                     //置換後リストを末尾にspliceする
                     list.splice(std::end(list), std::move(*res_list));
@@ -803,7 +803,7 @@ namespace kusabira::PP {
     //       ignore_list.emplace(deref(list_it).token);
 
     //       //オブジェクトマクロ置換
-    //       if (auto res_list = preprocessor.objmacro(deref(list_it)); res_list) {
+    //       if (auto res_list = preprocessor.objmacro<false>(*reporter, deref(list_it)); res_list) {
     //         //着目するトークンを置換後の先頭に変更
     //         auto erase_pos = list_it;
     //         list_it = std::begin(res_list);

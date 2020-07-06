@@ -42,6 +42,7 @@ namespace kusabira::PP {
     Define_InvalidTokenConcat,  // 不正なプリプロセッシングトークンの連結が行われた
     Define_InvalidDirective,    // #defineディレクティブが正しくない
     Funcmacro_InsufficientArgs, // 関数マクロ呼び出しの際、引数が足りなかった
+    Funcmacro_ReplacementFail,  // 関数マクロの呼び出し中、引数に対するマクロ置換が失敗した
     ControlLine_Undef,          // #undefにマクロ名が指定されていない
     ControlLine_Line_Num,       // #lineディレクティブの行数指定が符号なし整数値として読み取れない
     ControlLine_Line_ManyToken, // #lineディレクティブの後ろに不要なトークンが付いてる（警告）
