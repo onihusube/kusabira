@@ -1464,6 +1464,44 @@ namespace kusabira_test::preprocessor {
     }
   }
 
+  TEST_CASE("further replacement test1") {
+    //論理行保持コンテナ
+    std::pmr::forward_list<logical_line> ll{};
+    //エラー出力先
+    auto reporter = kusabira::report::reporter_factory<report::test_out>::create();
+    //プリプロセッサ
+    kusabira::PP::pp_directive_manager pp{"/kusabira/test_further_replacement1.hpp"};
+    auto pos = ll.before_begin();
+
+    {
+
+      pos = ll.emplace_after(pos, 0, 0);
+      (*pos).line = u8"#define F(X, ...) X ## __VA_ARGS__ ## X";
+
+      //仮引数列と置換リスト
+      std::pmr::vector<std::u8string_view> params{&kusabira::def_mr};
+      std::pmr::list<pp_token> rep_list{&kusabira::def_mr};
+
+      //字句トークン
+      pp_token lt2{pp_token_category::identifier, u8"F", 8, pos};
+      pp_token lt4{pp_token_category::identifier, u8"X", 13, pos};
+      pp_token lt6{pp_token_category::op_or_punc, u8"...", 16, pos};
+
+      //置換リスト
+      rep_list.emplace_back(pp_token_category::identifier, u8"X", 19, pos);
+      rep_list.emplace_back(pp_token_category::op_or_punc, u8"##", 23, pos);
+      rep_list.emplace_back(pp_token_category::identifier, u8"__VA_ARGS__", 26, pos);
+      rep_list.emplace_back(pp_token_category::op_or_punc, u8"##", 23, pos);
+      rep_list.emplace_back(pp_token_category::identifier, u8"X", 19, pos);
+      //マクロ仮引数トークン列
+      params.emplace_back(lt4.token);
+      params.emplace_back(lt6.token);
+
+      //関数マクロ登録
+      CHECK_UNARY(pp.define(*reporter, lt2, rep_list, params, true));
+    }
+  }
+
   TEST_CASE("predfined macro test") {
 
     //プリプロセッサ
