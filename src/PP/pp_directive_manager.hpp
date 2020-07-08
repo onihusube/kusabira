@@ -214,8 +214,12 @@ namespace kusabira::PP {
     //{置換リストに現れる仮引数名のインデックス, 対応する実引数のインデックス, __VA_ARGS__?, __VA_OPT__?, #?, ##の左辺?, ##の右辺?}}
     std::pmr::vector<std::tuple<std::size_t, std::size_t, bool, bool, bool, bool, bool>> m_correspond;
 
+  public:
+    
     //マクロ実行の結果型
     using macro_result_t = kusabira::expected<std::pmr::list<pp_token>, std::pair<pp_parse_context, pp_token>>;
+
+  private:
 
     /**
     * @brief 置換リスト上の仮引数を見つけて、仮引数の番号との対応を取っておく
@@ -1113,8 +1117,7 @@ namespace kusabira::PP {
           //従って、ここではその処理を行わない
           //そして、マクロ引数列中のマクロもはここでは展開しない
 
-          //ここmoveしたいけど、マクロが正常に閉じるかが分からないのでmoveはしない
-          arg_list.emplace_back(*it);
+          arg_list.emplace_back(std::move(*it));
         }
 
         return std::make_pair(it, std::move(args));
@@ -1143,10 +1146,12 @@ namespace kusabira::PP {
             //オブジェクトマクロ置換
             result = this->objmacro<true>(reporter, *it);
           } else {
+
+            //終端かっこのチェック、マクロが閉じる前に終端に達した場合何もしない
+            if (search_close_parenthesis(std::next(it), fin) == fin) break;
+
             //マクロの閉じ位置と引数リスト取得
             const auto [macro_end, args] = pars_arg(it, fin);
-            //マクロが閉じる前に終端に達した場合、何もしない
-            if (macro_end == fin) break;
 
             bool success;
             //関数マクロ置換
@@ -1178,7 +1183,7 @@ namespace kusabira::PP {
     template<bool MacroExpandOff, typename Reporter>
     fn objmacro(Reporter& reporter, const pp_token& macro_name) const -> std::optional<std::pmr::list<pp_token>> {
       
-      //4つの事前定義マクロを処理
+      //事前定義マクロを処理
       if (auto result = predefined_macro(macro_name); result) {
         return result;
       }

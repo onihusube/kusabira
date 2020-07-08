@@ -280,7 +280,6 @@ namespace kusabira::report {
     }
   };
 
-
   /**
   * @brief 出力言語を指定する列挙型
   * @details RFC4646、ISO 639-1に従った命名をする

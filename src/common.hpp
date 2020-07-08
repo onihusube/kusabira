@@ -9,6 +9,7 @@
 #include <compare>
 #include <cassert>
 #include <iterator>
+#include <concepts>
 
 #ifdef __EDG__
   #include "../subprojects/tlexpected/include/tl/expected.hpp"
