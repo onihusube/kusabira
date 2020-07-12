@@ -1464,7 +1464,7 @@ namespace kusabira_test::preprocessor {
     }
   }
 
-  TEST_CASE("further replacement test1") {
+  TEST_CASE("macro replacement in argument test") {
     //論理行保持コンテナ
     std::pmr::forward_list<logical_line> ll{};
     //エラー出力先
@@ -1476,29 +1476,154 @@ namespace kusabira_test::preprocessor {
     {
 
       pos = ll.emplace_after(pos, 0, 0);
-      (*pos).line = u8"#define F(X, ...) X ## __VA_ARGS__ ## X";
+      (*pos).line = u8"#define F(a, b, c, d) a #b ## c d";
 
       //仮引数列と置換リスト
       std::pmr::vector<std::u8string_view> params{&kusabira::def_mr};
       std::pmr::list<pp_token> rep_list{&kusabira::def_mr};
 
       //字句トークン
-      pp_token lt2{pp_token_category::identifier, u8"F", 8, pos};
-      pp_token lt4{pp_token_category::identifier, u8"X", 13, pos};
-      pp_token lt6{pp_token_category::op_or_punc, u8"...", 16, pos};
+      pp_token lt1{ pp_token_category::identifier, u8"a", 10, pos };
+      pp_token lt2{ pp_token_category::identifier, u8"b", 13, pos };
+      pp_token lt3{ pp_token_category::identifier, u8"c", 16, pos };
+      pp_token lt4{ pp_token_category::identifier, u8"d", 19, pos };
 
       //置換リスト
-      rep_list.emplace_back(pp_token_category::identifier, u8"X", 19, pos);
-      rep_list.emplace_back(pp_token_category::op_or_punc, u8"##", 23, pos);
-      rep_list.emplace_back(pp_token_category::identifier, u8"__VA_ARGS__", 26, pos);
-      rep_list.emplace_back(pp_token_category::op_or_punc, u8"##", 23, pos);
-      rep_list.emplace_back(pp_token_category::identifier, u8"X", 19, pos);
+      rep_list.emplace_back(pp_token_category::identifier, u8"a", 22, pos);
+      rep_list.emplace_back(pp_token_category::op_or_punc, u8"#", 24, pos);
+      rep_list.emplace_back(pp_token_category::identifier, u8"b", 25, pos);
+      rep_list.emplace_back(pp_token_category::op_or_punc, u8"##", 27, pos);
+      rep_list.emplace_back(pp_token_category::identifier, u8"c", 30, pos);
+      rep_list.emplace_back(pp_token_category::identifier, u8"d", 32, pos);
       //マクロ仮引数トークン列
+      params.emplace_back(lt1.token);
+      params.emplace_back(lt2.token);
+      params.emplace_back(lt3.token);
       params.emplace_back(lt4.token);
-      params.emplace_back(lt6.token);
 
       //関数マクロ登録
-      CHECK_UNARY(pp.define(*reporter, lt2, rep_list, params, true));
+      CHECK_UNARY(pp.define(*reporter, { pp_token_category::identifier, u8"F", 8, pos }, rep_list, params, false));
+
+      pos = ll.emplace_after(pos, 1, 1);
+      (*pos).line = u8"#define G(a) a";
+      rep_list.clear();
+      params.clear();
+
+      //置換リスト
+      rep_list.emplace_back(pp_token_category::identifier, u8"a", 13, pos);
+      //マクロ仮引数トークン列
+      params.emplace_back(u8"a"sv);
+
+      //関数マクロ登録
+      CHECK_UNARY(pp.define(*reporter, { pp_token_category::identifier, u8"G", 8, pos }, rep_list, params, false));
+
+      pos = ll.emplace_after(pos, 2, 2);
+      (*pos).line = u8"#define H test";
+      rep_list.clear();
+      params.clear();
+
+      //置換リスト
+      rep_list.emplace_back(pp_token_category::identifier, u8"test", 10, pos);
+
+      //関数マクロ登録
+      CHECK_UNARY(pp.define(*reporter, { pp_token_category::identifier, u8"H", 8, pos }, rep_list));
+
+      pos = ll.emplace_after(pos, 3, 3);
+      (*pos).line = u8"F(G(u8), G(a), H, H)";
+
+      //実引数リスト
+      std::pmr::list<pp_token> token_list{ &kusabira::def_mr };
+      std::pmr::vector<std::pmr::list<pp_token>> args{ &kusabira::def_mr };
+      token_list.emplace_back(pp_token_category::identifier, u8"G", 2, pos);
+      token_list.emplace_back(pp_token_category::op_or_punc, u8"(", 3, pos);
+      token_list.emplace_back(pp_token_category::identifier, u8"u8", 4, pos);
+      token_list.emplace_back(pp_token_category::op_or_punc, u8")", 6, pos);
+      args.emplace_back(std::move(token_list));
+      token_list.emplace_back(pp_token_category::identifier, u8"G", 9, pos);
+      token_list.emplace_back(pp_token_category::op_or_punc, u8"(", 10, pos);
+      token_list.emplace_back(pp_token_category::identifier, u8"a", 11, pos);
+      token_list.emplace_back(pp_token_category::op_or_punc, u8")", 12, pos);
+      args.emplace_back(std::move(token_list));
+      token_list.emplace_back(pp_token_category::identifier, u8"H", 15, pos);
+      args.emplace_back(std::move(token_list));
+      token_list.emplace_back(pp_token_category::identifier, u8"H", 18, pos);
+      args.emplace_back(std::move(token_list));
+
+      const auto [suucess, result] = pp.funcmacro<false>(*reporter, { pp_token_category::identifier, u8"F", 0, pos }, args);
+
+      CHECK_UNARY(suucess);
+      REQUIRE_UNARY(bool(result));
+
+      std::pmr::list<pp_token> expect{ &kusabira::def_mr };
+
+      //結果は「u8 "G(a)"H test」となる
+      expect.emplace_back(pp_token_category::identifier, u8"u8", 4, pos);
+      expect.emplace_back(pp_token_category::user_defined_string_literal , u8R"+("G(a)"H)+", 9, pos);
+      expect.emplace_back(pp_token_category::identifier, u8"test", 18, pos);
+
+      CHECK_EQ(expect, *result);
+    }
+    
+    {
+      pos = ll.emplace_after(pos, 5, 5);
+      (*pos).line = u8"#define V(...) __VA_ARGS__ vatest";
+
+      //仮引数列と置換リスト
+      std::pmr::vector<std::u8string_view> params{ &kusabira::def_mr };
+      std::pmr::list<pp_token> rep_list{ &kusabira::def_mr };
+
+      //字句トークン
+      pp_token lt1{ pp_token_category::identifier, u8"...", 10, pos };
+
+      //置換リスト
+      rep_list.emplace_back(pp_token_category::identifier, u8"__VA_ARGS__", 15, pos);
+      rep_list.emplace_back(pp_token_category::identifier, u8"vatest", 27, pos);
+      //マクロ仮引数トークン列
+      params.emplace_back(lt1.token);
+
+      //関数マクロ登録
+      CHECK_UNARY(pp.define(*reporter, { pp_token_category::identifier, u8"V", 8, pos }, rep_list, params, true));
+
+      pos = ll.emplace_after(pos, 3, 3);
+      (*pos).line = u8"G(V(a, b, cde, f, gh))";
+
+      //実引数リスト
+      std::pmr::list<pp_token> token_list{ &kusabira::def_mr };
+      std::pmr::vector<std::pmr::list<pp_token>> args{ &kusabira::def_mr };
+      token_list.emplace_back(pp_token_category::identifier, u8"V", 2, pos);
+      token_list.emplace_back(pp_token_category::op_or_punc, u8"(", 3, pos);
+      token_list.emplace_back(pp_token_category::identifier, u8"a", 4, pos);
+      token_list.emplace_back(pp_token_category::op_or_punc, u8",", 5, pos);
+      token_list.emplace_back(pp_token_category::identifier, u8"b", 7, pos);
+      token_list.emplace_back(pp_token_category::op_or_punc, u8",", 8, pos);
+      token_list.emplace_back(pp_token_category::identifier, u8"cde", 10, pos);
+      token_list.emplace_back(pp_token_category::op_or_punc, u8",", 13, pos);
+      token_list.emplace_back(pp_token_category::identifier, u8"f", 15, pos);
+      token_list.emplace_back(pp_token_category::op_or_punc, u8",", 16, pos);
+      token_list.emplace_back(pp_token_category::identifier, u8"gh", 18, pos);
+      token_list.emplace_back(pp_token_category::op_or_punc, u8")", 20, pos);
+      args.emplace_back(std::move(token_list));
+
+      const auto [suucess, result] = pp.funcmacro<false>(*reporter, { pp_token_category::identifier, u8"G", 0, pos }, args);
+
+      CHECK_UNARY(suucess);
+      REQUIRE_UNARY(bool(result));
+
+      std::pmr::list<pp_token> expect{ &kusabira::def_mr };
+
+      //結果は「a , b , cde , f , gh vatest」となる
+      expect.emplace_back(pp_token_category::identifier, u8"a", 4, pos);
+      expect.emplace_back(pp_token_category::op_or_punc).token = u8","sv;
+      expect.emplace_back(pp_token_category::identifier, u8"b", 7, pos);
+      expect.emplace_back(pp_token_category::op_or_punc).token = u8","sv;
+      expect.emplace_back(pp_token_category::identifier, u8"cde", 10, pos);
+      expect.emplace_back(pp_token_category::op_or_punc).token = u8","sv;
+      expect.emplace_back(pp_token_category::identifier, u8"f", 15, pos);
+      expect.emplace_back(pp_token_category::op_or_punc).token = u8","sv;
+      expect.emplace_back(pp_token_category::identifier, u8"gh", 18, pos);
+      expect.emplace_back(pp_token_category::identifier, u8"vatest");
+
+      CHECK_EQ(expect, *result);
     }
   }
 

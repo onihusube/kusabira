@@ -136,6 +136,7 @@ namespace kusabira::report {
       {PP::pp_parse_context::Define_InvalidTokenConcat, u8"Concatenation result by ## is not a valid preprocessing token."},
       {PP::pp_parse_context::Define_InvalidDirective, u8"Unexpected characters appear in #define directive."},
       {PP::pp_parse_context::Funcmacro_InsufficientArgs, u8"The number of arguments of the function macro call does not match."},
+      {PP::pp_parse_context::Funcmacro_ReplacementFail, u8"Macro expansion failed to replace the macro contained in the argument."},
       {PP::pp_parse_context::ControlLine_Undef, u8"Specify the macro name."},
       {PP::pp_parse_context::ControlLine_Line_Num , u8"The number specified for the #LINE directive is incorrect. Please specify a number in the range of std::size_t."},
       {PP::pp_parse_context::ControlLine_Line_ManyToken, u8"There is an unnecessary token after the #line directive."}
@@ -265,6 +266,7 @@ namespace kusabira::report {
       {PP::pp_parse_context::Define_InvalidDirective, u8"#defineディレクティブに予期しない文字が現れています。"},
       {PP::pp_parse_context::ControlLine_Undef, u8"マクロ名を指定してください。"},
       {PP::pp_parse_context::Funcmacro_InsufficientArgs, u8"関数マクロ呼び出しの引数の数が合いません。"},
+      {PP::pp_parse_context::Funcmacro_ReplacementFail, u8"マクロ展開時、実引数に含まれているマクロの置換に失敗しました。"},
       {PP::pp_parse_context::ControlLine_Line_Num , u8"#lineディレクティブに指定された数値が不正です。std::size_tの範囲内の数値を指定してください。"},
       {PP::pp_parse_context::ControlLine_Line_ManyToken , u8"#lineディレクティブの後に不要なトークンがあります。"}
     };

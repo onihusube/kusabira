@@ -1084,6 +1084,8 @@ namespace kusabira::PP {
     template<typename Reporter>
     fn macro_replacement(Reporter& reporter, std::pmr::list<pp_token>& list, std::u8string_view outer_macro) const -> bool {
 
+      //関数マクロ引数をパースするもの
+      //itは開きかっこの次、endは対応する閉じかっこを指していること
       auto pars_arg = [&mr = kusabira::def_mr](auto it, auto end) {
         using namespace std::string_view_literals;
 
@@ -1106,8 +1108,6 @@ namespace kusabira::PP {
               //かっこの始まり
               ++paren;
             } else if (deref(it).token == u8")"sv) {
-              //マクロ終了の閉じかっこ判定
-              if (paren == 1) break;
               //閉じかっこ
               --paren;
             }
@@ -1115,12 +1115,13 @@ namespace kusabira::PP {
           //改行はホワイトスペースになってるはずだし、ホワイトスペースは1つに畳まれているはず
           //妥当なプリプロセッシングトークン列としも構成済みのはず
           //従って、ここではその処理を行わない
-          //そして、マクロ引数列中のマクロもはここでは展開しない
+          //そして、マクロ引数列中のマクロもここでは処理しない（外側マクロの置換後に再スキャンされる）
 
           arg_list.emplace_back(std::move(*it));
         }
+        args.emplace_back(std::move(arg_list));
 
-        return std::make_pair(it, std::move(args));
+        return args;
       };
 
       auto it = std::begin(list);
@@ -1146,12 +1147,15 @@ namespace kusabira::PP {
             //オブジェクトマクロ置換
             result = this->objmacro<true>(reporter, *it);
           } else {
+            //マクロ引数列の先頭（開きかっこの次）
+            auto start_pos = std::next(it, 2);
 
             //終端かっこのチェック、マクロが閉じる前に終端に達した場合何もしない
-            if (search_close_parenthesis(std::next(it), fin) == fin) break;
+            auto close_pos = search_close_parenthesis(start_pos, fin);
+            if (close_pos == fin) break;
 
             //マクロの閉じ位置と引数リスト取得
-            const auto [macro_end, args] = pars_arg(it, fin);
+            const auto args = pars_arg(start_pos, close_pos);
 
             bool success;
             //関数マクロ置換
@@ -1159,7 +1163,7 @@ namespace kusabira::PP {
             if (not success) return false;
 
             //マクロの閉じ括弧を残して削除
-            it = list.erase(it, macro_end);
+            it = list.erase(it, close_pos);
           }
           //成功するのでエラーチェックしない
           //リストの再スキャンとさらなるマクロ展開はここではやらない
@@ -1240,7 +1244,12 @@ namespace kusabira::PP {
         } else {
           //エラー報告（##で不正なトークンが生成された）
           const auto [context, pptoken] = result.error();
-          reporter.pp_err_report(m_filename, pptoken, context);
+          if (context == pp_parse_context::Funcmacro_ReplacementFail) {
+            //どの引数置換時にマクロ展開に失敗したのかは報告済み、ここではどこの呼び出しで失敗したかを伝える
+            reporter.pp_err_report(m_filename, macro_name, context);
+          } else {
+            reporter.pp_err_report(m_filename, pptoken, context);
+          }
           return {false, std::nullopt};
         }
 

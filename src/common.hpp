@@ -115,7 +115,6 @@ namespace kusabira::PP {
     logical_line &operator=(logical_line &&) = default;
   };
 
-  // プリプロセッシングトークンと字句トークン型をまとめるようにする変更中
   inline namespace v2 {
 
     enum class pp_token_category : std::int8_t {
