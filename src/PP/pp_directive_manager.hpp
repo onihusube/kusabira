@@ -1177,6 +1177,115 @@ namespace kusabira::PP {
       return true;
     }
 
+    template<typename Reporter>
+    fn further_macro_replacement(Reporter& reporter, std::pmr::list<pp_token>& list, std::u8string_view outer_macro) const -> bool {
+      std::pmr::unordered_set<std::u8string_view> macro_memo{{outer_macro}, 4, &kusabira::def_mr};
+      return this->further_macro_replacement(reporter, list, list.begin(), list.end(), macro_memo);
+    }
+
+    template<typename Reporter, typename Iterator>
+    fn further_macro_replacement(Reporter& reporter, std::pmr::list<pp_token>& list, Iterator it, Iterator se, std::pmr::unordered_set<std::u8string_view>& outer_macro) const -> bool {
+
+      //関数マクロ引数をパースするもの
+      //itは開きかっこの次、endは対応する閉じかっこを指していること
+      auto pars_arg = [&mr = kusabira::def_mr, se](auto itr, auto end) {
+        using namespace std::string_view_literals;
+
+        std::pmr::vector<std::pmr::list<pp_token>> args{ &mr };
+        args.reserve(10);
+
+        std::pmr::list<pp_token> arg_list{&mr};
+        std::size_t paren = 0;
+        bool section_fin = false;
+
+        for (; itr != end; ++itr) {
+          //マクロ置換後区間を終了したかどうか
+          section_fin |= itr == se;
+
+          if (deref(itr).category == pp_token_category::op_or_punc) {
+            //カンマの出現で1つの実引数のパースを完了する
+            if (paren == 1 and deref(itr).token == u8","sv) {
+              args.emplace_back(std::move(arg_list));
+              //要らないけど、一応
+              arg_list = std::pmr::list<pp_token>{&mr};
+              //カンマは保存しない
+              continue;
+            } else if (deref(itr).token == u8"("sv) {
+              //かっこの始まり
+              ++paren;
+            } else if (deref(itr).token == u8")"sv) {
+              //閉じかっこ
+              --paren;
+            }
+          }
+          //改行はホワイトスペースになってるはずだし、ホワイトスペースは1つに畳まれているはず
+          //妥当なプリプロセッシングトークン列としも構成済みのはず
+          //従って、ここではその処理を行わない
+          //そして、マクロ引数列中のマクロもここでは処理しない（外側マクロの置換後に再スキャンされる）
+
+          arg_list.emplace_back(std::move(*itr));
+        }
+        args.emplace_back(std::move(arg_list));
+
+        return args;
+      };
+
+      //auto it = std::begin(list);
+      const auto fin = std::end(list);
+
+      while (it != fin) {
+        //識別子以外は無視
+        //外側マクロを無視
+        if (deref(it).category != pp_token_category::identifier or
+            outer_macro.contains(deref(it).token))
+        {
+          ++it;
+          continue;
+        }
+
+        //マクロ置換
+        if (auto opt = this->is_macro(deref(it).token); opt) {
+          const bool is_funcmacro = *opt;
+
+          std::optional<std::pmr::list<pp_token>> result{};
+
+          if (not is_funcmacro) {
+            //オブジェクトマクロ置換
+            result = this->objmacro<true>(reporter, *it);
+          } else {
+            //マクロ引数列の先頭（開きかっこの次）
+            auto start_pos = std::next(it, 2);
+
+            //終端かっこのチェック、マクロが閉じる前に終端に達した場合何もしない
+            auto close_pos = search_close_parenthesis(start_pos, fin);
+            if (close_pos == fin) break;
+
+            //マクロの閉じ位置と引数リスト取得
+            const auto args = pars_arg(start_pos, close_pos);
+
+            bool success;
+            //関数マクロ置換
+            std::tie(success, result) = this->funcmacro<true>(reporter, *it, args);
+            if (not success) return false;
+
+            //マクロの閉じ括弧を残して削除
+            it = list.erase(it, close_pos);
+          }
+          //成功するのでエラーチェックしない
+          auto next_it = std::begin(*result);
+          list.splice(it, std::move(*result));
+          it = list.erase(it);
+          
+          //現在のitを次のマクロ範囲終端として、再帰的に再スキャンする
+          auto r = this->further_macro_replacement(reporter, list, next_it, it, outer_macro);
+        } else {
+          ++it;
+        }
+      }
+
+      return true;
+    }
+
   public:
 
     /**
