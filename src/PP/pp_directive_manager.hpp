@@ -116,7 +116,7 @@ namespace kusabira::PP {
   * @param end 探索範囲の終端（[it, end)
   * @return 見つかった位置を指すイテレータ
   */
-  template<typename Iterator, typename Sentinel>
+  template<std::forward_iterator Iterator, std::sentinel_for<Iterator> Sentinel>
   ifn search_close_parenthesis(Iterator it, Sentinel end) -> Iterator {
     using namespace std::string_view_literals;
 
@@ -141,7 +141,7 @@ namespace kusabira::PP {
   * @param end 文字列化対象のトークン列の終端
   * @return 文字列化されたトークン（列）、必ず1要素になる
   */
-  template<bool IsVA, typename Iterator, typename Sentinel>
+  template<bool IsVA, std::forward_iterator Iterator, std::sentinel_for<Iterator> Sentinel>
   ifn pp_stringize(Iterator it, Sentinel end) -> std::pmr::list<pp_token> {
     using namespace std::string_view_literals;
 
@@ -405,7 +405,8 @@ namespace kusabira::PP {
     * @param args 実引数列（カンマ区切り毎のトークン列のvector
     * @return マクロ置換後のトークンリスト
     */
-    template<typename F>
+    template<std::invocable<std::pmr::list<pp_token>&> F>
+      requires std::same_as<bool, std::invoke_result_t<F, std::pmr::list<pp_token>&>>
     fn func_macro_impl(const std::pmr::vector<std::pmr::list<pp_token>>& args, F&& f) const -> macro_result_t {
       //置換対象のトークンシーケンスをコピー（終了後そのまま置換結果となる）
       std::pmr::list<pp_token> result_list{ m_tokens, &kusabira::def_mr };
@@ -476,7 +477,8 @@ namespace kusabira::PP {
     * @param args 実引数列（カンマ区切り毎のトークン列のvector
     * @return マクロ置換後のトークンリスト
     */
-    template<typename F>
+    template<std::invocable<std::pmr::list<pp_token>&> F>
+      requires std::same_as<bool, std::invoke_result_t<F, std::pmr::list<pp_token>&>>
     fn va_macro_impl(const std::pmr::vector<std::pmr::list<pp_token>>& args, F&& f) const -> macro_result_t {
       using namespace std::string_view_literals;
 
@@ -785,9 +787,11 @@ namespace kusabira::PP {
     /**
     * @brief 関数マクロを実行する
     * @param args 実引数列
+    * @param f 引数リスト内マクロ展開用の関数（f : std::list<pp_token> -> bool）
     * @return 置換結果のトークンリスト
     */
-    template<typename F>
+    template<std::invocable<std::pmr::list<pp_token>&> F>
+      requires std::same_as<bool, std::invoke_result_t<F, std::pmr::list<pp_token>&>>
     fn operator()(const std::pmr::vector<std::pmr::list<pp_token>>& args, F&& f) const -> macro_result_t {
       //可変引数マクロと処理を分ける
       if (m_is_va) {
@@ -1177,18 +1181,19 @@ namespace kusabira::PP {
       return true;
     }
 
+    /**
+    * @brief マクロ置換後の結果リストに対して再スキャンとさらなる展開を行う
+    * @param reporter エラー出力先
+    * @param list 引数1つのプリプロセッシングトークン列
+    * @param outer_macro 外側のマクロ名のメモ
+    * @return {エラーが起きなかった, マクロのスキャンは完了した（falseならば関数マクロの引数リストが閉じていない）}
+    */
     template<typename Reporter>
-    fn further_macro_replacement(Reporter& reporter, std::pmr::list<pp_token>& list, std::u8string_view outer_macro) const -> bool {
-      std::pmr::unordered_set<std::u8string_view> macro_memo{{outer_macro}, 4, &kusabira::def_mr};
-      return this->further_macro_replacement(reporter, list, list.begin(), list.end(), macro_memo);
-    }
-
-    template<typename Reporter, typename Iterator>
-    fn further_macro_replacement(Reporter& reporter, std::pmr::list<pp_token>& list, Iterator it, Iterator se, std::pmr::unordered_set<std::u8string_view>& outer_macro) const -> bool {
+    fn further_macro_replacement(Reporter& reporter, std::pmr::list<pp_token>& list, std::pmr::unordered_set<std::u8string_view>& outer_macro) const -> std::pair<bool, bool> {
 
       //関数マクロ引数をパースするもの
       //itは開きかっこの次、endは対応する閉じかっこを指していること
-      auto pars_arg = [&mr = kusabira::def_mr, se](auto itr, auto end) {
+      auto pars_arg = [&mr = kusabira::def_mr](auto itr, auto end) {
         using namespace std::string_view_literals;
 
         std::pmr::vector<std::pmr::list<pp_token>> args{ &mr };
@@ -1196,12 +1201,8 @@ namespace kusabira::PP {
 
         std::pmr::list<pp_token> arg_list{&mr};
         std::size_t paren = 0;
-        bool section_fin = false;
-
+        
         for (; itr != end; ++itr) {
-          //マクロ置換後区間を終了したかどうか
-          section_fin |= itr == se;
-
           if (deref(itr).category == pp_token_category::op_or_punc) {
             //カンマの出現で1つの実引数のパースを完了する
             if (paren == 1 and deref(itr).token == u8","sv) {
@@ -1230,7 +1231,7 @@ namespace kusabira::PP {
         return args;
       };
 
-      //auto it = std::begin(list);
+      auto it = std::begin(list);
       const auto fin = std::end(list);
 
       while (it != fin) {
@@ -1249,6 +1250,11 @@ namespace kusabira::PP {
 
           std::optional<std::pmr::list<pp_token>> result{};
 
+          //マクロ名を登録
+          outer_macro.emplace(deref(it).token);
+          //マクロの終端位置（マクロの閉じトークンの次）
+          auto close_pos = std::next(it);
+
           if (not is_funcmacro) {
             //オブジェクトマクロ置換
             result = this->objmacro<true>(reporter, *it);
@@ -1256,40 +1262,55 @@ namespace kusabira::PP {
             //マクロ引数列の先頭（開きかっこの次）
             auto start_pos = std::next(it, 2);
 
-            //終端かっこのチェック、マクロが閉じる前に終端に達した場合何もしない
-            auto close_pos = search_close_parenthesis(start_pos, fin);
-            if (close_pos == fin) break;
+            //終端かっこのチェック、マクロが閉じる前に終端に達した場合何もしない（外側で再処理）
+            close_pos = search_close_parenthesis(start_pos, fin);
+            if (close_pos == fin) return { true, false };
 
-            //マクロの閉じ位置と引数リスト取得
+            //マクロの引数リスト取得
             const auto args = pars_arg(start_pos, close_pos);
 
             bool success;
             //関数マクロ置換
             std::tie(success, result) = this->funcmacro<true>(reporter, *it, args);
-            if (not success) return false;
+            if (not success) return {false, true};
 
-            //マクロの閉じ括弧を残して削除
-            it = list.erase(it, close_pos);
+            //閉じかっこの次まで進めておく
+            ++close_pos;
           }
           //成功するのでエラーチェックしない
-          auto next_it = std::begin(*result);
-          list.splice(it, std::move(*result));
-          it = list.erase(it);
-          
-          //現在のitを次のマクロ範囲終端として、再帰的に再スキャンする
-          auto r = this->further_macro_replacement(reporter, list, next_it, it, outer_macro);
+          //結果リストを再帰的に再スキャンする
+          const auto [success, scan_complete] = this->further_macro_replacement(reporter, *result, outer_macro);
+          //エラーが起きてればそのまま終わる
+          if (not success) return { false, true };
+          auto erase_pos = it;
+          if (not scan_complete) {
+            //リストのスキャンが完了していなければ、戻ってきたリストの先頭からスキャンし関数マクロ名を探す（それより前ののマクロは置換済み）
+            it = std::begin(*result);
+          } else {
+            //リストのスキャンが完了していれば、次のトークンからスキャン
+            it = close_pos;
+          }
+
+          //マクロ名をメモから消す
+          outer_macro.erase(deref(it).token);
+
+          //戻ってきたリストをspliceする
+          list.splice(erase_pos, std::move(*result));
+          //置換したマクロ範囲を消去
+          list.erase(erase_pos, close_pos);
         } else {
           ++it;
         }
       }
-
-      return true;
+      //恙なく終了したときここで終わる
+      return {true, true};
     }
 
   public:
 
     /**
     * @brief マクロによる置換リストを取得する
+    * @tparam MacroExpandOff さらにマクロ展開を行うか否か
     * @param macro_name 識別子トークン名
     * @return 置換リストのoptional、無効地なら置換対象ではなかった
     */

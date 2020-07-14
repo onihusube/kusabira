@@ -10,6 +10,7 @@
 #include <cassert>
 #include <iterator>
 #include <concepts>
+#include <unordered_set>
 
 #ifdef __EDG__
   #include "../subprojects/tlexpected/include/tl/expected.hpp"
