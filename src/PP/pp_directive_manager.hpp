@@ -1056,28 +1056,6 @@ namespace kusabira::PP {
     }
 
     /**
-    * @brief 対応するマクロを取り出す
-    * @param macro_name マクロ名
-    * @param found_op マクロが見つかった時の処理
-    * @param nofound_val 見つからなかった時に返すもの
-    * @return found_op()の戻り値かnofound_valを返す
-    */
-    template<typename Found, typename NotFound>
-    fn fetch_macro(std::u8string_view macro_name, Found&& found_op, NotFound&& nofound_val) const {
-      using std::end;
-
-      const auto pos = m_funcmacros.find(macro_name);
-
-      //見つからなかったら、その時用の戻り値を返す
-      if (pos == end(m_funcmacros)) {
-        return nofound_val;
-      }
-
-      //見つかったらその要素を与えて処理を実行
-      return found_op((*pos).second);
-    }
-
-    /**
     * @brief 関数マクロの引数内のマクロを展開する
     * @param reporter エラー出力先
     * @param list 引数1つのプリプロセッシングトークン列
@@ -1185,7 +1163,7 @@ namespace kusabira::PP {
     * @brief マクロ置換後の結果リストに対して再スキャンとさらなる展開を行う
     * @param reporter エラー出力先
     * @param list 引数1つのプリプロセッシングトークン列
-    * @param outer_macro 外側のマクロ名のメモ
+    * @param outer_macro 外側のマクロ名のメモ（この関数自体はこのメモを書き換えない、ただし再帰呼び出し先が書き換えてる）
     * @return {エラーが起きなかった, マクロのスキャンは完了した（falseならば関数マクロの引数リストが閉じていない）}
     */
     template<typename Reporter>
@@ -1249,15 +1227,14 @@ namespace kusabira::PP {
           const bool is_funcmacro = *opt;
 
           std::optional<std::pmr::list<pp_token>> result{};
+          bool success, scan_complete;
 
-          //マクロ名を登録
-          outer_macro.emplace(deref(it).token);
           //マクロの終端位置（マクロの閉じトークンの次）
           auto close_pos = std::next(it);
 
           if (not is_funcmacro) {
-            //オブジェクトマクロ置換
-            result = this->objmacro<true>(reporter, *it);
+            //オブジェクトマクロ置換（再スキャンはこの中で再帰的に行われる）
+            std::tie(success, scan_complete, result) = this->objmacro<false>(reporter, *it, outer_macro);
           } else {
             //マクロ引数列の先頭（開きかっこの次）
             auto start_pos = std::next(it, 2);
@@ -1269,30 +1246,24 @@ namespace kusabira::PP {
             //マクロの引数リスト取得
             const auto args = pars_arg(start_pos, close_pos);
 
-            bool success;
-            //関数マクロ置換
-            std::tie(success, result) = this->funcmacro<true>(reporter, *it, args);
-            if (not success) return {false, true};
+            //関数マクロ置換（再スキャンはこの中で再帰的に行われる）
+            std::tie(success, scan_complete, result) = this->funcmacro<false>(reporter, *it, args, outer_macro);
 
             //閉じかっこの次まで進めておく
             ++close_pos;
           }
-          //成功するのでエラーチェックしない
-          //結果リストを再帰的に再スキャンする
-          const auto [success, scan_complete] = this->further_macro_replacement(reporter, *result, outer_macro);
+
           //エラーが起きてればそのまま終わる
-          if (not success) return { false, true };
+          if (not success) return { false, false };
+          
           auto erase_pos = it;
           if (not scan_complete) {
-            //リストのスキャンが完了していなければ、戻ってきたリストの先頭からスキャンし関数マクロ名を探す（それより前ののマクロは置換済み）
+            //リストのスキャンが完了していなければ、戻ってきたリストの先頭からスキャンし関数マクロ名を探す（それより前のマクロは置換済み）
             it = std::begin(*result);
           } else {
             //リストのスキャンが完了していれば、次のトークンからスキャン
             it = close_pos;
           }
-
-          //マクロ名をメモから消す
-          outer_macro.erase(deref(it).token);
 
           //戻ってきたリストをspliceする
           list.splice(erase_pos, std::move(*result));
@@ -1306,6 +1277,26 @@ namespace kusabira::PP {
       return {true, true};
     }
 
+    /**
+    * @brief 対応するマクロを取り出す
+    * @param macro_name マクロ名
+    * @param found_op マクロが見つかった時の処理
+    * @param nofound_val 見つからなかった時に返すもの
+    * @return found_op()の戻り値かnofound_valを返す
+    */
+    template<typename Found, typename NotFound>
+    fn fetch_macro(std::u8string_view macro_name, Found&& found_op, NotFound&& nofound_val) const {
+      const auto pos = m_funcmacros.find(macro_name);
+
+      //見つからなかったら、その時用の戻り値を返す
+      if (pos == std::end(m_funcmacros)) {
+        return nofound_val;
+      }
+
+      //見つかったらその要素を与えて処理を実行
+      return found_op((*pos).second);
+    }
+
   public:
 
     /**
@@ -1315,32 +1306,54 @@ namespace kusabira::PP {
     * @return 置換リストのoptional、無効地なら置換対象ではなかった
     */
     template<bool MacroExpandOff, typename Reporter>
-    fn objmacro(Reporter& reporter, const pp_token& macro_name) const -> std::optional<std::pmr::list<pp_token>> {
+    fn objmacro(Reporter& reporter, const pp_token& macro_name) const -> std::tuple<bool, bool, std::pmr::list<pp_token>> {
+      std::pmr::unordered_set<std::u8string_view> memo{&kusabira::def_mr};
+      return this->objmacro(reporter, macro_name, memo);
+    }
+
+    /**
+    * @brief マクロによる置換リストを取得する
+    * @tparam MacroExpandOff さらにマクロ展開を行うか否か
+    * @param macro_name 識別子トークン名
+    * @return 置換リストのoptional、無効地なら置換対象ではなかった
+    */
+    template<bool MacroExpandOff, typename Reporter>
+    fn objmacro(Reporter& reporter, const pp_token& macro_name, std::pmr::unordered_set<std::u8string_view>& outer_macro) const -> std::tuple<bool, bool, std::pmr::list<pp_token>> {
       
-      //事前定義マクロを処理
+      //事前定義マクロを処理（この結果には再スキャンの対象となるものは含まれていないはず）
       if (auto result = predefined_macro(macro_name); result) {
-        return result;
+        return {true, true, std::move(*result)};
       }
 
-      return fetch_macro(macro_name.token, [&reporter, &macro_name, &mr = kusabira::def_mr, this](const auto& macro) {
-        //置換結果取得
-        unified_macro::macro_result_t result{};
+      //マクロを取り出す（存在は予め調べてあるものとする）
+      const auto& macro = *m_funcmacros.find(macro_name);
 
-        if constexpr (MacroExpandOff) {
-          result = macro({});
-        } else {
-          result = macro({}, [&, this](auto &list) { return this->macro_replacement(reporter, list, macro_name.token); });
-        }
+      //置換結果取得
+      unified_macro::macro_result_t result{};
 
-        if (result) {
-          //optionalで包んで返す
-          return std::optional<std::pmr::list<pp_token>>{std::in_place, std::move(*result), &mr};
-        } else {
-          //オブジェクトマクロはこっちにこないのでは？
-          assert(false);
-          return std::optional<std::pmr::list<pp_token>>{};
-        }
-      }, std::optional<std::pmr::list<pp_token>>{});
+      //第一弾マクロ展開
+      if constexpr (MacroExpandOff) {
+        result = macro({});
+      } else {
+        result = macro({}, [&, this](auto &list) { return this->macro_replacement(reporter, list, macro_name.token); });
+      }
+
+      if (result) {
+        //現在のマクロ名をメモ
+        outer_macro.emplace(macro_name.token);
+
+        //リストの再スキャンとさらなる展開
+        const auto [success, complete] = this->further_macro_replacement(reporter, *result, outer_macro);
+
+        //メモを消す
+        outer_macro.erase(macro_name.token);
+
+        return std::make_tuple(success, complete, std::pmr::list<pp_token>{std::move(*result)});
+      } else {
+        //オブジェクトマクロはこっちにこないのでは？
+        assert(false);
+        return std::make_tuple(false, false, std::pmr::list<pp_token>{}));
+      }
     }
 
     /**
@@ -1348,42 +1361,62 @@ namespace kusabira::PP {
     * @tparam MacroExpandOff さらにマクロ展開を行うか否か
     * @param macro_name マクロ名
     * @param args 関数マクロの実引数トークン列
-    * @return {エラーの有無, 置換リストのoptional}
+    * @return {エラーの有無, スキャン完了したか, 置換リスト}
     */
     template<bool MacroExpandOff, typename Reporter>
-    fn funcmacro(Reporter& reporter, const pp_token& macro_name, const std::pmr::vector<std::pmr::list<pp_token>>& args) const -> std::pair<bool, std::optional<std::pmr::list<pp_token>>> {
-      return fetch_macro(macro_name.token, [&mr = kusabira::def_mr, &args, &reporter, &macro_name, this](const auto& macro) -> std::pair<bool, std::optional<std::pmr::list<pp_token>>> {
-        //引数長さのチェック
-        if (not macro.validate_argnum(args)) {
-          reporter.pp_err_report(m_filename, macro_name, PP::pp_parse_context::Funcmacro_InsufficientArgs);
-          return {false, std::nullopt};
-        }
+    fn funcmacro(Reporter& reporter, const pp_token& macro_name, const std::pmr::vector<std::pmr::list<pp_token>>& args) const -> std::tuple<bool, bool, std::pmr::list<pp_token>> {
+      std::pmr::unordered_set<std::u8string_view> memo{&kusabira::def_mr};
+      return this->funcmacro(reporter, macro_name, args, memo);
+    }
+    /**
+    * @brief 関数マクロによる置換リストを取得する
+    * @tparam MacroExpandOff さらにマクロ展開を行うか否か
+    * @param macro_name マクロ名
+    * @param args 関数マクロの実引数トークン列
+    * @return {エラーの有無, スキャン完了したか, 置換リスト}
+    */
+    template<bool MacroExpandOff, typename Reporter>
+    fn funcmacro(Reporter& reporter, const pp_token& macro_name, const std::pmr::vector<std::pmr::list<pp_token>>& args, std::pmr::unordered_set<std::u8string_view>& outer_macro) const -> std::tuple<bool, bool, std::pmr::list<pp_token>> {
+      //引数長さのチェック
+      if (not macro.validate_argnum(args)) {
+        reporter.pp_err_report(m_filename, macro_name, PP::pp_parse_context::Funcmacro_InsufficientArgs);
+        return {false, false, std::pmr::list<pp_token>{}};
+      }
 
-        unified_macro::macro_result_t result{};
+      //マクロを取り出す（存在は予め調べてあるものとする）
+      const auto& macro = *m_funcmacros.find(macro_name);
 
-        if constexpr (MacroExpandOff) {
-          result = macro(args);
+      unified_macro::macro_result_t result{};
+
+      if constexpr (MacroExpandOff) {
+        result = macro(args);
+      } else {
+        result = macro(args, [&, this](auto &list) { return this->macro_replacement(reporter, list, macro_name.token); });
+      }
+
+      //置換結果取得
+      if (result) {
+        //現在のマクロ名をメモ
+        outer_macro.emplace(macro_name.token);
+
+        //リストの再スキャンとさらなる展開
+        const auto [success, complete] = this->further_macro_replacement(reporter, *result, outer_macro);
+
+        //メモを消す
+        outer_macro.erase(macro_name.token);
+
+        return {success, complete, std::pmr::list<pp_token>{std::move(*result)}};
+      } else {
+        //エラー報告（##で不正なトークンが生成された）
+        const auto [context, pptoken] = result.error();
+        if (context == pp_parse_context::Funcmacro_ReplacementFail) {
+          //どの引数置換時にマクロ展開に失敗したのかは報告済み、ここではどこの呼び出しで失敗したかを伝える
+          reporter.pp_err_report(m_filename, macro_name, context);
         } else {
-          result = macro(args, [&, this](auto &list) { return this->macro_replacement(reporter, list, macro_name.token); });
+          reporter.pp_err_report(m_filename, pptoken, context);
         }
-
-        //置換結果取得
-        if (result) {
-          //optionalで包んで返す
-          return {true, std::optional<std::pmr::list<pp_token>>{std::in_place, std::move(*result), &mr}};
-        } else {
-          //エラー報告（##で不正なトークンが生成された）
-          const auto [context, pptoken] = result.error();
-          if (context == pp_parse_context::Funcmacro_ReplacementFail) {
-            //どの引数置換時にマクロ展開に失敗したのかは報告済み、ここではどこの呼び出しで失敗したかを伝える
-            reporter.pp_err_report(m_filename, macro_name, context);
-          } else {
-            reporter.pp_err_report(m_filename, pptoken, context);
-          }
-          return {false, std::nullopt};
-        }
-
-      }, std::make_pair(true, std::optional<std::pmr::list<pp_token>>{}));
+        return {false, false, std::pmr::list<pp_token>{}};
+      }
     }
 
     /**
