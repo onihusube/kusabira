@@ -1308,7 +1308,7 @@ namespace kusabira::PP {
     template<bool MacroExpandOff, typename Reporter>
     fn objmacro(Reporter& reporter, const pp_token& macro_name) const -> std::tuple<bool, bool, std::pmr::list<pp_token>> {
       std::pmr::unordered_set<std::u8string_view> memo{&kusabira::def_mr};
-      return this->objmacro(reporter, macro_name, memo);
+      return this->objmacro<MacroExpandOff>(reporter, macro_name, memo);
     }
 
     /**
@@ -1326,7 +1326,7 @@ namespace kusabira::PP {
       }
 
       //マクロを取り出す（存在は予め調べてあるものとする）
-      const auto& macro = *m_funcmacros.find(macro_name);
+      const auto& macro = *m_funcmacros.find(macro_name.token);
 
       //置換結果取得
       unified_macro::macro_result_t result{};
@@ -1352,7 +1352,7 @@ namespace kusabira::PP {
       } else {
         //オブジェクトマクロはこっちにこないのでは？
         assert(false);
-        return std::make_tuple(false, false, std::pmr::list<pp_token>{}));
+        return std::make_tuple(false, false, std::pmr::list<pp_token>{});
       }
     }
 
@@ -1366,7 +1366,7 @@ namespace kusabira::PP {
     template<bool MacroExpandOff, typename Reporter>
     fn funcmacro(Reporter& reporter, const pp_token& macro_name, const std::pmr::vector<std::pmr::list<pp_token>>& args) const -> std::tuple<bool, bool, std::pmr::list<pp_token>> {
       std::pmr::unordered_set<std::u8string_view> memo{&kusabira::def_mr};
-      return this->funcmacro(reporter, macro_name, args, memo);
+      return this->funcmacro<MacroExpandOff>(reporter, macro_name, args, memo);
     }
     /**
     * @brief 関数マクロによる置換リストを取得する
@@ -1377,14 +1377,15 @@ namespace kusabira::PP {
     */
     template<bool MacroExpandOff, typename Reporter>
     fn funcmacro(Reporter& reporter, const pp_token& macro_name, const std::pmr::vector<std::pmr::list<pp_token>>& args, std::pmr::unordered_set<std::u8string_view>& outer_macro) const -> std::tuple<bool, bool, std::pmr::list<pp_token>> {
+      
+      //マクロを取り出す（存在は予め調べてあるものとする）
+      const auto& macro = deref(m_funcmacros.find(macro_name.token)).second;
+      
       //引数長さのチェック
       if (not macro.validate_argnum(args)) {
         reporter.pp_err_report(m_filename, macro_name, PP::pp_parse_context::Funcmacro_InsufficientArgs);
         return {false, false, std::pmr::list<pp_token>{}};
       }
-
-      //マクロを取り出す（存在は予め調べてあるものとする）
-      const auto& macro = *m_funcmacros.find(macro_name);
 
       unified_macro::macro_result_t result{};
 

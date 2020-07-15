@@ -166,11 +166,12 @@ namespace kusabira_test::preprocessor {
       REQUIRE_UNARY(bool(is_func));
       CHECK_UNARY_FALSE(*is_func);
 
-      auto list = pp.objmacro<false>(*reporter, lt1);
+      const auto [success, complete, list] = pp.objmacro<false>(*reporter, lt1);
 
-      CHECK_UNARY(bool(list));
-      CHECK_EQ(list->size(), 1u);
-      CHECK_EQ(pptokens, *list);
+      CHECK_UNARY(success);
+      CHECK_UNARY(complete);
+      CHECK_EQ(list.size(), 1u);
+      CHECK_EQ(pptokens, list);
     }
 
     pos = ll.emplace_after(pos, 1, 1);
@@ -196,19 +197,20 @@ namespace kusabira_test::preprocessor {
       REQUIRE_UNARY(bool(is_func));
       CHECK_UNARY_FALSE(*is_func);
 
-      auto list = pp.objmacro<false>(*reporter, lt1);
+      const auto [success, complete, list] = pp.objmacro<false>(*reporter, lt1);
 
-      CHECK_UNARY(bool(list));
-      CHECK_EQ(list->size(), 3u);
-      CHECK_EQ(pptokens, *list);
+      CHECK_UNARY(success);
+      CHECK_UNARY(complete);
+      CHECK_EQ(list.size(), 3u);
+      CHECK_EQ(pptokens, list);
     }
 
     //適当なトークンを投げてみる
-    CHECK_EQ(pp.objmacro<false>(*reporter, pp_token{pp_token_category::identifier, u8"M", 0, {} }), std::nullopt);
-    CHECK_EQ(pp.objmacro<false>(*reporter, pp_token{pp_token_category::identifier, u8"NN", 0, {} }), std::nullopt);
-    CHECK_EQ(pp.objmacro<false>(*reporter, pp_token{pp_token_category::identifier, u8"TEST", 0, {} }), std::nullopt);
-    CHECK_EQ(pp.objmacro<false>(*reporter, pp_token{pp_token_category::identifier, u8"NUMBER", 0, {} }), std::nullopt);
-    CHECK_EQ(pp.objmacro<false>(*reporter, pp_token{pp_token_category::identifier, u8"MACRO_", 0, {} }), std::nullopt);
+    CHECK_UNARY_FALSE(bool(pp.is_macro(u8"M")));
+    CHECK_UNARY_FALSE(bool(pp.is_macro(u8"NN")));
+    CHECK_UNARY_FALSE(bool(pp.is_macro(u8"TEST")));
+    CHECK_UNARY_FALSE(bool(pp.is_macro(u8"NUMBER")));
+    CHECK_UNARY_FALSE(bool(pp.is_macro(u8"MACRO_")));
 
     {
       pp.undef(u8"N"sv);
@@ -289,11 +291,11 @@ namespace kusabira_test::preprocessor {
       args.emplace_back(std::move(token2));
 
       //関数マクロ実行
-      const auto [is_success, result] = pp.funcmacro<false>(*reporter, lt1, args);
+      const auto [success, complete, result] = pp.funcmacro<false>(*reporter, lt1, args);
 
-      CHECK_UNARY(is_success);
-      REQUIRE_UNARY(bool(result));
-      CHECK_EQ(rep_list.size(), result->size());
+      CHECK_UNARY(success);
+      CHECK_UNARY(complete);
+      CHECK_EQ(rep_list.size(), result.size());
 
       std::pmr::list<pp_token> expect{ &kusabira::def_mr };
       expect.emplace_back(pp_token_category::op_or_punc, u8"(", 18, pos);
@@ -315,13 +317,12 @@ namespace kusabira_test::preprocessor {
       expect.emplace_back(pp_token_category::op_or_punc, u8")", 40, pos);
 
       //結果の比較
-      CHECK_EQ(expect, *result);
+      CHECK_EQ(expect, result);
 
       //引数の数が合わないような呼び出し、失敗
       args.pop_back();
-      const auto [faile, null_result] = pp.funcmacro<false>(*reporter, lt1, args);
-      CHECK_UNARY_FALSE(faile);
-      CHECK_EQ(null_result, std::nullopt);
+      const auto [success2, ignore1, ignore2] = pp.funcmacro<false>(*reporter, lt1, args);
+      CHECK_UNARY_FALSE(success2);
 
       //再登録、成功する（登録は行われない）
       CHECK_UNARY(pp.define(*reporter, lt1, rep_list, params, false));
@@ -359,11 +360,11 @@ namespace kusabira_test::preprocessor {
       args.emplace_back(token2);
 
       //関数マクロ実行
-      const auto [is_success, result] = pp.funcmacro<false>(*reporter, lt1, args);
+      const auto [success, complete, result] = pp.funcmacro<false>(*reporter, lt1, args);
 
-      CHECK_UNARY(is_success);
-      REQUIRE_UNARY(bool(result));
-      CHECK_EQ(29ull, result->size());
+      CHECK_UNARY(success);
+      CHECK_UNARY(complete);
+      CHECK_EQ(29ull, result.size());
 
       std::pmr::list<pp_token> expect{&kusabira::def_mr};
       expect.emplace_back(pp_token_category::op_or_punc, u8"(", 18, pos);
@@ -385,25 +386,13 @@ namespace kusabira_test::preprocessor {
       expect.emplace_back(pp_token_category::op_or_punc, u8")", 40, pos);
 
       //結果の比較
-      CHECK_EQ(expect, *result);
+      CHECK_EQ(expect, result);
     }
 
-    //適当なトークンを投げてみる（登録されていない場合は失敗にはならない
-    {
-      const auto [is_success, result] = pp.funcmacro<false>(*reporter, pp_token{pp_token_category::op_or_punc, u8"min", 0, pos}, {});
-      CHECK_UNARY(is_success);
-      CHECK_EQ(result, std::nullopt);
-    }
-    {
-      const auto [is_success, result] = pp.funcmacro<false>(*reporter, pp_token{pp_token_category::op_or_punc, u8"max_", 0, pos}, {});
-      CHECK_UNARY(is_success);
-      CHECK_EQ(result, std::nullopt);
-    }
-    {
-      const auto [is_success, result] = pp.funcmacro<false>(*reporter, pp_token{pp_token_category::op_or_punc, u8"MAX", 0, pos}, {});
-      CHECK_UNARY(is_success);
-      CHECK_EQ(result, std::nullopt);
-    }
+    //適当なトークンを投げてみる（登録されていない場合は例外を投げると思うのでやらない）
+    CHECK_UNARY_FALSE(bool(pp.is_macro(u8"min")));
+    CHECK_UNARY_FALSE(bool(pp.is_macro(u8"max_")));
+    CHECK_UNARY_FALSE(bool(pp.is_macro(u8"MAX")));
 
     //登録解除
     {
@@ -473,11 +462,11 @@ namespace kusabira_test::preprocessor {
       args.emplace_back(std::move(token_list));
 
       //関数マクロ実行
-      const auto [is_success, result] = pp.funcmacro<false>(*reporter, lt2, args);
+      const auto [success, complete, result] = pp.funcmacro<false>(*reporter, lt2, args);
 
-      CHECK_UNARY(is_success);
-      REQUIRE_UNARY(bool(result));
-      CHECK_EQ(14ull, result->size());
+      CHECK_UNARY(success);
+      CHECK_UNARY(complete);
+      CHECK_EQ(14ull, result.size());
 
       std::pmr::list<pp_token> expect{&kusabira::def_mr};
       expect.emplace_back(pp_token_category::identifier, u8"f", 15, pos);
@@ -496,24 +485,24 @@ namespace kusabira_test::preprocessor {
       expect.emplace_back(pp_token_category::op_or_punc, u8")", 28, pos);
 
       //結果の比較
-      CHECK_EQ(expect, *result);
+      CHECK_EQ(expect, result);
     }
   
     //引数なし実行
     {
       //関数マクロ実行
-      const auto [is_success, result] = pp.funcmacro<false>(*reporter, pp_token{pp_token_category::identifier, u8"F", 8, pos}, std::pmr::vector<std::pmr::list<pp_token>>{&kusabira::def_mr});
+      const auto [success, complete, result] = pp.funcmacro<false>(*reporter, pp_token{pp_token_category::identifier, u8"F", 8, pos}, std::pmr::vector<std::pmr::list<pp_token>>{&kusabira::def_mr});
 
-      CHECK_UNARY(is_success);
-      REQUIRE_UNARY(bool(result));
-      CHECK_EQ(3ull, result->size());
+      CHECK_UNARY(success);
+      CHECK_UNARY(complete);
+      CHECK_EQ(3ull, result.size());
 
       std::pmr::list<pp_token> expect{&kusabira::def_mr};
       expect.emplace_back(pp_token_category::identifier, u8"f", 15, pos);
       expect.emplace_back(pp_token_category::op_or_punc, u8"(", 16, pos);
       expect.emplace_back(pp_token_category::op_or_punc, u8")", 28, pos);
       //結果の比較
-      CHECK_EQ(expect, *result);
+      CHECK_EQ(expect, result);
     }
 
     //登録解除
@@ -617,11 +606,11 @@ namespace kusabira_test::preprocessor {
       args.emplace_back(std::move(token_list));
 
       //関数マクロ実行
-      const auto [is_success, result] = pp.funcmacro<false>(*reporter, lt2, args);
+      const auto [success, complete, result] = pp.funcmacro<false>(*reporter, lt2, args);
 
-      CHECK_UNARY(is_success);
-      REQUIRE_UNARY(bool(result));
-      CHECK_EQ(10ull, result->size());
+      CHECK_UNARY(success);
+      CHECK_UNARY(complete);
+      CHECK_EQ(10ull, result.size());
 
       std::pmr::list<pp_token> expect{&kusabira::def_mr};
 
@@ -637,17 +626,17 @@ namespace kusabira_test::preprocessor {
       expect.emplace_back(pp_token_category::op_or_punc, u8")", 28, pos);
       
       //結果の比較
-      CHECK_EQ(expect, *result);
+      CHECK_EQ(expect, result);
     }
 
     //引数なし呼び出し
     {
       //関数マクロ実行
-      const auto [is_success, result] = pp.funcmacro<false>(*reporter, pp_token{pp_token_category::identifier, u8"F", 8, pos}, std::pmr::vector<std::pmr::list<pp_token>>{&kusabira::def_mr});
+      const auto [success, complete, result] = pp.funcmacro<false>(*reporter, pp_token{pp_token_category::identifier, u8"F", 8, pos}, std::pmr::vector<std::pmr::list<pp_token>>{&kusabira::def_mr});
 
-      CHECK_UNARY(is_success);
-      REQUIRE_UNARY(bool(result));
-      CHECK_EQ(4ull, result->size());
+      CHECK_UNARY(success);
+      CHECK_UNARY(complete);
+      CHECK_EQ(4ull, result.size());
 
       std::pmr::list<pp_token> expect{&kusabira::def_mr};
       expect.emplace_back(pp_token_category::identifier, u8"f", 15, pos);
@@ -655,7 +644,7 @@ namespace kusabira_test::preprocessor {
       expect.emplace_back(pp_token_category::pp_number, u8"0", 17, pos);
       expect.emplace_back(pp_token_category::op_or_punc, u8")", 28, pos);
       //結果の比較
-      CHECK_EQ(expect, *result);
+      CHECK_EQ(expect, result);
     }
 
     //引数なし呼び出し2（F(,)みたいな呼び出し
@@ -667,11 +656,11 @@ namespace kusabira_test::preprocessor {
       args.emplace_back(std::pmr::list<pp_token>{&kusabira::def_mr});
 
       //関数マクロ実行
-      const auto [is_success, result] = pp.funcmacro<false>(*reporter, pp_token{pp_token_category::identifier, u8"F", 8, pos}, args);
+      const auto [success, complete, result] = pp.funcmacro<false>(*reporter, pp_token{pp_token_category::identifier, u8"F", 8, pos}, args);
 
-      CHECK_UNARY(is_success);
-      REQUIRE_UNARY(bool(result));
-      CHECK_EQ(6ull, result->size());
+      CHECK_UNARY(success);
+      CHECK_UNARY(complete);
+      CHECK_EQ(6ull, result.size());
 
       std::pmr::list<pp_token> expect{&kusabira::def_mr};
       expect.emplace_back(pp_token_category::identifier, u8"f", 15, pos);
@@ -681,7 +670,7 @@ namespace kusabira_test::preprocessor {
       expect.emplace_back(pp_token_category::op_or_punc).token = u8","sv;
       expect.emplace_back(pp_token_category::op_or_punc, u8")", 28, pos);
       //結果の比較
-      CHECK_EQ(expect, *result);
+      CHECK_EQ(expect, result);
     }
   }
 
@@ -744,11 +733,11 @@ namespace kusabira_test::preprocessor {
       args.emplace_back(std::move(token_list));
 
       //関数マクロ実行
-      const auto [is_success, result] = pp.funcmacro<false>(*reporter, lt2, args);
+      const auto [success, complete, result] = pp.funcmacro<false>(*reporter, lt2, args);
 
-      CHECK_UNARY(is_success);
-      REQUIRE_UNARY(bool(result));
-      CHECK_EQ(12ull, result->size());
+      CHECK_UNARY(success);
+      CHECK_UNARY(complete);
+      CHECK_EQ(12ull, result.size());
 
       std::pmr::list<pp_token> expect{&kusabira::def_mr};
 
@@ -769,7 +758,7 @@ namespace kusabira_test::preprocessor {
       expect.emplace_back(pp_token_category::op_or_punc, u8"}", 60, pos);
       
       //結果の比較
-      CHECK_EQ(expect, *result);
+      CHECK_EQ(expect, result);
     }
 
     //引数なし呼び出し
@@ -784,31 +773,31 @@ namespace kusabira_test::preprocessor {
       args.emplace_back(std::move(token_list));
 
       //関数マクロ実行
-      const auto [is_success, result] = pp.funcmacro<false>(*reporter, pp_token{pp_token_category::identifier, u8"SDEF", 8, pos}, args);
+      const auto [success, complete, result] = pp.funcmacro<false>(*reporter, pp_token{pp_token_category::identifier, u8"SDEF", 8, pos}, args);
 
-      CHECK_UNARY(is_success);
-      REQUIRE_UNARY(bool(result));
-      CHECK_EQ(2ull, result->size());
+      CHECK_UNARY(success);
+      CHECK_UNARY(complete);
+      CHECK_EQ(2ull, result.size());
 
       std::pmr::list<pp_token> expect{&kusabira::def_mr};
       expect.emplace_back(pp_token_category::identifier, u8"S", 25, pos);
       expect.emplace_back(pp_token_category::identifier, u8"foo", 5, pos2);
       //結果の比較
-      CHECK_EQ(expect, *result);
+      CHECK_EQ(expect, result);
 
       //SDEF(foo,) みたいな呼び出し
       {
         args.emplace_back(std::pmr::list<pp_token>{&kusabira::def_mr});
 
         //関数マクロ実行
-        const auto [is_success2, result2] = pp.funcmacro<false>(*reporter, pp_token{pp_token_category::identifier, u8"SDEF", 8, pos}, args);
+        const auto [success2, complete2, result2] = pp.funcmacro<false>(*reporter, pp_token{pp_token_category::identifier, u8"SDEF", 8, pos}, args);
 
-        CHECK_UNARY(is_success2);
-        REQUIRE_UNARY(bool(result2));
+      CHECK_UNARY(success2);
+      CHECK_UNARY(complete2);
 
         //引数なしだとみなされる
-        CHECK_EQ(2ull, result2->size());
-        CHECK_EQ(expect, *result2);
+        CHECK_EQ(2ull, result2.size());
+        CHECK_EQ(expect, result2);
       }
     }
   }
@@ -907,19 +896,18 @@ namespace kusabira_test::preprocessor {
       args.emplace_back(std::move(token_list));
 
       //関数マクロ実行
-      const auto [is_success, result] = pp.funcmacro<false>(*reporter, lt2, args);
+      const auto [success, complete, result] = pp.funcmacro<false>(*reporter, lt2, args);
 
-      CHECK_UNARY(is_success);
-      REQUIRE_UNARY(bool(result));
-
-      CHECK_EQ(3u, result->size());
+      CHECK_UNARY(success);
+      CHECK_UNARY(complete);
+      CHECK_EQ(3u, result.size());
 
       std::pmr::list<pp_token> expect{&kusabira::def_mr};
       expect.emplace_back(pp_token_category::string_literal, u8R"++("strncmp(\"abc\\0d\", \"abc\", '\\4') == 0")++", 0, pos2);
       expect.emplace_back(pp_token_category::string_literal, u8R"("_append")", 22, pos);
       expect.emplace_back(pp_token_category::op_or_punc, u8";", 32, pos);
 
-      CHECK_EQ(expect, *result);
+      CHECK_EQ(expect, result);
     }
 
     //可変長文字列化
@@ -967,14 +955,13 @@ namespace kusabira_test::preprocessor {
       args.emplace_back(std::move(token_list));
 
       //関数マクロ実行
-      const auto [is_success, result] = pp.funcmacro<false>(*reporter, lt2, args);
+      const auto [success, complete, result] = pp.funcmacro<false>(*reporter, lt2, args);
 
-      CHECK_UNARY(is_success);
-      REQUIRE_UNARY(bool(result));
+      CHECK_UNARY(success);
+      CHECK_UNARY(complete);
+      CHECK_EQ(1u, result.size());
 
-      CHECK_EQ(1u, result->size());
-
-      const auto& pptoken = result->front();
+      const auto& pptoken = result.front();
       CHECK_EQ(pptoken.category, pp_token_category::string_literal);
       auto tmpstr = u8R"("1, \"x\", int, a * b+0")"sv;
       CHECK_UNARY(pptoken.token == tmpstr);
@@ -985,14 +972,13 @@ namespace kusabira_test::preprocessor {
       args.clear();
 
       //関数マクロ実行
-      const auto [is_success2, result2] = pp.funcmacro<false>(*reporter, lt2, args);
+      const auto [success2, complete2, result2] = pp.funcmacro<false>(*reporter, lt2, args);
 
-      CHECK_UNARY(is_success2);
-      REQUIRE_UNARY(bool(result2));
+      CHECK_UNARY(success2);
+      CHECK_UNARY(complete2);
+      CHECK_EQ(1u, result2.size());
 
-      CHECK_EQ(1u, result2->size());
-
-      const auto &empty_token = result2->front();
+      const auto &empty_token = result2.front();
       CHECK_EQ(empty_token.category, pp_token_category::string_literal);
       CHECK_UNARY(empty_token.token == u8R"("")"sv);
     }
@@ -1122,14 +1108,13 @@ namespace kusabira_test::preprocessor {
       args.emplace_back(std::move(token_list));
 
       //関数マクロ実行
-      const auto [is_success, result] = pp.funcmacro<false>(*reporter, lt2, args);
+      const auto [success, complete, result] = pp.funcmacro<false>(*reporter, lt2, args);
 
-      CHECK_UNARY(is_success);
-      REQUIRE_UNARY(bool(result));
+      CHECK_UNARY(success);
+      CHECK_UNARY(complete);
+      CHECK_EQ(1u, result.size());
 
-      CHECK_EQ(1u, result->size());
-
-      auto& token = result->front();
+      auto& token = result.front();
 
       CHECK_UNARY(token.token == u8"preprocessing"sv);
       CHECK_EQ(pp_token_category::identifier, token.category);
@@ -1142,13 +1127,12 @@ namespace kusabira_test::preprocessor {
       args.emplace_back(std::pmr::list<pp_token>{ &kusabira::def_mr });
 
       //関数マクロ実行
-      const auto [is_success2, result2] = pp.funcmacro<false>(*reporter, lt2, args);
+      const auto [success2, complete2, result2] = pp.funcmacro<false>(*reporter, lt2, args);
 
-      CHECK_UNARY(is_success2);
-      REQUIRE_UNARY(bool(result2));
-
-      CHECK_EQ(1u, result2->size());
-      CHECK_UNARY(result2->front().token == u8"pre"sv);
+      CHECK_UNARY(success2);
+      CHECK_UNARY(complete2);
+      CHECK_EQ(1u, result2.size());
+      CHECK_UNARY(result2.front().token == u8"pre"sv);
     }
 
     //可変長マクロの例
@@ -1196,11 +1180,11 @@ namespace kusabira_test::preprocessor {
       args.emplace_back(std::move(token_list));
 
       //関数マクロ実行
-      const auto [is_success, result] = pp.funcmacro<false>(*reporter, lt2, args);
+      const auto [success, complete, result] = pp.funcmacro<false>(*reporter, lt2, args);
 
-      CHECK_UNARY(is_success);
-      REQUIRE_UNARY(bool(result));
-      CHECK_EQ(7u, result->size());
+      CHECK_UNARY(success);
+      CHECK_UNARY(complete);
+      CHECK_EQ(7u, result.size());
 
       std::pmr::list<pp_token> expect{&kusabira::def_mr};
 
@@ -1212,7 +1196,7 @@ namespace kusabira_test::preprocessor {
       expect.emplace_back(pp_token_category::op_or_punc).token = u8","sv;
       expect.emplace_back(pp_token_category::identifier, u8"fgha", 15, pos2);
 
-      CHECK_EQ(expect, *result);
+      CHECK_EQ(expect, result);
 
       //空で呼ぶ
       args.clear();
@@ -1220,13 +1204,13 @@ namespace kusabira_test::preprocessor {
       args.emplace_back(std::move(token_list));
 
       //関数マクロ実行
-      const auto [is_success2, result2] = pp.funcmacro<false>(*reporter, lt2, args);
+      const auto [success2, complete2, result2] = pp.funcmacro<false>(*reporter, lt2, args);
 
-      CHECK_UNARY(is_success2);
-      REQUIRE_UNARY(bool(result2));
-      CHECK_EQ(1u, result2->size());
+      CHECK_UNARY(success2);
+      CHECK_UNARY(complete2);
+      CHECK_EQ(1u, result2.size());
 
-      auto &result_token = result2->front();
+      auto &result_token = result2.front();
       CHECK_EQ(pp_token_category::identifier, result_token.category);
       CHECK_UNARY(result_token.token == u8"aa"sv);
     }
@@ -1280,13 +1264,13 @@ namespace kusabira_test::preprocessor {
 
       {
         //関数マクロ実行
-        const auto [is_success, result] = pp.funcmacro<false>(*reporter, lt2, args);
+        const auto [success, complete, result] = pp.funcmacro<false>(*reporter, lt2, args);
 
-        CHECK_UNARY(is_success);
-        REQUIRE_UNARY(bool(result));
-        CHECK_EQ(1u, result->size());
+        CHECK_UNARY(success);
+        CHECK_UNARY(complete);
+        CHECK_EQ(1u, result.size());
 
-        auto& result_token = result->front();
+        auto& result_token = result.front();
         CHECK_EQ(pp_token_category::identifier, result_token.category);
         CHECK_UNARY(result_token.token == u8"abcda"sv);
       }
@@ -1298,13 +1282,13 @@ namespace kusabira_test::preprocessor {
         args.emplace_back(std::move(token_list));
 
         //関数マクロ実行
-        const auto [is_success, result] = pp.funcmacro<false>(*reporter, lt2, args);
+        const auto [success, complete, result] = pp.funcmacro<false>(*reporter, lt2, args);
 
-        CHECK_UNARY(is_success);
-        REQUIRE_UNARY(bool(result));
-        CHECK_EQ(1u, result->size());
+        CHECK_UNARY(success);
+        CHECK_UNARY(complete);
+        CHECK_EQ(1u, result.size());
 
-        auto &result_token = result->front();
+        auto &result_token = result.front();
         CHECK_EQ(pp_token_category::identifier, result_token.category);
         CHECK_UNARY(result_token.token == u8"aa"sv);
       }
@@ -1331,13 +1315,14 @@ namespace kusabira_test::preprocessor {
       CHECK_UNARY(pp.define(*reporter, lt2, rep_list));
 
       //オブジェクトマクロ実行
-      auto list = pp.objmacro<false>(*reporter, lt2);
+      const auto [success, complete, result] = pp.objmacro<false>(*reporter, lt2);
 
-      REQUIRE_UNARY(bool(list));
-      CHECK_EQ(1u, list->size());
+      CHECK_UNARY(success);
+      CHECK_UNARY(complete);
+      CHECK_EQ(1u, result.size());
 
       pp_token expect_token{pp_token_category::op_or_punc, u8"##", 18, pos};
-      CHECK_EQ(expect_token, list->front());
+      CHECK_EQ(expect_token, result.front());
     }
 
     //変な例2
@@ -1376,13 +1361,13 @@ namespace kusabira_test::preprocessor {
       args.emplace_back(std::move(token_list));
 
       //関数マクロ実行
-      const auto [is_success, result] = pp.funcmacro<false>(*reporter, lt2, args);
+      const auto [success, complete, result] = pp.funcmacro<false>(*reporter, lt2, args);
 
-      CHECK_UNARY(is_success);
-      REQUIRE_UNARY(bool(result));
-      CHECK_EQ(1u, result->size());
+      CHECK_UNARY(success);
+      CHECK_UNARY(complete);
+      CHECK_EQ(1u, result.size());
 
-      auto& result_token = result->front();
+      auto& result_token = result.front();
       CHECK_EQ(pp_token_category::user_defined_raw_string_literal, result_token.category);
       CHECK_UNARY(result_token.token == u8R"++(R"(string literal\n)"sv)++"sv);
     }
@@ -1549,10 +1534,10 @@ namespace kusabira_test::preprocessor {
       token_list.emplace_back(pp_token_category::identifier, u8"H", 18, pos);
       args.emplace_back(std::move(token_list));
 
-      const auto [suucess, result] = pp.funcmacro<false>(*reporter, { pp_token_category::identifier, u8"F", 0, pos }, args);
+      const auto [success, complete, result] = pp.funcmacro<false>(*reporter, { pp_token_category::identifier, u8"F", 0, pos }, args);
 
-      CHECK_UNARY(suucess);
-      REQUIRE_UNARY(bool(result));
+      CHECK_UNARY(success);
+      CHECK_UNARY(complete);
 
       std::pmr::list<pp_token> expect{ &kusabira::def_mr };
 
@@ -1561,7 +1546,7 @@ namespace kusabira_test::preprocessor {
       expect.emplace_back(pp_token_category::user_defined_string_literal , u8R"+("G(a)"H)+", 9, pos);
       expect.emplace_back(pp_token_category::identifier, u8"test", 18, pos);
 
-      CHECK_EQ(expect, *result);
+      CHECK_EQ(expect, result);
     }
     
     {
@@ -1604,10 +1589,10 @@ namespace kusabira_test::preprocessor {
       token_list.emplace_back(pp_token_category::op_or_punc, u8")", 20, pos);
       args.emplace_back(std::move(token_list));
 
-      const auto [suucess, result] = pp.funcmacro<false>(*reporter, { pp_token_category::identifier, u8"G", 0, pos }, args);
+      const auto [success, complete, result] = pp.funcmacro<false>(*reporter, { pp_token_category::identifier, u8"G", 0, pos }, args);
 
-      CHECK_UNARY(suucess);
-      REQUIRE_UNARY(bool(result));
+      CHECK_UNARY(success);
+      CHECK_UNARY(complete);
 
       std::pmr::list<pp_token> expect{ &kusabira::def_mr };
 
@@ -1623,7 +1608,7 @@ namespace kusabira_test::preprocessor {
       expect.emplace_back(pp_token_category::identifier, u8"gh", 18, pos);
       expect.emplace_back(pp_token_category::identifier, u8"vatest");
 
-      CHECK_EQ(expect, *result);
+      CHECK_EQ(expect, result);
     }
   }
 
@@ -1654,12 +1639,13 @@ namespace kusabira_test::preprocessor {
         REQUIRE_UNARY(bool(opt));
         CHECK_UNARY_FALSE(*opt);
         
-        auto result = pp.objmacro<false>(*reporter, line_token);
+        const auto [success, complete, result] = pp.objmacro<false>(*reporter, line_token);
 
-        REQUIRE_UNARY(bool(result));
-        CHECK_EQ(1, result->size());
+        CHECK_UNARY(success);
+        CHECK_UNARY(complete);
+        CHECK_EQ(1, result.size());
 
-        auto &res_token = result->front();
+        auto &res_token = result.front();
         CHECK_EQ(pp_token_category::pp_number, res_token.category);
         CHECK_UNARY(res_token.token == u8"5"sv);
       }
@@ -1672,12 +1658,13 @@ namespace kusabira_test::preprocessor {
       CHECK_UNARY(pp.line(*reporter, line_args));
 
       {
-        auto result = pp.objmacro<false>(*reporter, line_token);
+        const auto [success, complete, result] = pp.objmacro<false>(*reporter, line_token);
 
-        REQUIRE_UNARY(bool(result));
-        CHECK_EQ(1, result->size());
+        CHECK_UNARY(success);
+        CHECK_UNARY(complete);
+        CHECK_EQ(1, result.size());
 
-        auto &res_token = result->front();
+        auto &res_token = result.front();
         CHECK_EQ(pp_token_category::pp_number, res_token.category);
         CHECK_UNARY(res_token.token == u8"1234570"sv);
       }
@@ -1691,12 +1678,13 @@ namespace kusabira_test::preprocessor {
       CHECK_UNARY(pp.line(*reporter, line_args));
 
       {
-        auto result = pp.objmacro<false>(*reporter, line_token);
+        const auto [success, complete, result] = pp.objmacro<false>(*reporter, line_token);
 
-        REQUIRE_UNARY(bool(result));
-        CHECK_EQ(1, result->size());
+        CHECK_UNARY(success);
+        CHECK_UNARY(complete);
+        CHECK_EQ(1, result.size());
 
-        auto &res_token = result->front();
+        auto &res_token = result.front();
         CHECK_EQ(pp_token_category::pp_number, res_token.category);
         CHECK_UNARY(res_token.token == u8"1234570"sv);
       }
@@ -1710,12 +1698,13 @@ namespace kusabira_test::preprocessor {
       CHECK_UNARY(pp.line(*reporter, line_args));
 
       {
-        auto result = pp.objmacro<false>(*reporter, line_token);
+        const auto [success, complete, result] = pp.objmacro<false>(*reporter, line_token);
 
-        REQUIRE_UNARY(bool(result));
-        CHECK_EQ(1, result->size());
+        CHECK_UNARY(success);
+        CHECK_UNARY(complete);
+        CHECK_EQ(1, result.size());
 
-        auto &res_token = result->front();
+        auto &res_token = result.front();
         CHECK_EQ(pp_token_category::pp_number, res_token.category);
         CHECK_UNARY(res_token.token == u8"100"sv);
       }
@@ -1734,12 +1723,13 @@ namespace kusabira_test::preprocessor {
         REQUIRE_UNARY(bool(opt));
         CHECK_UNARY_FALSE(*opt);
 
-        auto result = pp.objmacro<false>(*reporter, file_token);
+        const auto [success, complete, result] = pp.objmacro<false>(*reporter, file_token);
 
-        REQUIRE_UNARY(bool(result));
-        CHECK_EQ(1, result->size());
+        CHECK_UNARY(success);
+        CHECK_UNARY(complete);
+        CHECK_EQ(1, result.size());
 
-        auto& res_token = result->front();
+        auto& res_token = result.front();
         CHECK_EQ(pp_token_category::string_literal, res_token.category);
         CHECK_UNARY(res_token.token == u8"test_predefined_macro.hpp"sv);
       }
@@ -1757,12 +1747,13 @@ namespace kusabira_test::preprocessor {
       CHECK_UNARY(pp.line(*reporter, line_args));
 
       {
-        auto result = pp.objmacro<false>(*reporter, file_token);
+        const auto [success, complete, result] = pp.objmacro<false>(*reporter, file_token);
 
-        REQUIRE_UNARY(bool(result));
-        CHECK_EQ(1, result->size());
+        CHECK_UNARY(success);
+        CHECK_UNARY(complete);
+        CHECK_EQ(1, result.size());
 
-        auto& res_token = result->front();
+        auto& res_token = result.front();
         CHECK_EQ(pp_token_category::string_literal, res_token.category);
         CHECK_UNARY(res_token.token == u8"replace_file.cpp"sv);
       }
@@ -1778,12 +1769,13 @@ namespace kusabira_test::preprocessor {
       CHECK_UNARY(pp.line(*reporter, line_args));
 
       {
-        auto result = pp.objmacro<false>(*reporter, file_token);
+        const auto [success, complete, result] = pp.objmacro<false>(*reporter, file_token);
 
-        REQUIRE_UNARY(bool(result));
-        CHECK_EQ(1, result->size());
+        CHECK_UNARY(success);
+        CHECK_UNARY(complete);
+        CHECK_EQ(1, result.size());
 
-        auto& res_token = result->front();
+        auto& res_token = result.front();
         CHECK_EQ(pp_token_category::string_literal, res_token.category);
         CHECK_UNARY(res_token.token == u8"rwastr_filename.h"sv);
       }
@@ -1817,12 +1809,13 @@ namespace kusabira_test::preprocessor {
 
       //何回読んでも同じ結果になる
       for (int i = 0; i < 5; ++i) {
-        auto result = pp.objmacro<false>(*reporter, date_token);
+        const auto [success, complete, result] = pp.objmacro<false>(*reporter, date_token);
 
-        REQUIRE_UNARY(bool(result));
-        CHECK_EQ(1, result->size());
+        CHECK_UNARY(success);
+        CHECK_UNARY(complete);
+        CHECK_EQ(1, result.size());
 
-        auto &res_token = result->front();
+        auto &res_token = result.front();
         CHECK_EQ(pp_token_category::string_literal, res_token.category);
         CHECK_UNARY(res_token.token == expect);
       }
@@ -1856,12 +1849,13 @@ namespace kusabira_test::preprocessor {
 
       //何回読んでも同じ結果になる
       for (int i = 0; i < 5; ++i) {
-        auto result = pp.objmacro<false>(*reporter, time_token);
+        const auto [success, complete, result] = pp.objmacro<false>(*reporter, time_token);
 
-        REQUIRE_UNARY(bool(result));
-        CHECK_EQ(1, result->size());
+        CHECK_UNARY(success);
+        CHECK_UNARY(complete);
+        CHECK_EQ(1, result.size());
 
-        auto &res_token = result->front();
+        auto &res_token = result.front();
         CHECK_EQ(pp_token_category::string_literal, res_token.category);
         //ごく低い確率で落ちるかもしれない
         CHECK_UNARY(res_token.token.to_view().substr(0, 6) == expect);
@@ -1881,12 +1875,13 @@ namespace kusabira_test::preprocessor {
       REQUIRE_UNARY(bool(opt));
       CHECK_UNARY_FALSE(*opt);
 
-      auto result = pp.objmacro<false>(*reporter, macro_token);
+      const auto [success, complete, result] = pp.objmacro<false>(*reporter, macro_token);
 
-      REQUIRE_UNARY(bool(result));
-      CHECK_EQ(1, result->size());
+      CHECK_UNARY(success);
+      CHECK_UNARY(complete);
+      CHECK_EQ(1, result.size());
 
-      auto &res_token = result->front();
+      auto &res_token = result.front();
       CHECK_EQ(pp_token_category::pp_number, res_token.category);
       CHECK_UNARY(res_token.token == u8"202002L"sv);
     }
@@ -1900,12 +1895,13 @@ namespace kusabira_test::preprocessor {
       REQUIRE_UNARY(bool(opt));
       CHECK_UNARY_FALSE(*opt);
 
-      auto result = pp.objmacro<false>(*reporter, macro_token);
+      const auto [success, complete, result] = pp.objmacro<false>(*reporter, macro_token);
 
-      REQUIRE_UNARY(bool(result));
-      CHECK_EQ(1, result->size());
+      CHECK_UNARY(success);
+      CHECK_UNARY(complete);
+      CHECK_EQ(1, result.size());
 
-      auto &res_token = result->front();
+      auto &res_token = result.front();
       CHECK_EQ(pp_token_category::pp_number, res_token.category);
       CHECK_UNARY(res_token.token == u8"1"sv);
     }
@@ -1919,12 +1915,13 @@ namespace kusabira_test::preprocessor {
       REQUIRE_UNARY(bool(opt));
       CHECK_UNARY_FALSE(*opt);
 
-      auto result = pp.objmacro<false>(*reporter, macro_token);
+      const auto [success, complete, result] = pp.objmacro<false>(*reporter, macro_token);
 
-      REQUIRE_UNARY(bool(result));
-      CHECK_EQ(1, result->size());
+      CHECK_UNARY(success);
+      CHECK_UNARY(complete);
+      CHECK_EQ(1, result.size());
 
-      auto &res_token = result->front();
+      auto &res_token = result.front();
       CHECK_EQ(pp_token_category::pp_number, res_token.category);
       CHECK_UNARY(res_token.token == u8"16ull"sv);
     }
@@ -1938,12 +1935,13 @@ namespace kusabira_test::preprocessor {
       REQUIRE_UNARY(bool(opt));
       CHECK_UNARY_FALSE(*opt);
 
-      auto result = pp.objmacro<false>(*reporter, macro_token);
+      const auto [success, complete, result] = pp.objmacro<false>(*reporter, macro_token);
 
-      REQUIRE_UNARY(bool(result));
-      CHECK_EQ(1, result->size());
+      CHECK_UNARY(success);
+      CHECK_UNARY(complete);
+      CHECK_EQ(1, result.size());
 
-      auto &res_token = result->front();
+      auto &res_token = result.front();
       CHECK_EQ(pp_token_category::pp_number, res_token.category);
       CHECK_UNARY(res_token.token == u8"1"sv);
     }
