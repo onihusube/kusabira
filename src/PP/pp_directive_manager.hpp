@@ -1122,12 +1122,13 @@ namespace kusabira::PP {
         //マクロ置換
         if (auto opt = this->is_macro(deref(it).token); opt) {
           const bool is_funcmacro = *opt;
+          bool success;
 
-          std::optional<std::pmr::list<pp_token>> result{};
+          std::pmr::list<pp_token> result{&kusabira::def_mr};
 
           if (not is_funcmacro) {
             //オブジェクトマクロ置換
-            result = this->objmacro<true>(reporter, *it);
+            std::tie(success, std::ignore, result, std::ignore) = this->objmacro<true>(reporter, *it);
           } else {
             //マクロ引数列の先頭（開きかっこの次）
             auto start_pos = std::next(it, 2);
@@ -1139,17 +1140,15 @@ namespace kusabira::PP {
             //マクロの閉じ位置と引数リスト取得
             const auto args = pars_arg(start_pos, close_pos);
 
-            bool success;
             //関数マクロ置換
-            std::tie(success, result) = this->funcmacro<true>(reporter, *it, args);
-            if (not success) return false;
+            std::tie(success, std::ignore, result, std::ignore) = this->funcmacro<true>(reporter, *it, args);
 
             //マクロの閉じ括弧を残して削除
             it = list.erase(it, close_pos);
           }
-          //成功するのでエラーチェックしない
+          if (not success) return false;
           //リストの再スキャンとさらなるマクロ展開はここではやらない
-          list.splice(it, std::move(*result));
+          list.splice(it, std::move(result));
           it = list.erase(it);
         } else {
           ++it;
@@ -1226,7 +1225,7 @@ namespace kusabira::PP {
         if (auto opt = this->is_macro(deref(it).token); opt) {
           const bool is_funcmacro = *opt;
 
-          std::optional<std::pmr::list<pp_token>> result{};
+          std::pmr::list<pp_token> result{ &kusabira::def_mr };
           bool success, scan_complete;
 
           //マクロの終端位置（マクロの閉じトークンの次）
@@ -1259,14 +1258,14 @@ namespace kusabira::PP {
           auto erase_pos = it;
           if (not scan_complete) {
             //リストのスキャンが完了していなければ、戻ってきたリストの先頭からスキャンし関数マクロ名を探す（それより前のマクロは置換済み）
-            it = std::begin(*result);
+            it = std::begin(result);
           } else {
             //リストのスキャンが完了していれば、次のトークンからスキャン
             it = close_pos;
           }
 
           //戻ってきたリストをspliceする
-          list.splice(erase_pos, std::move(*result));
+          list.splice(erase_pos, std::move(result));
           //置換したマクロ範囲を消去
           list.erase(erase_pos, close_pos);
         } else {
@@ -1306,9 +1305,10 @@ namespace kusabira::PP {
     * @return 置換リストのoptional、無効地なら置換対象ではなかった
     */
     template<bool MacroExpandOff, typename Reporter>
-    fn objmacro(Reporter& reporter, const pp_token& macro_name) const -> std::tuple<bool, bool, std::pmr::list<pp_token>> {
+    fn objmacro(Reporter& reporter, const pp_token& macro_name) const -> std::tuple<bool, bool, std::pmr::list<pp_token>, std::pmr::unordered_set<std::u8string_view>> {
       std::pmr::unordered_set<std::u8string_view> memo{&kusabira::def_mr};
-      return this->objmacro<MacroExpandOff>(reporter, macro_name, memo);
+      auto&& tuple = this->objmacro<MacroExpandOff>(reporter, macro_name, memo);
+      return std::tuple_cat(std::move(tuple), std::make_tuple(std::move(memo)));
     }
 
     /**
@@ -1326,7 +1326,7 @@ namespace kusabira::PP {
       }
 
       //マクロを取り出す（存在は予め調べてあるものとする）
-      const auto& macro = *m_funcmacros.find(macro_name.token);
+      const auto& macro = deref(m_funcmacros.find(macro_name.token)).second;
 
       //置換結果取得
       unified_macro::macro_result_t result{};
@@ -1346,7 +1346,7 @@ namespace kusabira::PP {
         const auto [success, complete] = this->further_macro_replacement(reporter, *result, outer_macro);
 
         //メモを消す
-        outer_macro.erase(macro_name.token);
+        if (complete) outer_macro.erase(macro_name.token);
 
         return std::make_tuple(success, complete, std::pmr::list<pp_token>{std::move(*result)});
       } else {
@@ -1364,9 +1364,10 @@ namespace kusabira::PP {
     * @return {エラーの有無, スキャン完了したか, 置換リスト}
     */
     template<bool MacroExpandOff, typename Reporter>
-    fn funcmacro(Reporter& reporter, const pp_token& macro_name, const std::pmr::vector<std::pmr::list<pp_token>>& args) const -> std::tuple<bool, bool, std::pmr::list<pp_token>> {
+    fn funcmacro(Reporter& reporter, const pp_token& macro_name, const std::pmr::vector<std::pmr::list<pp_token>>& args) const -> std::tuple<bool, bool, std::pmr::list<pp_token>, std::pmr::unordered_set<std::u8string_view>> {
       std::pmr::unordered_set<std::u8string_view> memo{&kusabira::def_mr};
-      return this->funcmacro<MacroExpandOff>(reporter, macro_name, args, memo);
+      auto&& tuple = this->funcmacro<MacroExpandOff>(reporter, macro_name, args, memo);
+      return std::tuple_cat(std::move(tuple) , std::make_tuple(std::move(memo)));
     }
     /**
     * @brief 関数マクロによる置換リストを取得する
@@ -1384,7 +1385,7 @@ namespace kusabira::PP {
       //引数長さのチェック
       if (not macro.validate_argnum(args)) {
         reporter.pp_err_report(m_filename, macro_name, PP::pp_parse_context::Funcmacro_InsufficientArgs);
-        return {false, false, std::pmr::list<pp_token>{}};
+        return { false, false, std::pmr::list<pp_token>{} };
       }
 
       unified_macro::macro_result_t result{};
@@ -1404,7 +1405,7 @@ namespace kusabira::PP {
         const auto [success, complete] = this->further_macro_replacement(reporter, *result, outer_macro);
 
         //メモを消す
-        outer_macro.erase(macro_name.token);
+        if (complete) outer_macro.erase(macro_name.token);
 
         return {success, complete, std::pmr::list<pp_token>{std::move(*result)}};
       } else {
