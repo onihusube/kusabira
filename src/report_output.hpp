@@ -26,7 +26,7 @@ namespace kusabira::PP {
     RawStrLiteralDelimiterOver16Chars, //生文字列リテラルデリミタの長さが16文字を超えた
     RawStrLiteralDelimiterInvalid,     //生文字列リテラルデリミタに現れてはいけない文字が現れた
     UnexpectedNewLine,                 //予期しない改行入力があった
-    UnexpectedEOF,                     //予期しない改行入力があった
+    UnexpectedEOF,                     //予期しないファイル終端への到達
   
     GroupPart = 0,   // #の後で有効なトークンが現れなかった
     IfSection,       // #ifセクションの途中で読み取り終了してしまった？
@@ -41,6 +41,7 @@ namespace kusabira::PP {
     Define_VAOPTRecursive,      // __VA_OPT__が再帰している
     Define_InvalidTokenConcat,  // 不正なプリプロセッシングトークンの連結が行われた
     Define_InvalidDirective,    // #defineディレクティブが正しくない
+    Funcmacro_NotInvoke,        // 関数マクロ名が参照されているが、呼び出しではなかった
     Funcmacro_InsufficientArgs, // 関数マクロ呼び出しの際、引数が足りなかった
     Funcmacro_ReplacementFail,  // 関数マクロの呼び出し中、引数に対するマクロ置換が失敗した
     ControlLine_Undef,          // #undefにマクロ名が指定されていない

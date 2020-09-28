@@ -606,7 +606,22 @@ namespace kusabira::PP {
                 std::tie(success, complete, result, memo) = preprocessor.objmacro<true>(*m_reporter, macro_name);
               } else {
                 //実引数リストの取得
-                auto&& arg_list = this->funcmacro_args(it, it_end);
+                auto arg_list = this->funcmacro_args(it, it_end);
+                if (not arg_list) {
+                  pp_err_info& errinfo = arg_list.error();
+                  if (errinfo.context == pp_parse_context::Funcmacro_NotInvoke) {
+                    //マクロの呼び出しではなかった時、マクロ名を単に識別子として処理
+                    list.emplace_back(std::move(macro_name));
+                    //itはマクロ名の後に出現した最初の非ホワイトスペーストークンを指している
+                    se_inc_itr.release();
+                    break;
+                  } else {
+                    //その他のエラーはexpectedを変換してそのまま返す
+                    return std::move(arg_list).map([](auto&&) {
+                      return pptoken_conteiner{};
+                    });
+                  }
+                }
                 //関数マクロ置換
                 std::tie(success, complete, result, memo) = preprocessor.funcmacro<true>(*m_reporter, macro_name, *arg_list);
               }
@@ -712,13 +727,29 @@ namespace kusabira::PP {
     * @brief 関数マクロの実引数プリプロセッシングトークンを構成する
     * @param it 現在の先頭トークン
     * @param end トークン列の終端
-    * @details 呼び出し開始の開きかっこ"("の直後から開始すること
+    * @details 呼び出し開始の開きかっこ"("の前から
     * @details 各引数トークン列はマクロ置換をせずにプリプロセッサへ転送する、引数内マクロはプリプロセッサ内で置換の直前に展開される
     * @return エラーが起きた場合その情報、正常終了すれば実引数リスト
     */
     template<typename Iterator, typename Sentinel>
     fn funcmacro_args(Iterator& it, Sentinel end) -> expecetd_macro_args {
       using namespace std::string_view_literals;
+
+      //開きかっこまでトークンを進める
+      while (it != end and deref(it).token != u8"("sv) {
+        if (pp_token_category::block_comment <= deref(it).category) {
+          //開きかっこの出現前に他のトークンが出現している、エラーではない
+          return kusabira::error(pp_err_info{ deref(it), pp_parse_context::Funcmacro_NotInvoke });
+        }
+        ++it;
+      }
+
+      if (it == end) {
+        return kusabira::error(pp_err_info{ pp_token{pp_token_category::empty}, pp_parse_context::UnexpectedEOF });
+      }
+
+      //開きかっこの次のトークンへ進める、少なくともここがEOFになることはない（改行がその前に来る）
+      ++it;
 
       //実引数リスト、カンマごとにプリプロセッシングトークン列を区切る
       //引数の数が増えると内部でムーブが起きるが、問題ないか？？？
@@ -731,7 +762,7 @@ namespace kusabira::PP {
       std::size_t inner_paren = 0;
       
       //関数マクロ呼び出しを終了する閉じ括弧が出るまで引数をパースする
-      while (true) {
+      while (it != end) {
 
         if (deref(it).category == pp_token_category::op_or_punc) {
 
@@ -775,6 +806,11 @@ namespace kusabira::PP {
         }
       }
 
+      //閉じかっこで終わってる筈なのでファイル終端に達するはずはない
+      if (it == end) {
+        return kusabira::error(pp_err_info{ pp_token{pp_token_category::empty}, pp_parse_context::UnexpectedEOF });
+      }
+
       return kusabira::ok(std::move(args));
     }
 
@@ -789,7 +825,7 @@ namespace kusabira::PP {
     * @return エラーが起きた場合その情報、正常終了すればマクロ展開処理済みのプリプロセッシングトークンリスト
     */
     template<typename Iterator, typename Sentinel>
-    fn further_macro_replacement(std::pmr::list<pp_token>& list, Iterator& it, Sentinel se, std::pmr::unordered_set<std::u8string_view> outer_macro) -> kusabira::expected<std::pmr::list<pp_token>, pp_err_info> {
+    fn further_macro_replacement(std::pmr::list<pp_token>& list, Iterator& it, Sentinel se, std::pmr::unordered_set<std::u8string_view>& outer_macro) -> kusabira::expected<std::pmr::list<pp_token>, pp_err_info> {
 
       pptoken_conteiner result_list{ &kusabira::def_mr };
 
@@ -813,18 +849,24 @@ namespace kusabira::PP {
       //未処理トークン列のイテレータだけは参照を保持しておいてもらう
       using concat_ref = kusabira::vocabulary::concat<decltype(pos), decltype(list.end()), Iterator&, Sentinel>;
 
-      //リストの残りの関数マクロ呼び出しトークン列と未処理のPPトークン列を連結する
-      auto arg_list = this->funcmacro_args(concat_ref(pos, list.end(), it, se));
+      //マクロ名を保持しておく
+      const auto macro_name = std::move(*pos);
 
+      //リストの残りの関数マクロ呼び出しトークン列と未処理のPPトークン列を連結し、引数リストを構成する
+      auto arg_list = this->funcmacro_args(concat_ref(pos, list.end(), it, se));
+      if (not arg_list) {
+        pp_err_info& errinfo = arg_list.error();
+        if (errinfo.context == pp_parse_context::Funcmacro_NotInvoke) {
+          //マクロの呼び出しではなかった時、マクロ名を単に識別子として処理
+          result_list.emplace_back(std::move(macro_name));
+          //再スキャンする
+        }
       if (not arg_list) {
         //なんか途中でエラー、expectedを変換してそのまま返す
-        return std::move(arg_list).and_then([](auto&&) {
-          return kusabira::expected<std::pmr::list<pp_token>, pp_err_info>{};
+        return std::move(arg_list).map([](auto&&) {
+          return std::pmr::list<pp_token>{};
         });
       }
-
-      //参照でいいのでは？
-      const auto macro_name = deref(pos);
       
       //関数マクロ置換
       auto [success, complete, result] = preprocessor.funcmacro<true>(*m_reporter, macro_name, *arg_list, outer_macro);
