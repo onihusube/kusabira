@@ -632,7 +632,7 @@ namespace kusabira::PP {
               }
               if (not complete) {
                 //マクロ展開を継続
-                auto comp_result = this->further_macro_replacement(result, it, it_end, memo);
+                auto comp_result = this->further_macro_replacement(std::move(result), it, it_end, memo);
                 result = std::move(*comp_result);
               }
 
@@ -816,7 +816,7 @@ namespace kusabira::PP {
 
     /**
     * @brief マクロ展開結果の再処理時、含まれる関数マクロを適切に処理する
-    * @param list マクロ展開処理途中の結果リスト
+    * @param list マクロ展開処理途中の結果リスト、再スキャンと結果構成のために要素が移動される
     * @param it 現在の先頭トークン
     * @param end トークン列の終端
     * @param outer_macro 外側で呼び出されているマクロ名を記録したメモ
@@ -825,9 +825,9 @@ namespace kusabira::PP {
     * @return エラーが起きた場合その情報、正常終了すればマクロ展開処理済みのプリプロセッシングトークンリスト
     */
     template<typename Iterator, typename Sentinel>
-    fn further_macro_replacement(std::pmr::list<pp_token>& list, Iterator& it, Sentinel se, std::pmr::unordered_set<std::u8string_view>& outer_macro) -> kusabira::expected<std::pmr::list<pp_token>, pp_err_info> {
+    fn further_macro_replacement(std::pmr::list<pp_token>&& list, Iterator& it, Sentinel se, std::pmr::unordered_set<std::u8string_view>& outer_macro) -> kusabira::expected<std::pmr::list<pp_token>, pp_err_info> {
 
-      pptoken_conteiner result_list{ &kusabira::def_mr };
+      pptoken_conteiner complete_list{ &kusabira::def_mr };
 
       //展開途中の関数マクロを探す
       std::optional<bool> is_funcmacro{};
@@ -844,7 +844,7 @@ namespace kusabira::PP {
       assert(*is_funcmacro);
 
       //マクロ位置までのトークンを移動する
-      result_list.splice(result_list.begin(), list, list.begin(), pos);
+      complete_list.splice(complete_list.begin(), list, list.begin(), pos);
 
       //未処理トークン列のイテレータだけは参照を保持しておいてもらう
       using concat_ref = kusabira::vocabulary::concat<decltype(pos), decltype(list.end()), Iterator&, Sentinel>;
@@ -858,7 +858,7 @@ namespace kusabira::PP {
         pp_err_info& errinfo = arg_list.error();
         if (errinfo.context == pp_parse_context::Funcmacro_NotInvoke) {
           //マクロの呼び出しではなかった時、マクロ名を単に識別子として処理
-          result_list.emplace_back(std::move(macro_name));
+          complete_list.emplace_back(std::move(macro_name));
           //再スキャンする
         }
       if (not arg_list) {
@@ -869,7 +869,7 @@ namespace kusabira::PP {
       }
       
       //関数マクロ置換
-      auto [success, complete, result] = preprocessor.funcmacro<true>(*m_reporter, macro_name, *arg_list, outer_macro);
+      auto [success, complete, funcmacro_result] = preprocessor.funcmacro<true>(*m_reporter, macro_name, *arg_list, outer_macro);
 
       if (not success) {
         //なんか途中でエラー、expectedを変換してそのまま返す
@@ -877,17 +877,18 @@ namespace kusabira::PP {
       }
       if (not complete) {
         //resultに対して再帰的に再スキャンする
-        auto recursive_result = this->further_macro_replacement(result, it, se, outer_macro);
+        auto recursive_result = this->further_macro_replacement(std::move(funcmacro_result), it, se, outer_macro);
         if (not recursive_result) {
           return recursive_result;
         }
-        result = std::move(*recursive_result);
+        //全てのマクロ処理が完了した結果（となるはず
+        funcmacro_result = std::move(*recursive_result);
       }
 
       //展開結果をsplice
-      result_list.splice(result_list.end(), std::move(result));
+      complete_list.splice(complete_list.end(), std::move(funcmacro_result));
 
-      return kusabira::ok(std::move(result_list));
+      return kusabira::ok(std::move(complete_list));
     }
 
     /**
