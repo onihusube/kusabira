@@ -861,6 +861,7 @@ namespace kusabira::PP {
           complete_list.emplace_back(std::move(macro_name));
           //再スキャンする
         }
+      }
       if (not arg_list) {
         //なんか途中でエラー、expectedを変換してそのまま返す
         return std::move(arg_list).map([](auto&&) {
