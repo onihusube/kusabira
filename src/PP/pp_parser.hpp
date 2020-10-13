@@ -230,9 +230,7 @@ namespace kusabira::PP {
         //#include、未実装
         assert(false);
       } else if (tokenstr == u8"define") {
-        return this->control_line_define(it, end).and_then([&, this](auto&&) {
-          return this->newline(it, end);
-        });
+        return this->control_line_define(it, end);
       } else if (tokenstr == u8"undef") {
         SKIP_WHITESPACE(it, end);
         if (deref(it).category != pp_token_category::identifier) {
