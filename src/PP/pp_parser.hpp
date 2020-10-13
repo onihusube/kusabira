@@ -596,8 +596,11 @@ namespace kusabira::PP {
               bool is_funcmacro = *opt;
               bool success, complete;
               pptoken_conteiner result{ &kusabira::def_mr };
-              auto macro_name = std::move(*it);
+              // 再帰的に同名のマクロ展開を行わないためのマクロ名メモ
               std::pmr::unordered_set<std::u8string_view> memo{ &kusabira::def_mr };
+              // 現在注目しているマクロ名（すなわち、識別子）
+              auto macro_name = std::move(*it);
+              ++it;
 
               if (not is_funcmacro) {
                 //オブジェクトマクロ置換
