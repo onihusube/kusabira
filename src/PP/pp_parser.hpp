@@ -578,9 +578,9 @@ namespace kusabira::PP {
 
       using namespace std::string_view_literals;
 
-      pptoken_conteiner list{&kusabira::def_mr};
+      pptoken_conteiner pptoken_list{&kusabira::def_mr};
 
-      //終了時にイテレータを進めておく
+      //終了時にイテレータを進めておく（ここより深く潜らない場合にのみ進める）
       kusabira::vocabulary::scope_exit se_inc_itr = [&it]() {
         ++it;
       };
@@ -595,24 +595,26 @@ namespace kusabira::PP {
             if (auto opt = preprocessor.is_macro(deref(it).token); opt) {
               bool is_funcmacro = *opt;
               bool success, complete;
-              pptoken_conteiner result{ &kusabira::def_mr };
+              // マクロ展開の結果リスト
+              pptoken_conteiner macro_result_list{ &kusabira::def_mr };
               // 再帰的に同名のマクロ展開を行わないためのマクロ名メモ
               std::pmr::unordered_set<std::u8string_view> memo{ &kusabira::def_mr };
               // 現在注目しているマクロ名（すなわち、識別子）
               auto macro_name = std::move(*it);
-              ++it;
 
               if (not is_funcmacro) {
                 //オブジェクトマクロ置換
-                std::tie(success, complete, result, memo) = preprocessor.objmacro<true>(*m_reporter, macro_name);
+                std::tie(success, complete, macro_result_list, memo) = preprocessor.objmacro<true>(*m_reporter, macro_name);
               } else {
+                //マクロ名の次へ進める
+                ++it;
                 //実引数リストの取得
                 auto arg_list = this->funcmacro_args(it, it_end);
                 if (not arg_list) {
                   pp_err_info& errinfo = arg_list.error();
                   if (errinfo.context == pp_parse_context::Funcmacro_NotInvoke) {
                     //マクロの呼び出しではなかった時、マクロ名を単に識別子として処理
-                    list.emplace_back(std::move(macro_name));
+                    pptoken_list.emplace_back(std::move(macro_name));
                     //itはマクロ名の後に出現した最初の非ホワイトスペーストークンを指している
                     se_inc_itr.release();
                     break;
@@ -624,7 +626,7 @@ namespace kusabira::PP {
                   }
                 }
                 //関数マクロ置換
-                std::tie(success, complete, result, memo) = preprocessor.funcmacro<true>(*m_reporter, macro_name, *arg_list);
+                std::tie(success, complete, macro_result_list, memo) = preprocessor.funcmacro<false>(*m_reporter, macro_name, *arg_list);
               }
               if (not success) {
                 //マクロ実行時のエラーだが、報告済
@@ -633,17 +635,17 @@ namespace kusabira::PP {
               }
               if (not complete) {
                 //マクロ展開を継続
-                auto comp_result = this->further_macro_replacement(std::move(result), it, it_end, memo);
-                result = std::move(*comp_result);
+                auto comp_result = this->further_macro_replacement(std::move(macro_result_list), it, it_end, memo);
+                macro_result_list = std::move(*comp_result);
               }
 
               //置換後リストを末尾にspliceする
-              list.splice(std::end(list), std::move(result));
+              pptoken_list.splice(std::end(pptoken_list), std::move(macro_result_list));
               break;
             }
           }
           //置換対象ではない
-          list.emplace_back(std::move(*it));
+          pptoken_list.emplace_back(std::move(*it));
           break;
         }
         case pp_token_category::line_comment:  [[fallthrough]];
@@ -655,7 +657,7 @@ namespace kusabira::PP {
         {
           auto &&oppunc_list = longest_match_exception_handling(it, it_end);
           if (0u < oppunc_list.size()) {
-            list.splice(std::end(list), std::move(oppunc_list));
+            pptoken_list.splice(std::end(pptoken_list), std::move(oppunc_list));
           }
           //既に次のトークンを指しているので進めない
           se_inc_itr.release();
@@ -665,11 +667,11 @@ namespace kusabira::PP {
         {
           //改行されている生文字列リテラルの1行目
           //生文字列リテラル全体を一つのトークンとして読み出す必要がある
-          list.emplace_back(read_rawstring_tokens(it, it_end));
+          pptoken_list.emplace_back(read_rawstring_tokens(it, it_end));
 
           //次のトークンを調べてユーザー定義リテラルの有無を判断
           ++it;
-          if (strliteral_classify(it, u8" "sv, list.back()) == false) {
+          if (strliteral_classify(it, u8" "sv, pptoken_list.back()) == false) {
             //ファイル終端に到達した
             se_inc_itr.release();
           }
@@ -679,11 +681,11 @@ namespace kusabira::PP {
         case pp_token_category::string_literal:
         {
           //auto category = (deref(it).category == pp_token_category::RawStrLiteral) ? pp_token_category::raw_string_literal : pp_token_category::string_literal;
-          auto& prev = list.emplace_back(std::move(*it));
+          auto& prev = pptoken_list.emplace_back(std::move(*it));
 
           //次のトークンを調べてユーザー定義リテラルの有無を判断
           ++it;
-          if (strliteral_classify(it, prev.token, list.back()) == false) {
+          if (strliteral_classify(it, prev.token, pptoken_list.back()) == false) {
             //ファイル終端に到達した
             se_inc_itr.release();
           }
@@ -700,11 +702,11 @@ namespace kusabira::PP {
         {
           //基本はトークン1つを読み込んでプリプロセッシングトークンを構成する
           //auto category = tokenize_status_to_category(deref(it).category);
-          list.emplace_back(std::move(*it));
+          pptoken_list.emplace_back(std::move(*it));
         }
       }
 
-      return kusabira::ok(std::move(list));
+      return kusabira::ok(std::move(pptoken_list));
     }
 
 
@@ -784,8 +786,9 @@ namespace kusabira::PP {
             //ネストしてるかっこの閉じかっこ
             --inner_paren;
           }
-        } else if (deref(it).category == pp_token_category::newline /*or deref(it).category == pp_token_category::whitespace*/) {
+        } else if (deref(it).category == pp_token_category::newline) {
           //改行は空白文字として扱う、マクロ引数中の空白文字の並びは1つに圧縮される
+          //マクロ呼び出し直後に改行来た時に死ぬよねこれ
           if (auto &prev_token = arg_list.back(); prev_token.category != pp_token_category::whitespace) {
             auto& gen_token = arg_list.emplace_back(std::move(*it));
             gen_token.category = pp_token_category::whitespace;
@@ -793,7 +796,14 @@ namespace kusabira::PP {
           }
           ++it;
           continue;
-        }
+        } /*else if (deref(it).category == pp_token_category::whitespace) {
+          //マクロ引数中の空白文字の並びは1つに圧縮される
+          if (auto &prev_token = arg_list.back(); prev_token.category != pp_token_category::whitespace) {
+            arg_list.emplace_back(std::move(*it));
+          }
+          ++it;
+          continue;
+        }*/
 
         //実引数となるプリプロセッシングトークンを構成する
         if (auto result = this->construct_next_pptoken<true>(it, end); result) {
