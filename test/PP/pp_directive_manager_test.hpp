@@ -1634,7 +1634,7 @@ namespace kusabira_test::preprocessor {
       rep_list.emplace_back(pp_token_category::identifier, u8"(", 17, pos);
 
       //関数マクロ登録
-      CHECK_UNARY(pp.define(*reporter, {pp_token_category::identifier, u8"LPAREN", 8, pos}, rep_list, params, true));
+      CHECK_UNARY(pp.define(*reporter, {pp_token_category::identifier, u8"LPAREN", 8, pos}, rep_list, params, false));
     }
 
     //2個め登録
