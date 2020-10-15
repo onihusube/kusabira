@@ -119,7 +119,9 @@ namespace kusabira::PP {
 
     ll_paser(report::report_lang lang = report::report_lang::ja)
       : m_reporter(ReporterFactory::create(lang))
-    {}
+    {
+      std::pmr::set_default_resource(&kusabira::def_mr);
+    }
 
     fn start(Tokenizer& pp_tokenizer) -> parse_status {
       auto it = begin(pp_tokenizer);

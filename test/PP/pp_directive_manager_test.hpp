@@ -5,6 +5,7 @@
 #include "../report_output_test.hpp"
 
 #include <iomanip>
+#include <ranges>
 
 namespace kusabira_test::preprocessor {
   using kusabira::PP::logical_line;
@@ -75,6 +76,131 @@ namespace kusabira_test::preprocessor {
 
       CHECK_UNARY_FALSE(result.empty());
       CHECK_UNARY(result == u8"string \" literal");
+    }
+  }
+
+  TEST_CASE("parse_macro_args test") {
+    {
+      // M(a1, a2, a3)
+      std::vector<pp_token> tokens{
+        pp_token{pp_token_category::identifier, u8"a1"},
+        pp_token{pp_token_category::op_or_punc, u8","},
+        pp_token{pp_token_category::identifier, u8"a2"},
+        pp_token{pp_token_category::op_or_punc, u8","},
+        pp_token{pp_token_category::identifier, u8"a3"},
+        pp_token{pp_token_category::op_or_punc, u8")"}
+      };
+
+      auto args = kusabira::PP::parse_macro_args(tokens.begin(), --tokens.end());
+
+      CHECK_EQ(args.size(), 3);
+
+      auto it = std::ranges::begin(tokens);
+      for (auto& list : args) {
+        CHECK_EQ(list.size(), 1);
+        CHECK_UNARY(std::ranges::equal(list, std::ranges::subrange{it, std::ranges::next(it)}));
+        it = std::ranges::next(it, 2);
+      }
+    }
+    {
+      // M(1 * 2 * 1 + 0, (arg + 1 ))
+      std::vector<pp_token> tokens{
+        pp_token{pp_token_category::pp_number, u8"1"},
+        pp_token{pp_token_category::whitespace, u8" "},
+        pp_token{pp_token_category::op_or_punc, u8"*"},
+        pp_token{pp_token_category::whitespace, u8" "},
+        pp_token{pp_token_category::pp_number, u8"2"},
+        pp_token{pp_token_category::whitespace, u8" "},
+        pp_token{pp_token_category::op_or_punc, u8"*"},
+        pp_token{pp_token_category::whitespace, u8" "},
+        pp_token{pp_token_category::pp_number, u8"1"},
+        pp_token{pp_token_category::whitespace, u8" "},
+        pp_token{pp_token_category::op_or_punc, u8"+"},
+        pp_token{pp_token_category::whitespace, u8" "},
+        pp_token{pp_token_category::pp_number, u8"0"},
+        pp_token{pp_token_category::op_or_punc, u8","},
+        pp_token{pp_token_category::op_or_punc, u8"("},
+        pp_token{pp_token_category::identifier, u8"arg"},
+        pp_token{pp_token_category::op_or_punc, u8"+"},
+        pp_token{pp_token_category::whitespace, u8" "},
+        pp_token{pp_token_category::pp_number, u8"1"},
+        pp_token{pp_token_category::whitespace, u8" "},
+        pp_token{pp_token_category::op_or_punc, u8")"},
+        pp_token{pp_token_category::op_or_punc, u8")"}
+      };
+
+      auto args = kusabira::PP::parse_macro_args(tokens.begin(), --tokens.end());
+
+      CHECK_EQ(args.size(), 2);
+      CHECK_EQ(args[0].size(), 13);
+      CHECK_EQ(args[1].size(), 7);
+
+      auto it = std::ranges::begin(tokens);
+      CHECK_UNARY(std::ranges::equal(args[0], std::ranges::subrange{it, std::ranges::next(it, 13)}));
+      CHECK_UNARY(std::ranges::equal(args[1], std::ranges::subrange{std::ranges::next(it, 14), std::ranges::next(it, 14 + 7)}));
+    }
+    {
+      // M()
+      std::vector<pp_token> tokens{
+        pp_token{pp_token_category::op_or_punc, u8")"}
+      };
+
+      auto args = kusabira::PP::parse_macro_args(tokens.begin(), --tokens.end());
+
+      CHECK_EQ(args.size(), 0);
+    }
+    {
+      // M(   )
+      std::vector<pp_token> tokens{
+        pp_token{pp_token_category::whitespace, u8" "},
+        pp_token{pp_token_category::whitespace, u8" "},
+        pp_token{pp_token_category::whitespace, u8" "},
+        pp_token{pp_token_category::op_or_punc, u8")"}
+      };
+
+      auto args = kusabira::PP::parse_macro_args(tokens.begin(), --tokens.end());
+
+      CHECK_EQ(args.size(), 0);
+    }
+    {
+      // M( , 1)
+      std::vector<pp_token> tokens{
+        pp_token{pp_token_category::whitespace, u8" "},
+        pp_token{pp_token_category::op_or_punc, u8","},
+        pp_token{pp_token_category::pp_number, u8"1"},
+        pp_token{pp_token_category::op_or_punc, u8")"}
+      };
+
+      auto args = kusabira::PP::parse_macro_args(tokens.begin(), --tokens.end());
+
+      CHECK_EQ(args.size(), 2);
+      CHECK_EQ(args[0].size(), 0);
+      CHECK_EQ(args[1].size(), 1);
+
+      auto it = std::ranges::begin(tokens);
+      CHECK_UNARY(std::ranges::equal(args[1], std::ranges::subrange{std::ranges::next(it, 2), std::ranges::next(it, 3)}));
+    }
+    {
+      // M(, ,,,    )
+      std::vector<pp_token> tokens{
+        pp_token{pp_token_category::op_or_punc, u8","},
+        pp_token{pp_token_category::whitespace, u8" "},
+        pp_token{pp_token_category::op_or_punc, u8","},
+        pp_token{pp_token_category::op_or_punc, u8","},
+        pp_token{pp_token_category::op_or_punc, u8","},
+        pp_token{pp_token_category::whitespace, u8" "},
+        pp_token{pp_token_category::whitespace, u8" "},
+        pp_token{pp_token_category::whitespace, u8" "},
+        pp_token{pp_token_category::whitespace, u8" "}
+      };
+
+      auto args = kusabira::PP::parse_macro_args(tokens.begin(), --tokens.end());
+
+      CHECK_EQ(args.size(), 5);
+
+      for (auto& list : args) {
+        CHECK_UNARY(std::ranges::empty(list));
+      }
     }
   }
 
@@ -1704,6 +1830,11 @@ namespace kusabira_test::preprocessor {
 
     CHECK_UNARY(success);
     CHECK_UNARY(complete);
+
+    CHECK_EQ(result.size(), 1);
+    auto& result_token = result.front();
+    CHECK_UNARY(result_token.token == u8"42"sv);
+    CHECK_UNARY(result_token.category == pp_token_category::pp_number);
   }
 
   TEST_CASE("predfined macro test") {
