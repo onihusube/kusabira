@@ -277,8 +277,8 @@ namespace kusabira::PP {
     const bool m_is_func = true;
     //置換リストをチェックしてる時のエラー
     std::optional<std::pair<pp_parse_context, pp_token>> m_replist_err{};
-    //{置換リストに現れる仮引数名のインデックス, 対応する実引数のインデックス, __VA_ARGS__?, __VA_OPT__?, #?, ##の左辺?, ##の右辺?}}
-    std::pmr::vector<std::tuple<std::size_t, std::size_t, bool, bool, bool, bool, bool>> m_correspond;
+    //{置換リストに現れる仮引数名のインデックス, 対応する実引数のインデックス, __VA_ARGS__?, __VA_OPT__?, #?, ##の左辺?, ##の右辺?, VA_OPTの中？}}
+    std::pmr::vector<std::tuple<std::size_t, std::size_t, bool, bool, bool, bool, bool, bool>> m_correspond;
 
   public:
     
@@ -292,7 +292,7 @@ namespace kusabira::PP {
     * @tparam Is_VA 可変長マクロか否か
     * @param start 開始インデックス
     * @param end_index 終了インデックス
-    * @param is_recursive 再帰中か否か
+    * @param is_recursive 再帰中か否か（つまり、VA_OPTの中のトークンを処理している最中か否か）
     * @details 置換リストを先頭から見ていき仮引数トークンの出現を探し、引数リストのインデックスと置換リスト上でのインデックスの対応を記録する
     * @details VA_OPT内部のトークン列を処理する時に再帰呼び出しを行う
     */
@@ -319,6 +319,7 @@ namespace kusabira::PP {
       bool apper_sharp_op = false;
       bool apper_sharp2_op = false;
       //__VA_OPT__()の直後のトークンかをマーク、nulltprじゃなければVA_OPTの対応における##をマークするbool値への参照
+      //__VA_OPT__(...) ## rhs のような結合をサポートするために__VA_OPT__(...)を指す対応に##の左辺であることを記録しておくためのもの
       bool* after_vaopt = nullptr;
 
       auto it = std::next(m_tokens.begin(), start);
@@ -368,7 +369,7 @@ namespace kusabira::PP {
             } else {
               //1つ前は普通のトークン、もしくは空の時
               //置換対象リストに連結対象として加える
-              m_correspond.emplace_back(index - 1, std::size_t(-1), false, false, false, true, false);
+              m_correspond.emplace_back(index - 1, std::size_t(-1), false, false, false, true, false, is_recursive);
             }
 
             continue;
@@ -412,7 +413,7 @@ namespace kusabira::PP {
             assert(ismatch);
 
             //置換リストの要素番号に対して、対応する実引数位置を保存
-            m_correspond.emplace_back(index, va_start_index, true, false, apper_sharp_op, false, apper_sharp2_op);
+            m_correspond.emplace_back(index, va_start_index, true, false, apper_sharp_op, false, apper_sharp2_op, is_recursive);
             continue;
           } else if ((*it).token.to_view() == u8"__VA_OPT__") {
             //__VA_OPT__は再帰しない
@@ -429,7 +430,7 @@ namespace kusabira::PP {
             }
 
             //__VA_OPT__を見つけておく
-            after_vaopt = &std::get<5>(m_correspond.emplace_back(index, 0, false, true, false, false, apper_sharp2_op));
+            after_vaopt = &std::get<5>(m_correspond.emplace_back(index, 0, false, true, false, false, apper_sharp2_op, false));
 
             //閉じかっこを探索
             auto start_pos = std::next(it, 2); //開きかっこの次のはず？
@@ -462,12 +463,12 @@ namespace kusabira::PP {
         }
 
         //置換リストの要素番号に対して、対応する実引数位置を保存
-        m_correspond.emplace_back(index, param_index, false, false, apper_sharp_op, false, apper_sharp2_op);
+        m_correspond.emplace_back(index, param_index, false, false, apper_sharp_op, false, apper_sharp2_op, is_recursive);
       }
     }
 
     /**
-    * @brief 通常の関数マクロの処理の実装
+    * @brief 通常の（固定長引数）関数マクロの処理の実装
     * @param args 実引数列（カンマ区切り毎のトークン列のvector
     * @return マクロ置換後のトークンリスト
     */
@@ -484,7 +485,7 @@ namespace kusabira::PP {
       bool should_remove_placemarker = false;
 
       //置換リスト-引数リスト対応を後ろから処理
-      for (const auto[token_index, arg_index, ignore1, ignore2, sharp_op, sharp2_op, sharp2_op_rhs] : views::reverse(m_correspond)) {
+      for (const auto[token_index, arg_index, ignore1, ignore2, sharp_op, sharp2_op, sharp2_op_rhs, ignore3] : views::reverse(m_correspond)) {
         //置換リストのトークン位置
         const auto it = std::next(head, token_index);
         //##による結合時の右辺を指すイテレータ
@@ -555,6 +556,10 @@ namespace kusabira::PP {
       const auto head = std::begin(result_list);
       //引数の数
       const auto N = args.size();
+      //可変長引数が純粋に空かどうか
+      const bool is_va_empty = N < m_params.size()
+        //F(arg1, ...)なマクロに対して、F(0,)の様に呼び出した時のケア（F(0,,)は引数ありとみなされる）
+        or ((N == m_params.size()) and (args.back().size() == 0ull));
       //プレイスメーカートークンを挿入したかどうか
       bool should_remove_placemarker = false;
 
@@ -580,7 +585,10 @@ namespace kusabira::PP {
       };
 
       //置換リスト-引数リスト対応を後ろから処理
-      for (const auto[token_index, arg_index, va_args, va_opt, sharp_op, sharp2_op, sharp2_op_rhs] : views::reverse(m_correspond)) {
+      for (const auto[token_index, arg_index, va_args, va_opt, sharp_op, sharp2_op, sharp2_op_rhs, inner_vaopt] : views::reverse(m_correspond)) {
+        // 可変長引数が空の時、VA_OPT中の置換処理をスキップする
+        if (inner_vaopt and is_va_empty) continue;
+
         //置換リストのトークン位置
         const auto it = std::next(head, token_index);
         //##の左右のどちらかの仮引数である時、そのトークン列はマクロ展開を行わない
@@ -610,10 +618,9 @@ namespace kusabira::PP {
           // 対応する閉じかっこの存在は構文解析で保証する
           assert(vaopt_end != replist_end);
 
-          //可変長引数が純粋に空の時の条件
-          bool is_va_empty = N < m_params.size();
           //F(arg1, ...)なマクロに対して、F(0,)の様に呼び出した時のケア（F(0,,)は引数ありとみなされる）
-          is_va_empty |= (N == m_params.size()) and (args.back().size() == 0ull);
+          //これはより早い段階で弾くべき
+          //bool is_va_empty2 = is_va_empty | (N == m_params.size()) and (args.back().size() == 0ull);
 
           if (is_va_empty) {
             //可変長部分が空ならばVA_OPT全体を削除

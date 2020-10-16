@@ -1808,33 +1808,112 @@ namespace kusabira_test::preprocessor {
       //関数マクロ登録
       CHECK_UNARY(pp.define(*reporter, {pp_token_category::identifier, u8"F", 8, pos}, rep_list, params, true));
     }
+    {
+      //呼び出し
+      pos = ll.emplace_after(pos, 3, 3);
+      (*pos).line = u8"F(LPAREN(), 0, <:-)";
 
-    //呼び出し
-    pos = ll.emplace_after(pos, 3, 3);
-    (*pos).line = u8"F(LPAREN(), 0, <:-)";
+      //実引数リスト
+      std::pmr::list<pp_token> token_list{&kusabira::def_mr};
+      std::pmr::vector<std::pmr::list<pp_token>> args{&kusabira::def_mr};
+      token_list.emplace_back(pp_token_category::identifier, u8"LPAREN", 2, pos);
+      token_list.emplace_back(pp_token_category::op_or_punc, u8"(", 8, pos);
+      token_list.emplace_back(pp_token_category::op_or_punc, u8")", 9, pos);
+      args.emplace_back(std::move(token_list));
+      token_list.emplace_back(pp_token_category::pp_number, u8"0", 12, pos);
+      args.emplace_back(std::move(token_list));
+      token_list.emplace_back(pp_token_category::op_or_punc, u8"<:", 15, pos);
+      token_list.emplace_back(pp_token_category::op_or_punc, u8"-", 17, pos);
+      args.emplace_back(std::move(token_list));
 
-    //実引数リスト
-    std::pmr::list<pp_token> token_list{&kusabira::def_mr};
-    std::pmr::vector<std::pmr::list<pp_token>> args{&kusabira::def_mr};
-    token_list.emplace_back(pp_token_category::identifier, u8"LPAREN", 2, pos);
-    token_list.emplace_back(pp_token_category::op_or_punc, u8"(", 8, pos);
-    token_list.emplace_back(pp_token_category::op_or_punc, u8")", 9, pos);
-    args.emplace_back(std::move(token_list));
-    token_list.emplace_back(pp_token_category::pp_number, u8"0", 12, pos);
-    args.emplace_back(std::move(token_list));
-    token_list.emplace_back(pp_token_category::op_or_punc, u8"<:", 15, pos);
-    token_list.emplace_back(pp_token_category::op_or_punc, u8"-", 17, pos);
-    args.emplace_back(std::move(token_list));
+      const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, {pp_token_category::identifier, u8"F", 0, pos}, args);
 
-    const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, {pp_token_category::identifier, u8"F", 0, pos}, args);
+      CHECK_UNARY(success);
+      CHECK_UNARY(complete);
 
-    CHECK_UNARY(success);
-    CHECK_UNARY(complete);
+      CHECK_EQ(result.size(), 1);
+      auto& result_token = result.front();
+      CHECK_UNARY(result_token.token == u8"42"sv);
+      CHECK_UNARY(result_token.category == pp_token_category::pp_number);
+    }
+    {
+      //呼び出し
+      pos = ll.emplace_after(pos, 4, 4);
+      (*pos).line = u8"F(LPAREN(), 0)";
 
-    CHECK_EQ(result.size(), 1);
-    auto& result_token = result.front();
-    CHECK_UNARY(result_token.token == u8"42"sv);
-    CHECK_UNARY(result_token.category == pp_token_category::pp_number);
+      //実引数リスト
+      std::pmr::list<pp_token> token_list{&kusabira::def_mr};
+      std::pmr::vector<std::pmr::list<pp_token>> args{&kusabira::def_mr};
+      token_list.emplace_back(pp_token_category::identifier, u8"LPAREN", 2, pos);
+      token_list.emplace_back(pp_token_category::op_or_punc, u8"(", 8, pos);
+      token_list.emplace_back(pp_token_category::op_or_punc, u8")", 9, pos);
+      args.emplace_back(std::move(token_list));
+      token_list.emplace_back(pp_token_category::pp_number, u8"0", 12, pos);
+      args.emplace_back(std::move(token_list));
+
+      const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, {pp_token_category::identifier, u8"F", 0, pos}, args);
+
+      CHECK_UNARY(success);
+      CHECK_UNARY(complete);
+
+      CHECK_EQ(result.size(), 1);
+      auto& result_token = result.front();
+      CHECK_UNARY(result_token.token == u8")"sv);
+      CHECK_UNARY(result_token.category == pp_token_category::op_or_punc);
+    }
+    {
+      //呼び出し
+      pos = ll.emplace_after(pos, 4, 4);
+      (*pos).line = u8"F(LPAREN(), 0,)";  // これは可変引数なし呼び出し
+
+      //実引数リスト
+      std::pmr::list<pp_token> token_list{&kusabira::def_mr};
+      std::pmr::vector<std::pmr::list<pp_token>> args{&kusabira::def_mr};
+      token_list.emplace_back(pp_token_category::identifier, u8"LPAREN", 2, pos);
+      token_list.emplace_back(pp_token_category::op_or_punc, u8"(", 8, pos);
+      token_list.emplace_back(pp_token_category::op_or_punc, u8")", 9, pos);
+      args.emplace_back(std::move(token_list));
+      token_list.emplace_back(pp_token_category::pp_number, u8"0", 12, pos);
+      args.emplace_back(std::move(token_list));
+      args.emplace_back(std::move(token_list));
+
+      const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, {pp_token_category::identifier, u8"F", 0, pos}, args);
+
+      CHECK_UNARY(success);
+      CHECK_UNARY(complete);
+
+      CHECK_EQ(result.size(), 1);
+      auto& result_token = result.front();
+      CHECK_UNARY(result_token.token == u8")"sv);
+      CHECK_UNARY(result_token.category == pp_token_category::op_or_punc);
+    }
+    {
+      //呼び出し
+      pos = ll.emplace_after(pos, 4, 4);
+      (*pos).line = u8"F(LPAREN(), 0,,)";  // これは可変引数あり呼び出し
+
+      //実引数リスト
+      std::pmr::list<pp_token> token_list{&kusabira::def_mr};
+      std::pmr::vector<std::pmr::list<pp_token>> args{&kusabira::def_mr};
+      token_list.emplace_back(pp_token_category::identifier, u8"LPAREN", 2, pos);
+      token_list.emplace_back(pp_token_category::op_or_punc, u8"(", 8, pos);
+      token_list.emplace_back(pp_token_category::op_or_punc, u8")", 9, pos);
+      args.emplace_back(std::move(token_list));
+      token_list.emplace_back(pp_token_category::pp_number, u8"0", 12, pos);
+      args.emplace_back(std::move(token_list));
+      args.emplace_back(std::move(token_list));
+      args.emplace_back(std::move(token_list));
+
+      const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, {pp_token_category::identifier, u8"F", 0, pos}, args);
+
+      CHECK_UNARY(success);
+      CHECK_UNARY(complete);
+
+      CHECK_EQ(result.size(), 1);
+      auto &result_token = result.front();
+      CHECK_UNARY(result_token.token == u8"42"sv);
+      CHECK_UNARY(result_token.category == pp_token_category::pp_number);
+    }
   }
 
   TEST_CASE("predfined macro test") {

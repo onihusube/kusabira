@@ -784,7 +784,10 @@ namespace kusabira::PP {
             ++inner_paren;
           } else if (deref(it).token == u8")"sv) {
             //マクロ終了の閉じかっこ判定
-            if (inner_paren == 0) break;
+            if (inner_paren == 0) {
+              args.emplace_back(std::move(arg_list));
+              break;
+            }
             //ネストしてるかっこの閉じかっこ
             --inner_paren;
           }
@@ -1055,7 +1058,7 @@ namespace kusabira::PP {
     * @brief 最長一致規則の例外処理
     * @param it トークン列のイテレータ
     * @param end トークン列の終端イテレータ
-    * @detail この関数の終了時、itは常に残りの未処理トークン列の先頭を指す
+    * @details この関数の終了時、itは常に残りの未処理トークン列の先頭を指す
     * @return 構成した記号列トークン
     */
     template<typename Iterator = iterator, typename Sentinel = sentinel>
@@ -1072,13 +1075,13 @@ namespace kusabira::PP {
       //プリプロセッシングトークンを一時保存しておくリスト
       pptoken_conteiner tmp_pptoken_list{ &kusabira::def_mr };
 
-      bool is_not_handle = deref(it).token.to_view() != u8"<:";
-      //現在のプリプロセッシングトークンを保存
+      bool not_handle = deref(it).token.to_view() != u8"<:";
+      //現在のプリプロセッシングトークン（<:）を保存
       tmp_pptoken_list.emplace_back(std::move(*it));
       //未処理のトークンを指した状態で帰るようにする
       ++it;
 
-      if (is_not_handle) {
+      if (not_handle) {
         //<:記号でなければ何もしない
         return tmp_pptoken_list;
       }
@@ -1089,10 +1092,10 @@ namespace kusabira::PP {
       }
 
       //代替トークンの並び"<::>"はトークナイザで適切に2つのトークンに分割されているはず
-      //そのため、あとは"<:::"のパターンと:以外の記号をスルーする
-      is_not_handle = (*it).token.to_view() != u8":";
+      //そのため、あとは"<:::"のパターンをチェックし:以外の記号をスルーする
+      not_handle = (*it).token.to_view() != u8":";
 
-      //現在のプリプロセッシングトークンを保存
+      //現在のプリプロセッシングトークン（:以外の記号）を保存
       tmp_pptoken_list.emplace_back(std::move(*it));
       //常に未処理のトークンを指した状態で帰るようにする
       ++it;
@@ -1101,7 +1104,7 @@ namespace kusabira::PP {
       assert(std::size(tmp_pptoken_list) == 2u);
 
       //:単体のトークンである場合のみ最長一致例外処理を行う必要がある
-      if (is_not_handle or check_newline(it)) {
+      if (not_handle or check_newline(it)) {
         return tmp_pptoken_list;
       }
 

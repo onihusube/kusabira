@@ -7,3 +7,5 @@ int vm = M;
 #define G(Q) 42
 #define F(R, X, ...)  __VA_OPT__(G R X) )
 int x = F(LPAREN(), 0, <:-);
+int x = F(LPAREN(), 0,);
+int x = F(LPAREN(), 0,,);

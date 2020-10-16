@@ -537,7 +537,7 @@ namespace pp_parsing_test
       ++it;
     }
   }
-/*
+
   TEST_CASE("macro test") {
     using kusabira::PP::pp_parse_status;
     using kusabira::PP::pp_token;
@@ -564,7 +564,7 @@ namespace pp_parsing_test
     //}
 
     // 残ったトークン+改行
-    constexpr auto token_num = 10 + 9;
+    constexpr auto token_num = 20 + 11;
     REQUIRE_EQ(parser.pptoken_list.size(), token_num);
 
     constexpr std::u8string_view expect_token[] = {
@@ -576,6 +576,8 @@ namespace pp_parsing_test
         u8"",
         u8"",
         u8"",
+        u8"int", u8"x", u8"=", u8"42", u8";", u8"",
+        u8"int", u8"x", u8"=", u8")", u8";", u8"",
         u8"int", u8"x", u8"=", u8"42", u8";", u8""
     };
     static_assert(std::size(expect_token) == token_num, "The number of pp-tokens between expect_token and token_num does not match.");
@@ -589,6 +591,8 @@ namespace pp_parsing_test
         pp_token_category::newline,
         pp_token_category::newline,
         pp_token_category::newline,
+        pp_token_category::identifier, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::pp_number, pp_token_category::op_or_punc, pp_token_category::newline,
+        pp_token_category::identifier, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::op_or_punc, pp_token_category::op_or_punc, pp_token_category::newline,
         pp_token_category::identifier, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::pp_number, pp_token_category::op_or_punc, pp_token_category::newline
     };
     static_assert(std::size(expect_category) == token_num, "The number of pp-token-categorys between expect_category and token_num does not match.");
@@ -600,6 +604,6 @@ namespace pp_parsing_test
       CHECK_EQ(pptoken, pp_token{expect_category[i], expect_token[i]});
       ++it;
     }
-  }*/
+  }
 
 } // namespace pp_parsing_test
