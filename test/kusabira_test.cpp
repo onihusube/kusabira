@@ -1,4 +1,5 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#define DOCTEST_CONFIG_NO_TRY_CATCH_IN_ASSERTS
 #include "doctest/doctest.h"
 
 //テスト定義ヘッダをインクルード

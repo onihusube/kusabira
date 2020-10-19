@@ -1,6 +1,5 @@
 #define N 1
 #   define    M    N
-
 int vm = M;
 
 #define LPAREN() (
@@ -9,3 +8,10 @@ int vm = M;
 int x = F(LPAREN(), 0, <:-);
 int x = F(LPAREN(), 0,);
 int x = F(LPAREN(), 0,,);
+
+#define debug(...) fprintf(stderr, __VA_ARGS__)
+#define showlist(...) puts(#__VA_ARGS__)
+#define report(test, ...) ((test) ? puts(#test) : printf(__VA_ARGS__))
+debug("Flag");
+debug("X = %d\n", x);
+showlist(The first, second, and third items.);
