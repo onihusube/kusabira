@@ -68,7 +68,7 @@ namespace kusabira {
   * @details *it
   */
   template<typename I>
-  cfn deref(I&& it) -> typename std::iterator_traits<std::remove_cvref_t<I>>::reference {
+  cfn deref(I&& it) -> std::iter_reference_t<std::remove_cvref_t<I>> {
     return *it;
   }
 
@@ -78,7 +78,7 @@ namespace kusabira {
   * @details std::move(*it), ++i
   */
   template<typename I>
-  cfn deref_inc(I&& it) -> typename std::iterator_traits<std::remove_cvref_t<I>>::value_type {
+  cfn deref_inc(I&& it) -> std::iter_value_t<I> {
     auto value = std::move(*it);
     ++it;
     return value;

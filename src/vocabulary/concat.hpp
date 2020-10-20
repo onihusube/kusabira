@@ -19,8 +19,8 @@ namespace kusabira::vocabulary {
   template<typename Iterator1, typename Sentinel1, typename Iterator2, typename Sentinel2>
   class concat {
 
-    static_assert(std::is_same_v<typename std::iterator_traits<std::remove_cvref_t<Iterator1>>::value_type, typename std::iterator_traits<std::remove_cvref_t<Iterator2>>::value_type>);
-    static_assert(std::is_same_v<typename std::iterator_traits<std::remove_cvref_t<Iterator1>>::reference, typename std::iterator_traits<std::remove_cvref_t<Iterator2>>::reference>);
+    static_assert(std::same_as<std::iter_value_t<Iterator1>, std::iter_value_t<Iterator2>>);
+    static_assert(std::same_as<std::iter_reference_t<Iterator1>, std::iter_reference_t<Iterator2>>);
 
     Iterator1 m_it1;
     Iterator2 m_it2;

@@ -107,6 +107,8 @@ namespace kusabira::PP {
     using pptoken_conteiner = std::pmr::list<pp_token>;
     using reporter = typename ReporterFactory::reporter_t;
 
+    static_assert(std::ranges::input_range<Tokenizer>);
+
     pptoken_conteiner pptoken_list{&kusabira::def_mr};
     pp_directive_manager preprocessor{};
 
@@ -125,7 +127,7 @@ namespace kusabira::PP {
 
     fn start(Tokenizer& pp_tokenizer) -> parse_status {
       auto it = begin(pp_tokenizer);
-      auto se = end(pp_tokenizer);
+      auto se = std::ranges::end(pp_tokenizer);
 
       //空のファイル判定
       if (it == se) return {};

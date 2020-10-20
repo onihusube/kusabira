@@ -1108,6 +1108,37 @@ namespace kusabira_test::preprocessor {
       CHECK_EQ(empty_token.category, pp_token_category::string_literal);
       CHECK_UNARY(empty_token.token == u8R"("")"sv);
     }
+    {
+      //実引数リスト作成
+      auto pos2 = ll.emplace_after(pos, 2, 2);
+      (*pos2).line = u8"str(The first, second, and third items.)";
+
+      std::pmr::list<pp_token> token_list{&kusabira::def_mr};
+      std::pmr::vector<std::pmr::list<pp_token>> args{&kusabira::def_mr};
+      token_list.emplace_back(pp_token_category::identifier, u8"The", 4, pos2);
+      token_list.emplace_back(pp_token_category::whitespace, u8" ", 18, pos2);
+      token_list.emplace_back(pp_token_category::identifier, u8"first", 8, pos2);
+      args.emplace_back(std::move(token_list));
+      token_list.emplace_back(pp_token_category::identifier, u8"second", 15, pos2);
+      args.emplace_back(std::move(token_list));
+      token_list.emplace_back(pp_token_category::identifier, u8"and", 23, pos2);
+      token_list.emplace_back(pp_token_category::whitespace, u8" ", 18, pos2);
+      token_list.emplace_back(pp_token_category::identifier, u8"third", 27, pos2);
+      token_list.emplace_back(pp_token_category::whitespace, u8" ", 18, pos2);
+      token_list.emplace_back(pp_token_category::identifier, u8"items.", 33, pos2);
+      args.emplace_back(std::move(token_list));
+
+      //関数マクロ実行
+      const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, {pp_token_category::identifier, u8"str", 8, pos}, args);
+
+      CHECK_UNARY(success);
+      CHECK_UNARY(complete);
+      CHECK_EQ(1u, result.size());
+
+      const auto &pptoken = result.front();
+      CHECK_EQ(pptoken.category, pp_token_category::string_literal);
+      CHECK_UNARY(pptoken.token == u8R"("The first, second, and third items.")"sv);
+    }
 
     //#__VA_OPT__の登録（失敗）
     {
