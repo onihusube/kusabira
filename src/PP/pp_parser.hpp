@@ -577,8 +577,7 @@ namespace kusabira::PP {
     * @return {結果となるプリプロセッシングトークンリスト | エラー情報}
     */
     template <bool ParsingMacroArgs = false, typename Iterator, typename Sentinel>
-    fn construct_next_pptoken(Iterator &it, Sentinel it_end)->kusabira::expected<pptoken_list_t, pp_err_info>
-    {
+    fn construct_next_pptoken(Iterator &it, Sentinel it_end) -> kusabira::expected<pptoken_list_t, pp_err_info> {
 
       using namespace std::string_view_literals;
 
@@ -716,7 +715,7 @@ namespace kusabira::PP {
     using expecetd_macro_args = kusabira::expected<std::pmr::vector<pptoken_list_t>, pp_err_info>;
 
     /**
-    * @brief 関数マクロの実引数プリプロセッシングトークンを構成する
+    * @brief 関数マクロの実引数プリプロセッシングトークン列を読み出す
     * @param it 現在の先頭トークン
     * @param end トークン列の終端
     * @details 呼び出し開始の開きかっこ"("の直後から開始すること
@@ -733,7 +732,7 @@ namespace kusabira::PP {
     * @brief 関数マクロの実引数プリプロセッシングトークンを構成する
     * @param it 現在の先頭トークン
     * @param end トークン列の終端
-    * @details 呼び出し開始の開きかっこ"("の前から
+    * @details 呼び出し開始の開きかっこ"("の前から（マクロ名の次から）
     * @details 各引数トークン列はマクロ置換をせずにプリプロセッサへ転送する、引数内マクロはプリプロセッサ内で置換の直前に展開される
     * @return エラーが起きた場合その情報、正常終了すれば実引数リスト
     */
@@ -741,21 +740,35 @@ namespace kusabira::PP {
     fn funcmacro_args(Iterator& it, Sentinel end) -> expecetd_macro_args {
       using namespace std::string_view_literals;
 
-      //開きかっこまでトークンを進める
-      while (it != end and deref(it).token != u8"("sv) {
-        if (pp_token_category::block_comment <= deref(it).category) {
-          //開きかっこの出現前に他のトークンが出現している、エラーではない
-          return kusabira::error(pp_err_info{ deref(it), pp_parse_context::Funcmacro_NotInvoke });
-        }
-        ++it;
-      }
+      //開きかっこまでトークンを進める（ここで改行すっ飛ばしていいの？
+      it = std::ranges::find_if_not(std::move(it), end, [](const pptoken_t &token) {
+        // トークナイズエラーはここでは考慮しないものとする
+        return token.category <= pp_token_category::block_comment;
+      });
 
       if (it == end) {
+        // EOFはエラー
         return kusabira::error(pp_err_info{pptoken_t{pp_token_category::empty}, pp_parse_context::UnexpectedEOF});
+      }
+
+      if (deref(it).token != u8"("sv) {
+        //開きかっこの出現前に他のトークンが出現している、エラーではなくマクロ呼び出しではなかっただけ
+        return kusabira::error(pp_err_info{deref(it), pp_parse_context::Funcmacro_NotInvoke});
       }
 
       //開きかっこの次のトークンへ進める、少なくともここがEOFになることはない（改行がその前に来る）
       ++it;
+
+      // 実引数列の最初の非ホワイトスペーストークンを探索する
+      // ここで改行すっ飛ばしていいの？
+      it = std::ranges::find_if_not(std::move(it), end, [](const pptoken_t &token) {
+        // トークナイズエラーはここでは考慮しないものとする
+        return token.category <= pp_token_category::block_comment;
+      });
+
+      if (it == end) {
+        return kusabira::error(pp_err_info{pptoken_t{pp_token_category::empty}, pp_parse_context::UnexpectedEOF});
+      }
 
       //実引数リスト、カンマごとにプリプロセッシングトークン列を区切る
       //引数の数が増えると内部でムーブが起きるが、問題ないか？？？
@@ -779,6 +792,11 @@ namespace kusabira::PP {
             arg_list = pptoken_list_t{&kusabira::def_mr};
             //カンマは保存しない
             ++it;
+            //カンマ直後のホワイトスペースは飛ばす
+            it = std::ranges::find_if_not(std::move(it), end, [](const pptoken_t &token) {
+              // トークナイズエラーはここでは考慮しないものとする
+              return token.category <= pp_token_category::block_comment;
+            });
             continue;
           } else if (deref(it).token == u8"("sv) {
             //ネストしたかっこの始まり
@@ -802,14 +820,16 @@ namespace kusabira::PP {
           }
           ++it;
           continue;
-        } /*else if (deref(it).category == pp_token_category::whitespace) {
+        } else if (deref(it).category == pp_token_category::whitespace) {
           //マクロ引数中の空白文字の並びは1つに圧縮される
-          if (auto &prev_token = arg_list.back(); prev_token.category != pp_token_category::whitespace) {
-            arg_list.emplace_back(std::move(*it));
+          if (not std::ranges::empty(arg_list)) {
+            if (auto &prev_token = arg_list.back(); prev_token.category != pp_token_category::whitespace) {
+              arg_list.emplace_back(std::move(*it));
+            }
           }
           ++it;
           continue;
-        }*/
+        }
 
         //実引数となるプリプロセッシングトークンを構成する
         if (auto result = this->construct_next_pptoken<true>(it, end); result) {
