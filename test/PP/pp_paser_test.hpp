@@ -430,15 +430,15 @@ namespace pp_parsing_test
     REQUIRE_UNARY(std::filesystem::is_directory(testdir));
     REQUIRE_UNARY(std::filesystem::exists(testdir));
 
-    pp_tokenizer tokenizer{testdir / "parse_text-line.cpp"};
-    ll_paser parser{};
+    //pp_tokenizer tokenizer{testdir / "parse_text-line.cpp"};
+    ll_paser parser{testdir / "parse_text-line.cpp"};
 
-    auto status = parser.start(tokenizer);
+    auto status = parser.start();
 
     REQUIRE_UNARY(bool(status));
     CHECK_EQ(status.value(), pp_parse_status::Complete);
     constexpr auto token_num = 160u + 42u;
-    REQUIRE_EQ(parser.pptoken_list.size(), token_num);
+    REQUIRE_EQ(parser.get_phase4_result().size(), token_num);
 
     constexpr std::u8string_view expect_token[] = {
       u8"",
@@ -530,7 +530,7 @@ namespace pp_parsing_test
         pp_token_category::op_or_punc, pp_token_category::newline};
     static_assert(std::size(expect_category) == token_num, "The number of pp-token-categorys between expect_category and token_num does not match.");
 
-    auto it = std::begin(parser.pptoken_list);
+    auto it = std::begin(parser.get_phase4_result());
 
     for (auto i = 0u; i < token_num; ++i) {
       CHECK_EQ(*it, pp_token{ expect_category[i], expect_token[i] });
@@ -551,10 +551,10 @@ namespace pp_parsing_test
     REQUIRE_UNARY(std::filesystem::is_directory(testdir));
     REQUIRE_UNARY(std::filesystem::exists(testdir));
 
-    pp_tokenizer tokenizer{testdir / "parse_macro.cpp"};
-    ll_paser parser{};
+    //pp_tokenizer tokenizer{testdir / "parse_macro.cpp"};
+    ll_paser parser{testdir / "parse_macro.cpp"};
 
-    auto status = parser.start(tokenizer);
+    auto status = parser.start();
 
     REQUIRE_UNARY(bool(status));
     CHECK_EQ(status.value(), pp_parse_status::Complete);
@@ -565,7 +565,7 @@ namespace pp_parsing_test
 
     // 残ったトークン+改行
     constexpr auto token_num = 41 + 17;
-    REQUIRE_EQ(parser.pptoken_list.size(), token_num);
+    REQUIRE_EQ(parser.get_phase4_result().size(), token_num);
 
     constexpr std::u8string_view expect_token[] = {
         u8"",
@@ -609,7 +609,7 @@ namespace pp_parsing_test
     };
     static_assert(std::size(expect_category) == token_num, "The number of pp-token-categorys between expect_category and token_num does not match.");
 
-    auto it = std::begin(parser.pptoken_list);
+    auto it = std::begin(parser.get_phase4_result());
 
     for (auto i = 0u; i < token_num; ++i) {
       auto &pptoken = *it;

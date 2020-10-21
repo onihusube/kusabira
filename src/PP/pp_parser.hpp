@@ -86,10 +86,6 @@ namespace kusabira::PP {
 #define EOF_CHECK(iterator, sentinel) ++it; if (iterator == sentinel) return {pp_parse_status::EndOfFile}
 
 
-
-  using std::begin;
-  using std::end;
-
   /**
   * @brief トークン列をパースしてプリプロセッシングディレクティブの検出とCPPの実行を行う
   * @details 再帰下降構文解析によりパースする
@@ -97,37 +93,40 @@ namespace kusabira::PP {
   * @details なるべく末尾再帰を意識したい
   */
   template<
-    typename Tokenizer = kusabira::PP::tokenizer<kusabira::PP::filereader, kusabira::PP::pp_tokenizer_sm>,
+    std::ranges::input_range Tokenizer = kusabira::PP::tokenizer<kusabira::PP::filereader, kusabira::PP::pp_tokenizer_sm>,
     typename ReporterFactory = report::reporter_factory<>
   >
   struct ll_paser {
-    //using Tokenizer = kusabira::PP::tokenizer<kusabira::PP::filereader, kusabira::PP::pp_tokenizer_sm>;
-    using iterator = decltype(begin(std::declval<Tokenizer &>()));
-    using sentinel = decltype(end(std::declval<Tokenizer&>()));
-    using pptoken_conteiner = std::pmr::list<pp_token>;
+    using iterator = std::ranges::iterator_t<Tokenizer>;
+    using sentinel = std::ranges::sentinel_t<Tokenizer>;
+    using pptoken_t = std::iter_value_t<iterator>;
+    using pptoken_list_t = std::pmr::list<pptoken_t>;
     using reporter = typename ReporterFactory::reporter_t;
-
-    static_assert(std::ranges::input_range<Tokenizer>);
-
-    pptoken_conteiner pptoken_list{&kusabira::def_mr};
-    pp_directive_manager preprocessor{};
 
   private:
 
-    fs::path m_filename{};
+    Tokenizer m_tokenizer;
+    pp_directive_manager m_preprocessor;
+    fs::path m_filename;
     reporter m_reporter;
+    pptoken_list_t m_pptoken_list{&kusabira::def_mr};
 
   public:
 
-    ll_paser(report::report_lang lang = report::report_lang::ja)
-      : m_reporter(ReporterFactory::create(lang))
-    {
-      std::pmr::set_default_resource(&kusabira::def_mr);
+    ll_paser(fs::path filepath, report::report_lang lang = report::report_lang::ja)
+      : m_tokenizer{filepath}
+      , m_preprocessor{filepath}
+      , m_filename{std::move(filepath)}
+      , m_reporter(ReporterFactory::create(lang))
+    {}
+
+    fn get_phase4_result() const -> const pptoken_list_t& {
+      return m_pptoken_list;
     }
 
-    fn start(Tokenizer& pp_tokenizer) -> parse_status {
-      auto it = begin(pp_tokenizer);
-      auto se = std::ranges::end(pp_tokenizer);
+    fn start() -> parse_status {
+      auto it = std::ranges::begin(m_tokenizer);
+      auto se = std::ranges::end(m_tokenizer);
 
       //空のファイル判定
       if (it == se) return {};
@@ -242,14 +241,14 @@ namespace kusabira::PP {
           m_reporter->pp_err_report(m_filename, *it, pp_parse_context::Define_InvalidDirective);
           return kusabira::error(pp_err_info{ std::move(*it), pp_parse_context::Define_InvalidDirective });
         }
-        preprocessor.undef(deref(it).token);
+        m_preprocessor.undef(deref(it).token);
       } else if (tokenstr == u8"line") {
-        pptoken_conteiner line_token_list{ &kusabira::def_mr };
+        pptoken_list_t line_token_list{&kusabira::def_mr};
 
         //lineの次のトークンからプリプロセッシングトークンを構成する
         ++it;
         return this->pp_tokens(it, end, line_token_list).and_then([&, this](auto&&) -> parse_status {
-          if (auto is_err = preprocessor.line(*m_reporter, line_token_list); is_err) {
+          if (auto is_err = m_preprocessor.line(*m_reporter, line_token_list); is_err) {
             return this->newline(it, end);
           } else {
             return kusabira::error(pp_err_info{ std::move(*it),  pp_parse_context::ControlLine });
@@ -257,12 +256,12 @@ namespace kusabira::PP {
         });
       } else if (tokenstr == u8"error") {
         // #errorディレクティブの実行
-        preprocessor.error(*m_reporter, it, end);
+        m_preprocessor.error(*m_reporter, it, end);
         //コンパイルエラー
         return kusabira::error(pp_err_info{ std::move(*it),  pp_parse_context::ControlLine_Error });
       } else if (tokenstr == u8"pragma") {
         // #pragmaディレクティブの実行
-        preprocessor.pragma(*m_reporter, it, end);
+        m_preprocessor.pragma(*m_reporter, it, end);
       } else {
         // 知らないトークンだったら多分こっち
         return this->conditionally_supported_directive(it, end);
@@ -295,7 +294,7 @@ namespace kusabira::PP {
         //置換リストの取得
         return this->replacement_list(it, end).and_then([&, this](auto&& replacement_token_list) -> parse_status {
           //マクロの登録
-          if (preprocessor.define(*m_reporter, macroname, std::move(replacement_token_list)) == false)
+          if (m_preprocessor.define(*m_reporter, macroname, std::move(replacement_token_list)) == false)
             return kusabira::error(pp_err_info{ std::move(macroname), pp_parse_context::ControlLine });
 
           return kusabira::ok(pp_parse_status::Complete);
@@ -337,7 +336,7 @@ namespace kusabira::PP {
           //置換リストの取得
           return this->replacement_list(it, end).and_then([&, this](auto&& replacement_token_list) -> parse_status {
             //マクロの登録
-            if (preprocessor.define(*m_reporter, macroname, std::move(replacement_token_list), arglist, is_va) == false)
+            if (m_preprocessor.define(*m_reporter, macroname, std::move(replacement_token_list), arglist, is_va) == false)
               return kusabira::error(pp_err_info{ std::move(macroname), pp_parse_context::ControlLine });
 
             return kusabira::ok(pp_parse_status::Complete);
@@ -350,10 +349,10 @@ namespace kusabira::PP {
       return kusabira::error(pp_err_info{std::move(*it), pp_parse_context::Define_InvalidDirective});
     }
 
-    fn replacement_list(iterator &it, sentinel end) -> kusabira::expected<pptoken_conteiner, pp_err_info>{
-      pptoken_conteiner list{std::pmr::polymorphic_allocator<pp_token>(&kusabira::def_mr)};
-      
-      return this->pp_tokens(it, end, list).map([&list](auto&&) -> pptoken_conteiner {
+    fn replacement_list(iterator &it, sentinel end) -> kusabira::expected<pptoken_list_t, pp_err_info>{
+      pptoken_list_t list{std::pmr::polymorphic_allocator<pp_token>(&kusabira::def_mr)};
+
+      return this->pp_tokens(it, end, list).map([&list](auto&&) -> pptoken_list_t {
         return list;
       });
     }
@@ -538,10 +537,10 @@ namespace kusabira::PP {
 
     fn text_line(iterator& it, sentinel end) -> parse_status {
       //1行分プリプロセッシングトークン列読み出し
-      return this->pp_tokens(it, end, this->pptoken_list);
+      return this->pp_tokens(it, end, this->m_pptoken_list);
     }
 
-    fn pp_tokens(iterator& it, sentinel end, pptoken_conteiner& list) -> parse_status {
+    fn pp_tokens(iterator& it, sentinel end, pptoken_list_t& list) -> parse_status {
       using namespace std::string_view_literals;
 
       //現在の字句トークンのカテゴリ
@@ -577,12 +576,13 @@ namespace kusabira::PP {
     * @param it_end トークン列の終端
     * @return {結果となるプリプロセッシングトークンリスト | エラー情報}
     */
-    template<bool ParsingMacroArgs = false, typename Iterator, typename Sentinel>
-    fn construct_next_pptoken(Iterator &it, Sentinel it_end) -> kusabira::expected<pptoken_conteiner, pp_err_info> {
+    template <bool ParsingMacroArgs = false, typename Iterator, typename Sentinel>
+    fn construct_next_pptoken(Iterator &it, Sentinel it_end)->kusabira::expected<pptoken_list_t, pp_err_info>
+    {
 
       using namespace std::string_view_literals;
 
-      pptoken_conteiner pptoken_list{&kusabira::def_mr};
+      pptoken_list_t pptoken_list{&kusabira::def_mr};
 
       //終了時にイテレータを進めておく（ここより深く潜らない場合にのみ進める）
       kusabira::vocabulary::scope_exit se_inc_itr = [&it]() {
@@ -596,11 +596,11 @@ namespace kusabira::PP {
           //マクロ引数の構築時はマクロ展開をしない
           if constexpr (not ParsingMacroArgs) {
             //識別子を処理、マクロ置換を行う
-            if (auto opt = preprocessor.is_macro(deref(it).token); opt) {
+            if (auto opt = m_preprocessor.is_macro(deref(it).token); opt) {
               bool is_funcmacro = *opt;
               bool success, complete;
               // マクロ展開の結果リスト
-              pptoken_conteiner macro_result_list{ &kusabira::def_mr };
+              pptoken_list_t macro_result_list{&kusabira::def_mr};
               // 再帰的に同名のマクロ展開を行わないためのマクロ名メモ
               std::pmr::unordered_set<std::u8string_view> memo{ &kusabira::def_mr };
               // 現在注目しているマクロ名（すなわち、識別子）
@@ -608,7 +608,7 @@ namespace kusabira::PP {
 
               if (not is_funcmacro) {
                 //オブジェクトマクロ置換
-                std::tie(success, complete, macro_result_list, memo) = preprocessor.objmacro<true>(*m_reporter, macro_name);
+                std::tie(success, complete, macro_result_list, memo) = m_preprocessor.objmacro<true>(*m_reporter, macro_name);
               } else {
                 //マクロ名の次へ進める
                 ++it;
@@ -624,13 +624,13 @@ namespace kusabira::PP {
                     break;
                   } else {
                     //その他のエラーはexpectedを変換してそのまま返す
-                    return std::move(arg_list).map([](auto&&) {
-                      return pptoken_conteiner{};
+                    return std::move(arg_list).map([](auto &&) {
+                      return pptoken_list_t{};
                     });
                   }
                 }
                 //関数マクロ置換
-                std::tie(success, complete, macro_result_list, memo) = preprocessor.funcmacro<false>(*m_reporter, macro_name, *arg_list);
+                std::tie(success, complete, macro_result_list, memo) = m_preprocessor.funcmacro<false>(*m_reporter, macro_name, *arg_list);
               }
               if (not success) {
                 //マクロ実行時のエラーだが、報告済
@@ -713,8 +713,7 @@ namespace kusabira::PP {
       return kusabira::ok(std::move(pptoken_list));
     }
 
-
-    using expecetd_macro_args = kusabira::expected<std::pmr::vector<std::pmr::list<pp_token>>, pp_err_info>;
+    using expecetd_macro_args = kusabira::expected<std::pmr::vector<pptoken_list_t>, pp_err_info>;
 
     /**
     * @brief 関数マクロの実引数プリプロセッシングトークンを構成する
@@ -752,7 +751,7 @@ namespace kusabira::PP {
       }
 
       if (it == end) {
-        return kusabira::error(pp_err_info{ pp_token{pp_token_category::empty}, pp_parse_context::UnexpectedEOF });
+        return kusabira::error(pp_err_info{pptoken_t{pp_token_category::empty}, pp_parse_context::UnexpectedEOF});
       }
 
       //開きかっこの次のトークンへ進める、少なくともここがEOFになることはない（改行がその前に来る）
@@ -760,11 +759,11 @@ namespace kusabira::PP {
 
       //実引数リスト、カンマごとにプリプロセッシングトークン列を区切る
       //引数の数が増えると内部でムーブが起きるが、問題ないか？？？
-      std::pmr::vector<std::pmr::list<pp_token>> args{ &kusabira::def_mr };
+      std::pmr::vector<pptoken_list_t> args{&kusabira::def_mr};
       args.reserve(10);
 
       //実引数リスト1つ分のリスト、作業用
-      std::pmr::list<pp_token> arg_list{&kusabira::def_mr};
+      pptoken_list_t arg_list{&kusabira::def_mr};
       //実引数リストの区切りカンマまでの間に出現したネストかっこの数
       std::size_t inner_paren = 0;
       
@@ -777,7 +776,7 @@ namespace kusabira::PP {
           if (inner_paren == 0 and deref(it).token == u8","sv) {
             args.emplace_back(std::move(arg_list));
             //要らないけど、一応
-            arg_list = std::pmr::list<pp_token>{&kusabira::def_mr};
+            arg_list = pptoken_list_t{&kusabira::def_mr};
             //カンマは保存しない
             ++it;
             continue;
@@ -826,7 +825,7 @@ namespace kusabira::PP {
 
       //閉じかっこで終わってる筈なのでファイル終端に達するはずはない
       if (it == end) {
-        return kusabira::error(pp_err_info{ pp_token{pp_token_category::empty}, pp_parse_context::UnexpectedEOF });
+        return kusabira::error(pp_err_info{pptoken_t{pp_token_category::empty}, pp_parse_context::UnexpectedEOF});
       }
 
       return kusabira::ok(std::move(args));
@@ -843,14 +842,14 @@ namespace kusabira::PP {
     * @return エラーが起きた場合その情報、正常終了すればマクロ展開処理済みのプリプロセッシングトークンリスト
     */
     template<typename Iterator, typename Sentinel>
-    fn further_macro_replacement(std::pmr::list<pp_token>&& list, Iterator& it, Sentinel se, std::pmr::unordered_set<std::u8string_view>& outer_macro) -> kusabira::expected<std::pmr::list<pp_token>, pp_err_info> {
+    fn further_macro_replacement(pptoken_list_t&& list, Iterator& it, Sentinel se, std::pmr::unordered_set<std::u8string_view>& outer_macro) -> kusabira::expected<pptoken_list_t, pp_err_info> {
 
-      pptoken_conteiner complete_list{ &kusabira::def_mr };
+      pptoken_list_t complete_list{&kusabira::def_mr};
 
       //展開途中の関数マクロを探す
       std::optional<bool> is_funcmacro{};
       auto pos = std::ranges::find_if(list, [&](auto& token) {
-        is_funcmacro = preprocessor.is_macro(token.token);
+        is_funcmacro = m_preprocessor.is_macro(token.token);
         return bool(is_funcmacro);
       });
 
@@ -882,13 +881,13 @@ namespace kusabira::PP {
       }
       if (not arg_list) {
         //なんか途中でエラー、expectedを変換してそのまま返す
-        return std::move(arg_list).map([](auto&&) {
-          return std::pmr::list<pp_token>{};
+        return std::move(arg_list).map([](auto &&) {
+          return pptoken_list_t{};
         });
       }
       
       //関数マクロ置換
-      auto [success, complete, funcmacro_result] = preprocessor.funcmacro<true>(*m_reporter, macro_name, *arg_list, outer_macro);
+      auto [success, complete, funcmacro_result] = m_preprocessor.funcmacro<true>(*m_reporter, macro_name, *arg_list, outer_macro);
 
       if (not success) {
         //なんか途中でエラー、expectedを変換してそのまま返す
@@ -922,7 +921,7 @@ namespace kusabira::PP {
       assert((*it).category == pp_token_category::newline);
 
       //改行を保存
-      this->pptoken_list.emplace_back(std::move(*it));
+      this->m_pptoken_list.emplace_back(std::move(*it));
       //次の行の頭のトークンへ進めて戻る
       ++it;
       return kusabira::ok(pp_parse_status::Complete);
@@ -975,7 +974,7 @@ namespace kusabira::PP {
     * @return 構成した生文字列リテラルトークン
     */
     template<typename Iterator = iterator, typename Sentinel = sentinel>
-    sfn read_rawstring_tokens(Iterator& it, Sentinel end) -> pp_token {
+    sfn read_rawstring_tokens(Iterator& it, Sentinel end) -> pptoken_t {
 
       //事前条件
       assert(it != end);
@@ -1012,7 +1011,7 @@ namespace kusabira::PP {
       };
 
       //プリプロセッシングトークン型を用意
-      pp_token token{pp_token_category::raw_string_literal};
+      pptoken_t token{pp_token_category::raw_string_literal};
       //構成する字句トークンを保存しておくリスト（↑のメンバへの参照）
       auto& lextoken_list = token.composed_tokens;
 
@@ -1064,7 +1063,7 @@ namespace kusabira::PP {
     * @return 構成した記号列トークン
     */
     template<typename Iterator = iterator, typename Sentinel = sentinel>
-    sfn longest_match_exception_handling(Iterator& it, Sentinel) -> pptoken_conteiner {
+    sfn longest_match_exception_handling(Iterator& it, Sentinel) -> pptoken_list_t {
 
       //改行の出現をチェックする、改行ならtrue
       auto check_newline = [](auto& it) {
@@ -1075,7 +1074,7 @@ namespace kusabira::PP {
       assert((*it).category == pp_token_category::op_or_punc);
 
       //プリプロセッシングトークンを一時保存しておくリスト
-      pptoken_conteiner tmp_pptoken_list{ &kusabira::def_mr };
+      pptoken_list_t tmp_pptoken_list{&kusabira::def_mr};
 
       bool not_handle = deref(it).token.to_view() != u8"<:";
       //現在のプリプロセッシングトークン（<:）を保存
