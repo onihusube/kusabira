@@ -71,26 +71,29 @@ namespace kusabira::PP {
     return it != end;
   }
 
+  /**
+  * @brief 改行以外のホワイトスペースを飛ばす
+  * @return 現れた非空白トークンを指すイテレータ
+  */
+  template <std::input_iterator TokenIterator, std::sentinel_for<TokenIterator> Sentinel>
+  cfn skip_whitespaces_except_newline(TokenIterator&& it, Sentinel end) -> TokenIterator {
+    return std::ranges::find_if_not(std::forward<TokenIterator>(it), end, [](const auto &token) {
+      // トークナイズエラーはここでは考慮しないものとする
+      return pp_token_category::whitespace <= token.category and token.category <= pp_token_category::block_comment;
+    });
+  }
 
 //ホワイトスペース読み飛ばしのテンプレ
 #define SKIP_WHITESPACE(iterator, sentinel)     \
   if (not skip_whitespaces(iterator, sentinel)) \
     return kusabira::ok(pp_parse_status::EndOfFile)
 
-//トークナイザのエラーチェック
-#define TOKNIZE_ERR_CHECK(iterator)                                               \
-  if (auto status_kind = (*iterator).category; status_kind < pp_token_category::Unaccepted) \
-  return make_error(iterator, pp_parse_context{static_cast<std::underlying_type_t<decltype(status_kind)>>(status_kind)})
-
-//イテレータを一つ進めるとともに終端チェック
-#define EOF_CHECK(iterator, sentinel) ++it; if (iterator == sentinel) return {pp_parse_status::EndOfFile}
-
-
   /**
   * @brief トークン列をパースしてプリプロセッシングディレクティブの検出とCPPの実行を行う
   * @details 再帰下降構文解析によりパースする
   * @details パースしながらプリプロセスを実行し、成果物はプリプロセッシングトークン列
   * @details なるべく末尾再帰を意識したい
+  * @details パースに伴ってはEOFの前に必ず改行が来る事を前提とする（トークナイザでそうなるはず）
   */
   template<
     std::ranges::input_range Tokenizer = kusabira::PP::tokenizer<kusabira::PP::filereader, kusabira::PP::pp_tokenizer_sm>,
@@ -242,6 +245,7 @@ namespace kusabira::PP {
           return kusabira::error(pp_err_info{ std::move(*it), pp_parse_context::Define_InvalidDirective });
         }
         m_preprocessor.undef(deref(it).token);
+        ++it;
       } else if (tokenstr == u8"line") {
         pptoken_list_t line_token_list{&kusabira::def_mr};
 
@@ -364,8 +368,10 @@ namespace kusabira::PP {
       param_list.reserve(10);
 
       for (;; ++it) {
-        if (skip_whitespaces(it, end) == false)
-          return kusabira::error(pp_err_info{std::move(*it), pp_parse_context::UnexpectedEOF});
+        if (it = skip_whitespaces_except_newline(std::move(++it), end); deref(it).category == pp_token_category::newline) {
+          // 改行に至るのは変
+          return kusabira::error(pp_err_info{std::move(*it), pp_parse_context::Define_ParamlistBreak});
+        }
 
         if (deref(it).category == pp_token_category::identifier) {
           //普通の識別子なら仮引数名
@@ -382,14 +388,16 @@ namespace kusabira::PP {
           m_reporter->pp_err_report(m_filename, *it, pp_parse_context::Define_InvalidDirective);
           return kusabira::error(pp_err_info{std::move(*it), pp_parse_context::Define_InvalidDirective});
         } else {
-          //エラー：現れるべきトークンが現れなかった
+          //エラー：現れるべきトークンが現れなかった（ここのエラーコンテキスト、分けたほうが良くない？
           m_reporter->pp_err_report(m_filename, *it, pp_parse_context::Define_InvalidDirective);
           return kusabira::error(pp_err_info{std::move(*it), pp_parse_context::Define_InvalidDirective});
         }
 
         //仮引数リストの区切りとなるカンマを探す
-        if (skip_whitespaces(it, end) == false)
-          return kusabira::error(pp_err_info{std::move(*it), pp_parse_context::UnexpectedEOF});
+        if (it = skip_whitespaces_except_newline(std::move(++it), end); deref(it).category == pp_token_category::newline) {
+          // 改行に至るのは変
+          return kusabira::error(pp_err_info{std::move(*it), pp_parse_context::Define_ParamlistBreak});
+        }
 
         if (deref(it).category == pp_token_category::op_or_punc) {
           if (deref(it).token == u8","sv) {
@@ -509,7 +517,7 @@ namespace kusabira::PP {
 
       if (auto kind = (*it).category; kind != pp_token_category::newline) {
         //改行文字以外が出てきたらエラー
-        return make_error(it, pp_parse_context::ElseGroup);
+        return make_error(it, pp_parse_context::Newline_NotAppear);
       }
 
       return this->group(it, end);
@@ -936,9 +944,16 @@ namespace kusabira::PP {
     * @return 1行分正常終了したことを表すステータス
     */
     fn newline(iterator& it, sentinel end) -> parse_status {
-      //事前条件
+      // ホワイトスペース飛ばし
+      it = skip_whitespaces_except_newline(std::move(it), end);
+
+      // たとえ最終行でも、必ず改行がある
       assert(it != end);
-      assert((*it).category == pp_token_category::newline);
+
+      if ((*it).category != pp_token_category::newline) {
+        //改行以外が出てきたらエラー
+        return make_error(it, pp_parse_context::Newline_NotAppear);
+      }
 
       //改行を保存
       this->m_pptoken_list.emplace_back(std::move(*it));

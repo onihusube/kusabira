@@ -27,13 +27,14 @@ namespace kusabira::PP {
     RawStrLiteralDelimiterInvalid,     //生文字列リテラルデリミタに現れてはいけない文字が現れた
     UnexpectedNewLine,                 //予期しない改行入力があった
     UnexpectedEOF,                     //予期しないファイル終端への到達
-  
+
     GroupPart = 0,   // #の後で有効なトークンが現れなかった
     IfSection,       // #ifセクションの途中で読み取り終了してしまった？
     IfGroup_Mistake, // #ifから始まるifdef,ifndefではない間違ったトークン
     IfGroup_Invalid, // 1つの定数式・識別子の前後、改行までの間に不正なトークンが現れている
     ControlLine,
     Define_No_Identifier,       // #defineの後に識別子が現れなかった
+    Define_ParamlistBreak,      // 関数マクロの仮引数リストパース中に改行した
     Define_Duplicate,           // 異なるマクロ再定義
     Define_Redfined,            // 異なる形式のマクロの再定義
     Define_Sharp2BothEnd,       // ##トークンが置換リストの両端に現われている
@@ -41,18 +42,18 @@ namespace kusabira::PP {
     Define_VAOPTRecursive,      // __VA_OPT__が再帰している
     Define_InvalidTokenConcat,  // 不正なプリプロセッシングトークンの連結が行われた
     Define_InvalidDirective,    // #defineディレクティブが正しくない
-    Funcmacro_NotInvoke,        // 関数マクロ名が参照されているが、呼び出しではなかった
+    Funcmacro_NotInvoke,        // 関数マクロ名が参照されているが、呼び出しではなかった（エラーじゃない）
     Funcmacro_InsufficientArgs, // 関数マクロ呼び出しの際、引数が足りなかった
     Funcmacro_ReplacementFail,  // 関数マクロの呼び出し中、引数に対するマクロ置換が失敗した
     ControlLine_Undef,          // #undefにマクロ名が指定されていない
     ControlLine_Line_Num,       // #lineディレクティブの行数指定が符号なし整数値として読み取れない
     ControlLine_Line_ManyToken, // #lineディレクティブの後ろに不要なトークンが付いてる（警告）
     ControlLine_Error,          // #errorディレクティブによる終了
-  
-    ElseGroup,         // 改行の前に不正なトークンが現れている
-    EndifLine_Mistake, // #endifがくるべき所に別のものが来ている
-    EndifLine_Invalid, // #endif ~ 改行までの間に不正なトークンが現れている
-    TextLine          // 改行が現れる前にファイル終端に達した？バグっぽい
+
+    EndifLine_Mistake,  // #endifがくるべき所に別のものが来ている
+    EndifLine_Invalid,  // #endif ~ 改行までの間に不正なトークンが現れている
+    TextLine,           // 改行が現れる前にファイル終端に達した？バグっぽい
+    Newline_NotAppear   // 改行の前に不正なトークンが現れている
   };
 }
 
@@ -129,6 +130,7 @@ namespace kusabira::report {
     inline static const pp_message_map pp_err_message_en =
     {
       {PP::pp_parse_context::Define_No_Identifier, u8"Can't find the macro name in the #define directive."},
+      {PP::pp_parse_context::Define_ParamlistBreak, u8"Line breaks are not allowed in the parameter list of function macro definition."},
       {PP::pp_parse_context::Define_Duplicate, u8"A macro with the same name has been redefined with a different definition."},
       {PP::pp_parse_context::Define_Redfined, u8"A different type of macro has been redefined."},
       {PP::pp_parse_context::Define_Sharp2BothEnd, u8"The ## token must appear inside the replacement list."},
@@ -140,7 +142,8 @@ namespace kusabira::report {
       {PP::pp_parse_context::Funcmacro_ReplacementFail, u8"Macro expansion failed to replace the macro contained in the argument."},
       {PP::pp_parse_context::ControlLine_Undef, u8"Specify the macro name."},
       {PP::pp_parse_context::ControlLine_Line_Num , u8"The number specified for the #LINE directive is incorrect. Please specify a number in the range of std::size_t."},
-      {PP::pp_parse_context::ControlLine_Line_ManyToken, u8"There is an unnecessary token after the #line directive."}
+      {PP::pp_parse_context::ControlLine_Line_ManyToken, u8"There is an unnecessary token after the #line directive."},
+      {PP::pp_parse_context::Newline_NotAppear, u8"An unexpected token appears before a line break."}
     };
 
 //Windowsのみ、コンソール出力のために少し調整を行う
@@ -258,6 +261,7 @@ namespace kusabira::report {
     inline static const pp_message_map pp_err_message_ja =
     {
       {PP::pp_parse_context::Define_No_Identifier, u8"#defineディレクティブ中にマクロ名が見つかりません。"},
+      {PP::pp_parse_context::Define_ParamlistBreak, u8"関数マクロ定義の仮引数リストの中では改行できません.。"},
       {PP::pp_parse_context::Define_Duplicate, u8"同じ名前のマクロが異なる定義で再定義されました。"},
       {PP::pp_parse_context::Define_Redfined, u8"同じ名前で異なる形式のマクロが再定義されました。"},
       {PP::pp_parse_context::Define_Sharp2BothEnd, u8"##トークンは置換リストの内部に現れなければなりません。"},
@@ -269,7 +273,8 @@ namespace kusabira::report {
       {PP::pp_parse_context::Funcmacro_InsufficientArgs, u8"関数マクロ呼び出しの引数の数が合いません。"},
       {PP::pp_parse_context::Funcmacro_ReplacementFail, u8"マクロ展開時、実引数に含まれているマクロの置換に失敗しました。"},
       {PP::pp_parse_context::ControlLine_Line_Num , u8"#lineディレクティブに指定された数値が不正です。std::size_tの範囲内の数値を指定してください。"},
-      {PP::pp_parse_context::ControlLine_Line_ManyToken , u8"#lineディレクティブの後に不要なトークンがあります。"}
+      {PP::pp_parse_context::ControlLine_Line_ManyToken , u8"#lineディレクティブの後に不要なトークンがあります。"},
+      {PP::pp_parse_context::Newline_NotAppear, u8"改行の前に予期しないトークンが現れています。"}
     };
 
     fn pp_context_to_message_impl(PP::pp_parse_context context) const -> std::u8string_view override {

@@ -15,3 +15,7 @@ int x = F(LPAREN(), 0,,);
 debug("Flag");
 debug("X = %d\n", x);
 showlist(The first, second, and third items.);
+report(x>y, "x is %d but y is %d", x, y);
+
+#undef F  // ↓にわざと空白を入れてる
+#undef G          
