@@ -2,11 +2,9 @@
 
 #include <iterator>
 #include <type_traits>
-
+#include <ranges>
 
 namespace kusabira::vocabulary {
-
-  struct concat_sentinel {};
 
   /**
   * @brief 2つのイテレータ範囲を連結するview
@@ -16,18 +14,24 @@ namespace kusabira::vocabulary {
   * @tparam Sentinel2 2つ目の範囲の終端
   * @details 二つのイテレータの要素型と参照型が一致している必要がある
   */
+  //template<std::input_iterator Iterator1, std::sentinel_for<Iterator1> Sentinel1, std::input_iterator Iterator2, std::sentinel_for<Iterator2> Sentinel2>
   template<typename Iterator1, typename Sentinel1, typename Iterator2, typename Sentinel2>
+    requires (std::same_as<std::iter_value_t<Iterator1>, std::iter_value_t<Iterator2>> and
+              std::same_as<std::iter_reference_t<Iterator1>, std::iter_reference_t<Iterator2>> and
+              std::is_reference_v<std::iter_reference_t<Iterator1>>)
   class concat {
 
-    static_assert(std::same_as<std::iter_value_t<Iterator1>, std::iter_value_t<Iterator2>>);
-    static_assert(std::same_as<std::iter_reference_t<Iterator1>, std::iter_reference_t<Iterator2>>);
+    //static_assert(std::same_as<std::iter_value_t<Iterator1>, std::iter_value_t<Iterator2>>);
+    //static_assert(std::same_as<std::iter_reference_t<Iterator1>, std::iter_reference_t<Iterator2>>);
 
     Iterator1 m_it1;
     Iterator2 m_it2;
     [[no_unique_address]] Sentinel1 m_end1;
     [[no_unique_address]] Sentinel2 m_end2;
 
-    typename std::iterator_traits<Iterator1>::value_type* m_val = nullptr;
+    // 現在の位置の要素へのポインタ
+    typename std::iter_value_t<Iterator1> *m_val = nullptr;
+    // 前半の範囲内であるか？
     bool m_is_first_half = true;
 
   public:
@@ -49,14 +53,15 @@ namespace kusabira::vocabulary {
       concat* m_parent;
 
     public:
-      using value_type = typename std::iterator_traits<Iterator1>::value_type;
-      using pointer = value_type*;
-      using reference = typename std::iterator_traits<Iterator1>::reference;
-      using difference_type = std::ptrdiff_t;
+      using iterator_concept = std::input_iterator_tag;
       using iterator_category = std::input_iterator_tag;
+      using value_type = typename std::iter_value_t<Iterator1>;
+      //using pointer = value_type*;
+      using reference = typename std::iter_reference_t<Iterator1>;
+      using difference_type = std::ptrdiff_t;
 
       concat_iterator() = default;
-      constexpr explicit concat_iterator(concat& parent) : m_parent{std::addressof(parent)} {}
+      explicit constexpr concat_iterator(concat& parent) : m_parent{std::addressof(parent)} {}
 
       concat_iterator(const concat_iterator&) = delete;
       concat_iterator(concat_iterator&&) = default;
@@ -66,17 +71,24 @@ namespace kusabira::vocabulary {
 
       constexpr auto operator++() -> concat_iterator& {
         if (m_parent->m_is_first_half) {
+          // 前半の範囲内の時
           ++m_parent->m_it1;
+          // 進めた後、終端チェック
           if (m_parent->m_it1 != m_parent->m_end1) {
+            // 要素へのポインタを取得しておく（operator*での条件分岐をなくすため）
             m_parent->m_val = std::addressof(*m_parent->m_it1);
           } else {
+            // 後半部分へ進める
             m_parent->m_is_first_half = false;
+            // 後半部分が空でない事をチェックし要素のポインタ更新
             if (m_parent->m_it2 != m_parent->m_end2) {
               m_parent->m_val = std::addressof(*m_parent->m_it2);
             }
           }
         } else {
+          // 後半の範囲内の時
           ++m_parent->m_it2;
+          // 終端チェック
           if (m_parent->m_it2 != m_parent->m_end2) {
             m_parent->m_val = std::addressof(*m_parent->m_it2);
           }
@@ -92,7 +104,7 @@ namespace kusabira::vocabulary {
         return *(m_parent->m_val);
       }
 
-      constexpr bool operator==(concat_sentinel) const {
+      constexpr bool operator==(std::default_sentinel_t) const {
         return m_parent->m_it1 == m_parent->m_end1
             && m_parent->m_it2 == m_parent->m_end2;
       }
@@ -110,7 +122,7 @@ namespace kusabira::vocabulary {
     }
 
     [[nodiscard]]
-    friend constexpr auto end(concat&) -> concat_sentinel {
+    friend constexpr auto end(concat&) -> std::default_sentinel_t {
       return {};
     }
 
