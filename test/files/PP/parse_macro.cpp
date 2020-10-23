@@ -19,3 +19,15 @@ report(x>y, "x is %d but y is %d", x, y);
 
 #undef F  // ↓にわざと空白を入れてる
 #undef G          
+
+#define F(...)           f(0 __VA_OPT__(,) __VA_ARGS__)
+#define G(X, ...)        f(0, X __VA_OPT__(,) __VA_ARGS__)
+#define SDEF(sname, ...) S sname __VA_OPT__(= { __VA_ARGS__ })
+#define EMP
+#define EMP2 /*スペース入ってる空マクロ*/   // ラインコメント
+#define FEMP() //↓空白なし空関数マクロ
+#define FEMP2()
+
+F(a, b, c)
+F()
+F(EMP)

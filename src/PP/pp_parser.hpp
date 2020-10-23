@@ -303,6 +303,12 @@ namespace kusabira::PP {
 
           return kusabira::ok(pp_parse_status::Complete);
         });
+      } else if (deref(it).category == pp_token_category::newline) {
+        // 空のオブジェクトマクロの登録
+        if (m_preprocessor.define(*m_reporter, macroname, pptoken_list_t{ &kusabira::def_mr }) == false)
+          return kusabira::error(pp_err_info{std::move(macroname), pp_parse_context::ControlLine});
+
+        return this->newline(it, end);
       }
       
       //関数マクロの登録
