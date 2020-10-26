@@ -39,6 +39,7 @@ namespace kusabira::PP {
     Define_Redfined,            // 異なる形式のマクロの再定義
     Define_Sharp2BothEnd,       // ##トークンが置換リストの両端に現われている
     Define_InvalidSharp,        // #トークンが仮引数の前に現れなかった
+    Define_InvalidVAARGS,       // 可変長マクロではないのに__VA_ARGS__が参照された
     Define_VAOPTRecursive,      // __VA_OPT__が再帰している
     Define_InvalidTokenConcat,  // 不正なプリプロセッシングトークンの連結が行われた
     Define_InvalidDirective,    // #defineディレクティブが正しくない
@@ -135,6 +136,7 @@ namespace kusabira::report {
       {PP::pp_parse_context::Define_Redfined, u8"A different type of macro has been redefined."},
       {PP::pp_parse_context::Define_Sharp2BothEnd, u8"The ## token must appear inside the replacement list."},
       {PP::pp_parse_context::Define_InvalidSharp, u8"The # token must appear only before the name of parameter."},
+      {PP::pp_parse_context::Define_InvalidVAARGS, u8"__VA_ARGS__ is referenced even though it is not a variadic arguments macro."},
       {PP::pp_parse_context::Define_VAOPTRecursive, u8"__VA_OPT__ must not be recursive."},
       {PP::pp_parse_context::Define_InvalidTokenConcat, u8"Concatenation result by ## is not a valid preprocessing token."},
       {PP::pp_parse_context::Define_InvalidDirective, u8"Unexpected characters appear in #define directive."},
@@ -266,6 +268,7 @@ namespace kusabira::report {
       {PP::pp_parse_context::Define_Redfined, u8"同じ名前で異なる形式のマクロが再定義されました。"},
       {PP::pp_parse_context::Define_Sharp2BothEnd, u8"##トークンは置換リストの内部に現れなければなりません。"},
       {PP::pp_parse_context::Define_InvalidSharp, u8"#トークンは仮引数名の前だけに現れなければなりません。"},
+      {PP::pp_parse_context::Define_InvalidVAARGS, u8"可変引数マクロではないのに __VA_ARGS__ が参照されています。"},
       {PP::pp_parse_context::Define_VAOPTRecursive, u8"__VA_OPT__は再帰してはいけません。"},
       {PP::pp_parse_context::Define_InvalidTokenConcat, u8"##による連結結果は有効なプリプロセッシングトークンではありません。"},
       {PP::pp_parse_context::Define_InvalidDirective, u8"#defineディレクティブに予期しない文字が現れています。"},

@@ -409,8 +409,12 @@ namespace kusabira::PP {
           if ((*it).token.to_view() == u8"__VA_ARGS__") {
             const auto [ismatch, va_start_index] = find_param_index(u8"...");
 
-            //可変長マクロでは無いのに__VA_ARGS__が参照された?
-            assert(ismatch);
+            //可変長マクロでは無いのに__VA_ARGS__が参照された
+            if (not ismatch) {
+              //エラー
+              m_replist_err = std::make_pair(pp_parse_context::Define_InvalidVAARGS, std::move(*it));
+              break;
+            }
 
             //置換リストの要素番号に対して、対応する実引数位置を保存
             m_correspond.emplace_back(index, va_start_index, true, false, apper_sharp_op, false, apper_sharp2_op, is_recursive);
@@ -474,7 +478,7 @@ namespace kusabira::PP {
     */
     template<std::invocable<std::pmr::list<pp_token>&> F>
       requires std::same_as<bool, std::invoke_result_t<F, std::pmr::list<pp_token>&>>
-    fn func_macro_impl(const std::pmr::vector<std::pmr::list<pp_token>>& args, F&& f) const -> macro_result_t {
+    fn func_macro_impl(const std::pmr::vector<std::pmr::list<pp_token>>& args, F&& expand_macro) const -> macro_result_t {
       //置換対象のトークンシーケンスをコピー（終了後そのまま置換結果となる）
       std::pmr::list<pp_token> result_list{ m_tokens, &kusabira::def_mr };
 
@@ -506,7 +510,7 @@ namespace kusabira::PP {
             //##の左右のトークンはマクロ置換をしない
             //それ以外のトークンは置換の前に単体のプリプロセッシングトークン列としてマクロ置換を完了しておく
             //falseが帰ってきた場合はマクロ置換中のエラー
-            if (not f(arg_list))
+            if (not expand_macro(arg_list))
               return kusabira::error(std::make_pair(pp_parse_context::Funcmacro_ReplacementFail, std::move(*it)));
           } 
 
@@ -542,11 +546,12 @@ namespace kusabira::PP {
     /**
     * @brief 可変引数関数マクロの処理の実装
     * @param args 実引数列（カンマ区切り毎のトークン列のvector
+    * @param f 引数のマクロ置換処理
     * @return マクロ置換後のトークンリスト
     */
     template<std::invocable<std::pmr::list<pp_token>&> F>
       requires std::same_as<bool, std::invoke_result_t<F, std::pmr::list<pp_token>&>>
-    fn va_macro_impl(const std::pmr::vector<std::pmr::list<pp_token>>& args, F&& f) const -> macro_result_t {
+    fn va_macro_impl(const std::pmr::vector<std::pmr::list<pp_token>>& args, F&& expand_macro) const -> macro_result_t {
       using namespace std::string_view_literals;
 
       //置換対象のトークンシーケンスをコピー（終了後そのまま置換結果となる）
@@ -556,10 +561,29 @@ namespace kusabira::PP {
       const auto head = std::begin(result_list);
       //引数の数
       const auto N = args.size();
-      //可変長引数が純粋に空かどうか
-      const bool is_va_empty = N < m_params.size()
-        //F(arg1, ...)なマクロに対して、F(0,)の様に呼び出した時のケア（F(0,,)は引数ありとみなされる）
-        or ((N == m_params.size()) and (args.back().size() == 0ull));
+      // 可変長引数が純粋に空かどうか
+      bool is_va_empty_tmp = N < m_params.size();
+      if (not is_va_empty_tmp and N == m_params.size()) {
+        if (args.back().size() == 0u) {
+          // F(arg1, ...)なマクロに対して、F(0,)の様に呼び出した時のケア（F(0,,)は引数ありとみなされる）
+          is_va_empty_tmp = true;
+        } else {
+          // F(arg1, ...)なマクロに対して、F(0, EMP)のように呼び出した際の（EMPは空の置換）ケア（これは可変引数なしとみなされる）
+          // EMPが関数マクロの呼び出しだとしても同様。とにかくマクロ置換を行なって結果が空になるか調べなければならない。
+
+          // 実引数のトークン列を直接変えられると再帰マクロ展開のタイミングが異なってしまうのでコピーする
+          // この結果を使いまわす手もあるけど、出現頻度が低いと思われるので微妙かも・・・
+          std::pmr::list<pp_token> copylist{args.back(), &kusabira::def_mr};
+
+          // falseが帰ってきたら置換中のエラー
+          if (not expand_macro(copylist))
+            return kusabira::error(std::make_pair(pp_parse_context::Funcmacro_ReplacementFail, std::move(args.back().front())));
+          // 置換結果が空ならば可変長部は空
+          is_va_empty_tmp = std::ranges::empty(copylist);
+        }
+      }
+      const bool is_va_empty = is_va_empty_tmp;
+
       //プレイスメーカートークンを挿入したかどうか
       bool should_remove_placemarker = false;
 
@@ -617,10 +641,6 @@ namespace kusabira::PP {
 
           // 対応する閉じかっこの存在は構文解析で保証する
           assert(vaopt_end != replist_end);
-
-          //F(arg1, ...)なマクロに対して、F(0,)の様に呼び出した時のケア（F(0,,)は引数ありとみなされる）
-          //これはより早い段階で弾くべき
-          //bool is_va_empty2 = is_va_empty | (N == m_params.size()) and (args.back().size() == 0ull);
 
           if (is_va_empty) {
             //可変長部分が空ならばVA_OPT全体を削除
@@ -693,7 +713,7 @@ namespace kusabira::PP {
           //##の左右のトークンはマクロ置換をしない
           //それ以外のトークンは置換の前に単体のプリプロセッシングトークン列としてマクロ置換を完了しておく
           //falseが帰ってきた場合はマクロ置換中のエラー
-          if (not f(arg_list))
+          if (not expand_macro(arg_list))
             return kusabira::error(std::make_pair(pp_parse_context::Funcmacro_ReplacementFail, std::move(*it)));
         } 
 

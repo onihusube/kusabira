@@ -564,7 +564,7 @@ namespace pp_parsing_test
     //}
 
     // 残ったトークン+改行
-    constexpr auto token_num = 81 + 33;
+    constexpr auto token_num = 85 + 34;
     REQUIRE_EQ(parser.get_phase4_result().size(), token_num);
 
     constexpr std::u8string_view expect_token[] = {
@@ -599,6 +599,7 @@ namespace pp_parsing_test
         u8"",
         u8"",
         u8"f", u8"(", u8"0", u8",", u8"a", u8",", u8"b", u8",", u8"c", u8")", u8"",
+        u8"f", u8"(", u8"0", u8")", u8"",
         u8"f", u8"(", u8"0", u8")", u8"",
         u8"f", u8"(", u8"0", u8")", u8""
     };
@@ -636,6 +637,7 @@ namespace pp_parsing_test
         pp_token_category::newline,
         pp_token_category::newline,
         pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::pp_number, pp_token_category::op_or_punc, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::newline,
+        pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::pp_number, pp_token_category::op_or_punc, pp_token_category::newline,
         pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::pp_number, pp_token_category::op_or_punc, pp_token_category::newline,
         pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::pp_number, pp_token_category::op_or_punc, pp_token_category::newline
     };

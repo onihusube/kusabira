@@ -31,3 +31,4 @@ report(x>y, "x is %d but y is %d", x, y);
 F(a, b, c)
 F()
 F(EMP)
+F(FEMP())
