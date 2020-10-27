@@ -32,3 +32,10 @@ F(a, b, c)
 F()
 F(EMP)
 F(FEMP())
+
+G(a, b, c)
+G(a, )
+G(a)
+
+SDEF(foo);
+SDEF(bar, 1, 2);
