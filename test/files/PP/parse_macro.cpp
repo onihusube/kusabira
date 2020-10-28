@@ -39,3 +39,5 @@ G(a)
 
 SDEF(foo);
 SDEF(bar, 1, 2);
+
+#define H2(X, Y, ...) __VA_OPT__(X ## Y,) __VA_ARGS__
