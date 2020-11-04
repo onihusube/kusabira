@@ -311,9 +311,9 @@ namespace kusabira::PP {
       };
 
       //置換対象トークン数
-      auto N = end_index;
+      std::size_t reptoken_num = end_index;
 
-      m_correspond.reserve(N);
+      m_correspond.reserve(reptoken_num);
 
       //#と##の出現をマークする
       bool apper_sharp_op = false;
@@ -322,7 +322,7 @@ namespace kusabira::PP {
       //__VA_OPT__(...) ## rhs のような結合をサポートするために__VA_OPT__(...)を指す対応に##の左辺であることを記録しておくためのもの
       bool* after_vaopt = nullptr;
 
-      auto it = std::next(m_tokens.begin(), start);
+      std::forward_iterator auto it = std::next(m_tokens.begin(), start);
 
       if (it != m_tokens.end()) {
         //先頭と末尾の##の出現を調べる、出てきたらエラー
@@ -340,7 +340,7 @@ namespace kusabira::PP {
       }
 
       //置換リストをstartからチェックする
-      for (auto index = start; index < N; ++index, ++it) {
+      for (auto index = start; index < reptoken_num; ++index, ++it) {
         //#,##をチェック
         if ((*it).category == pp_token_category::op_or_punc) {
 
@@ -385,7 +385,8 @@ namespace kusabira::PP {
           m_tokens.erase(std::prev(it));
           //消した分indexとトークン数を修正
           --index;
-          N = m_tokens.size();
+          //N = m_tokens.size();
+          --reptoken_num;
         }
 
         //処理終了後状態をリセット
@@ -437,8 +438,8 @@ namespace kusabira::PP {
             after_vaopt = &std::get<5>(m_correspond.emplace_back(index, 0, false, true, false, false, apper_sharp2_op, false));
 
             //閉じかっこを探索
-            auto start_pos = std::next(it, 2); //開きかっこの次のはず？
-            auto close_paren = search_close_parenthesis(start_pos, m_tokens.end());
+            std::forward_iterator auto start_pos = std::next(it, 2); //開きかっこの次のはず？
+            std::forward_iterator auto close_paren = search_close_parenthesis(start_pos, m_tokens.end());
             //かっこ内の要素数、囲むかっこも含める
             std::size_t recursive_N = std::distance(start_pos, ++close_paren) + 1;
             //__VA_OPT__(...)のカッコ内だけを再帰処理、開きかっこと閉じかっこは見なくていいのでインデックス操作で飛ばす
@@ -450,6 +451,8 @@ namespace kusabira::PP {
             //処理済みの分進める（この後ループで++されるので閉じかっこの次から始まる
             index += recursive_N;
             std::advance(it, recursive_N);
+            // トークン数を更新（__VA_OPT__の中に#や##がある場合、再帰中にトークンの削除が行われる）
+            reptoken_num = m_tokens.size();
             continue;
           }
         }
