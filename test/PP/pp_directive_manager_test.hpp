@@ -1529,6 +1529,37 @@ namespace kusabira_test::preprocessor {
       CHECK_UNARY(result_token.token == u8R"++(R"(string literal\n)"sv)++"sv);
     }
 
+    // __VA_OPT__の中にある例
+    {
+      pos = ll.emplace_after(pos, 15, 15);
+      (*pos).line = u8"#define H2(X, Y, ...) __VA_OPT__(X ## Y,) __VA_ARGS__";
+
+      //仮引数列と置換リスト
+      std::pmr::list<pp_token> rep_list{&kusabira::def_mr};
+      std::pmr::vector<std::u8string_view> params{&kusabira::def_mr};
+
+      //字句トークン
+      pp_token macro_name{pp_token_category::identifier, u8"H2", 8, pos};
+
+      //置換リスト
+      rep_list.emplace_back(pp_token_category::identifier, u8"__VA_OPT__", 22, pos);
+      rep_list.emplace_back(pp_token_category::op_or_punc, u8"(", 32, pos);
+      rep_list.emplace_back(pp_token_category::identifier, u8"X", 33, pos);
+      rep_list.emplace_back(pp_token_category::op_or_punc, u8"##", 35, pos);
+      rep_list.emplace_back(pp_token_category::identifier, u8"Y", 38, pos);
+      rep_list.emplace_back(pp_token_category::op_or_punc, u8",", 39, pos);
+      rep_list.emplace_back(pp_token_category::op_or_punc, u8")", 40, pos);
+      rep_list.emplace_back(pp_token_category::identifier, u8"__VA_ARGS__", 42, pos);
+
+      //マクロ仮引数トークン列
+      params.emplace_back(u8"X"sv);
+      params.emplace_back(u8"Y"sv);
+      params.emplace_back(u8"..."sv);
+
+      //関数登録
+      CHECK_UNARY(pp.define(*reporter, macro_name, rep_list, params, true));
+    }
+
     //エラー
     {
       pos = ll.emplace_after(pos, 11, 11);

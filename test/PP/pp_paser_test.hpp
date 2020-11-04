@@ -538,136 +538,136 @@ namespace pp_parsing_test
     }
   }
 
-  TEST_CASE("macro test") {
-    using kusabira::PP::pp_parse_status;
-    using kusabira::PP::pp_token;
-    using kusabira::PP::pp_token_category;
-    using namespace std::literals;
-    using pp_tokenizer = kusabira::PP::tokenizer<kusabira::PP::filereader, kusabira::PP::pp_tokenizer_sm>;
-    using ll_paser = kusabira::PP::ll_paser<pp_tokenizer>;
+  // TEST_CASE("macro test") {
+  //   using kusabira::PP::pp_parse_status;
+  //   using kusabira::PP::pp_token;
+  //   using kusabira::PP::pp_token_category;
+  //   using namespace std::literals;
+  //   using pp_tokenizer = kusabira::PP::tokenizer<kusabira::PP::filereader, kusabira::PP::pp_tokenizer_sm>;
+  //   using ll_paser = kusabira::PP::ll_paser<pp_tokenizer>;
 
-    auto testdir = kusabira::test::get_testfiles_dir() / "PP";
+  //   auto testdir = kusabira::test::get_testfiles_dir() / "PP";
 
-    REQUIRE_UNARY(std::filesystem::is_directory(testdir));
-    REQUIRE_UNARY(std::filesystem::exists(testdir));
+  //   REQUIRE_UNARY(std::filesystem::is_directory(testdir));
+  //   REQUIRE_UNARY(std::filesystem::exists(testdir));
 
-    //pp_tokenizer tokenizer{testdir / "parse_macro.cpp"};
-    ll_paser parser{testdir / "parse_macro.cpp"};
+  //   //pp_tokenizer tokenizer{testdir / "parse_macro.cpp"};
+  //   ll_paser parser{testdir / "parse_macro.cpp"};
 
-    auto status = parser.start();
+  //   auto status = parser.start();
 
-    REQUIRE_UNARY(bool(status));
-    CHECK_EQ(status.value(), pp_parse_status::Complete);
+  //   REQUIRE_UNARY(bool(status));
+  //   CHECK_EQ(status.value(), pp_parse_status::Complete);
 
-    //for (auto& token : parser.pptoken_list) {
-    //  std::cout << reinterpret_cast<const char *>(data(token.token)) << std::endl;
-    //}
+  //   //for (auto& token : parser.pptoken_list) {
+  //   //  std::cout << reinterpret_cast<const char *>(data(token.token)) << std::endl;
+  //   //}
 
-    // 残ったトークン+改行
-    constexpr auto token_num = 119 + 43;
-    REQUIRE_EQ(parser.get_phase4_result().size(), token_num);
+  //   // 残ったトークン+改行
+  //   constexpr auto token_num = 119 + 43;
+  //   REQUIRE_EQ(parser.get_phase4_result().size(), token_num);
 
-    constexpr std::u8string_view expect_token[] = {
-        u8"",
-        u8"",
-        u8"int", u8"vm", u8"=", u8"1", u8";", u8"",
-        u8"",
-        u8"",
-        u8"",
-        u8"",
-        u8"int", u8"x", u8"=", u8"42", u8";", u8"",
-        u8"int", u8"x", u8"=", u8")", u8";", u8"",
-        u8"int", u8"x", u8"=", u8"42", u8";", u8"",
-        u8"",
-        u8"",
-        u8"",
-        u8"",
-        u8"fprintf", u8"(", u8"stderr", u8",", u8R"("Flag")", u8")", u8";", u8"",
-        u8"fprintf", u8"(", u8"stderr", u8",", u8R"("X = %d\n")", u8",", u8"x", u8")", u8";", u8"",
-        u8"puts", u8"(", u8R"("The first, second, and third items.")", u8")", u8";", u8"",
-        u8"(", u8"(", u8"x", u8">", u8"y", u8")",  u8"?", u8"puts", u8"(", u8R"("x>y")", u8")", u8":", u8"printf", u8"(", u8R"("x is %d but y is %d")", u8",", u8"x", u8",", u8"y", u8")", u8")", u8";", u8"",
-        u8"",
-        u8"", // #undef F
-        u8"", // #undef G
-        u8"",
-        u8"",
-        u8"",
-        u8"",
-        u8"",
-        u8"",
-        u8"",
-        u8"",
-        u8"",
-        u8"f", u8"(", u8"0", u8",", u8"a", u8",", u8"b", u8",", u8"c", u8")", u8"",
-        u8"f", u8"(", u8"0", u8")", u8"",
-        u8"f", u8"(", u8"0", u8")", u8"",
-        u8"f", u8"(", u8"0", u8")", u8"",
-        u8"",
-        u8"f", u8"(", u8"0", u8",", u8"a", u8",", u8"b", u8",", u8"c", u8")", u8"",
-        u8"f", u8"(", u8"0", u8",", u8"a", u8")", u8"",
-        u8"f", u8"(", u8"0", u8",", u8"a", u8")", u8"",
-        u8"",
-        u8"S", u8"foo", u8";", u8"",
-        u8"S", u8"bar", u8"=", u8"{", u8"1", u8",", u8"2", u8"}", u8";", u8"",
-        u8"",
-        u8""
-    };
-    static_assert(std::size(expect_token) == token_num, "The number of pp-tokens between expect_token and token_num does not match.");
+  //   constexpr std::u8string_view expect_token[] = {
+  //       u8"",
+  //       u8"",
+  //       u8"int", u8"vm", u8"=", u8"1", u8";", u8"",
+  //       u8"",
+  //       u8"",
+  //       u8"",
+  //       u8"",
+  //       u8"int", u8"x", u8"=", u8"42", u8";", u8"",
+  //       u8"int", u8"x", u8"=", u8")", u8";", u8"",
+  //       u8"int", u8"x", u8"=", u8"42", u8";", u8"",
+  //       u8"",
+  //       u8"",
+  //       u8"",
+  //       u8"",
+  //       u8"fprintf", u8"(", u8"stderr", u8",", u8R"("Flag")", u8")", u8";", u8"",
+  //       u8"fprintf", u8"(", u8"stderr", u8",", u8R"("X = %d\n")", u8",", u8"x", u8")", u8";", u8"",
+  //       u8"puts", u8"(", u8R"("The first, second, and third items.")", u8")", u8";", u8"",
+  //       u8"(", u8"(", u8"x", u8">", u8"y", u8")",  u8"?", u8"puts", u8"(", u8R"("x>y")", u8")", u8":", u8"printf", u8"(", u8R"("x is %d but y is %d")", u8",", u8"x", u8",", u8"y", u8")", u8")", u8";", u8"",
+  //       u8"",
+  //       u8"", // #undef F
+  //       u8"", // #undef G
+  //       u8"",
+  //       u8"",
+  //       u8"",
+  //       u8"",
+  //       u8"",
+  //       u8"",
+  //       u8"",
+  //       u8"",
+  //       u8"",
+  //       u8"f", u8"(", u8"0", u8",", u8"a", u8",", u8"b", u8",", u8"c", u8")", u8"",
+  //       u8"f", u8"(", u8"0", u8")", u8"",
+  //       u8"f", u8"(", u8"0", u8")", u8"",
+  //       u8"f", u8"(", u8"0", u8")", u8"",
+  //       u8"",
+  //       u8"f", u8"(", u8"0", u8",", u8"a", u8",", u8"b", u8",", u8"c", u8")", u8"",
+  //       u8"f", u8"(", u8"0", u8",", u8"a", u8")", u8"",
+  //       u8"f", u8"(", u8"0", u8",", u8"a", u8")", u8"",
+  //       u8"",
+  //       u8"S", u8"foo", u8";", u8"",
+  //       u8"S", u8"bar", u8"=", u8"{", u8"1", u8",", u8"2", u8"}", u8";", u8"",
+  //       u8"",
+  //       u8""
+  //   };
+  //   static_assert(std::size(expect_token) == token_num, "The number of pp-tokens between expect_token and token_num does not match.");
 
-    constexpr pp_token_category expect_category[] = {
-        pp_token_category::newline,
-        pp_token_category::newline,
-        pp_token_category::identifier, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::pp_number, pp_token_category::op_or_punc, pp_token_category::newline,
-        pp_token_category::newline,
-        pp_token_category::newline,
-        pp_token_category::newline,
-        pp_token_category::newline,
-        pp_token_category::identifier, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::pp_number, pp_token_category::op_or_punc, pp_token_category::newline,
-        pp_token_category::identifier, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::op_or_punc, pp_token_category::op_or_punc, pp_token_category::newline,
-        pp_token_category::identifier, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::pp_number, pp_token_category::op_or_punc, pp_token_category::newline,
-        pp_token_category::newline,
-        pp_token_category::newline,
-        pp_token_category::newline,
-        pp_token_category::newline,
-        pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::string_literal, pp_token_category::op_or_punc, pp_token_category::op_or_punc, pp_token_category::newline,
-        pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::string_literal, pp_token_category::op_or_punc, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::op_or_punc, pp_token_category::newline,
-        pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::string_literal, pp_token_category::op_or_punc, pp_token_category::op_or_punc, pp_token_category::newline,
-        pp_token_category::op_or_punc, pp_token_category::op_or_punc, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::op_or_punc, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::string_literal, pp_token_category::op_or_punc, pp_token_category::op_or_punc, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::string_literal, pp_token_category::op_or_punc, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::op_or_punc, pp_token_category::op_or_punc, pp_token_category::newline,
-        pp_token_category::newline,
-        pp_token_category::newline,
-        pp_token_category::newline,
-        pp_token_category::newline,
-        pp_token_category::newline,
-        pp_token_category::newline,
-        pp_token_category::newline,
-        pp_token_category::newline,
-        pp_token_category::newline,
-        pp_token_category::newline,
-        pp_token_category::newline,
-        pp_token_category::newline,
-        pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::pp_number, pp_token_category::op_or_punc, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::newline,
-        pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::pp_number, pp_token_category::op_or_punc, pp_token_category::newline,
-        pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::pp_number, pp_token_category::op_or_punc, pp_token_category::newline,
-        pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::pp_number, pp_token_category::op_or_punc, pp_token_category::newline,
-        pp_token_category::newline,
-        pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::pp_number, pp_token_category::op_or_punc, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::newline,
-        pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::pp_number, pp_token_category::op_or_punc, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::newline,
-        pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::pp_number, pp_token_category::op_or_punc, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::newline,
-        pp_token_category::newline,
-        pp_token_category::identifier, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::newline,
-        pp_token_category::identifier, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::op_or_punc, pp_token_category::pp_number, pp_token_category::op_or_punc, pp_token_category::pp_number, pp_token_category::op_or_punc, pp_token_category::op_or_punc, pp_token_category::newline,
-        pp_token_category::newline,
-        pp_token_category::newline
-    };
-    static_assert(std::size(expect_category) == token_num, "The number of pp-token-categorys between expect_category and token_num does not match.");
+  //   constexpr pp_token_category expect_category[] = {
+  //       pp_token_category::newline,
+  //       pp_token_category::newline,
+  //       pp_token_category::identifier, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::pp_number, pp_token_category::op_or_punc, pp_token_category::newline,
+  //       pp_token_category::newline,
+  //       pp_token_category::newline,
+  //       pp_token_category::newline,
+  //       pp_token_category::newline,
+  //       pp_token_category::identifier, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::pp_number, pp_token_category::op_or_punc, pp_token_category::newline,
+  //       pp_token_category::identifier, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::op_or_punc, pp_token_category::op_or_punc, pp_token_category::newline,
+  //       pp_token_category::identifier, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::pp_number, pp_token_category::op_or_punc, pp_token_category::newline,
+  //       pp_token_category::newline,
+  //       pp_token_category::newline,
+  //       pp_token_category::newline,
+  //       pp_token_category::newline,
+  //       pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::string_literal, pp_token_category::op_or_punc, pp_token_category::op_or_punc, pp_token_category::newline,
+  //       pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::string_literal, pp_token_category::op_or_punc, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::op_or_punc, pp_token_category::newline,
+  //       pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::string_literal, pp_token_category::op_or_punc, pp_token_category::op_or_punc, pp_token_category::newline,
+  //       pp_token_category::op_or_punc, pp_token_category::op_or_punc, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::op_or_punc, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::string_literal, pp_token_category::op_or_punc, pp_token_category::op_or_punc, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::string_literal, pp_token_category::op_or_punc, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::op_or_punc, pp_token_category::op_or_punc, pp_token_category::newline,
+  //       pp_token_category::newline,
+  //       pp_token_category::newline,
+  //       pp_token_category::newline,
+  //       pp_token_category::newline,
+  //       pp_token_category::newline,
+  //       pp_token_category::newline,
+  //       pp_token_category::newline,
+  //       pp_token_category::newline,
+  //       pp_token_category::newline,
+  //       pp_token_category::newline,
+  //       pp_token_category::newline,
+  //       pp_token_category::newline,
+  //       pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::pp_number, pp_token_category::op_or_punc, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::newline,
+  //       pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::pp_number, pp_token_category::op_or_punc, pp_token_category::newline,
+  //       pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::pp_number, pp_token_category::op_or_punc, pp_token_category::newline,
+  //       pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::pp_number, pp_token_category::op_or_punc, pp_token_category::newline,
+  //       pp_token_category::newline,
+  //       pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::pp_number, pp_token_category::op_or_punc, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::newline,
+  //       pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::pp_number, pp_token_category::op_or_punc, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::newline,
+  //       pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::pp_number, pp_token_category::op_or_punc, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::newline,
+  //       pp_token_category::newline,
+  //       pp_token_category::identifier, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::newline,
+  //       pp_token_category::identifier, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::op_or_punc, pp_token_category::pp_number, pp_token_category::op_or_punc, pp_token_category::pp_number, pp_token_category::op_or_punc, pp_token_category::op_or_punc, pp_token_category::newline,
+  //       pp_token_category::newline,
+  //       pp_token_category::newline
+  //   };
+  //   static_assert(std::size(expect_category) == token_num, "The number of pp-token-categorys between expect_category and token_num does not match.");
 
-    auto it = std::begin(parser.get_phase4_result());
+  //   auto it = std::begin(parser.get_phase4_result());
 
-    for (auto i = 0u; i < token_num; ++i) {
-      auto &pptoken = *it;
-      CHECK_EQ(pptoken, pp_token{expect_category[i], expect_token[i]});
-      ++it;
-    }
-  }
+  //   for (auto i = 0u; i < token_num; ++i) {
+  //     auto &pptoken = *it;
+  //     CHECK_EQ(pptoken, pp_token{expect_category[i], expect_token[i]});
+  //     ++it;
+  //   }
+  // }
 
 } // namespace pp_parsing_test
