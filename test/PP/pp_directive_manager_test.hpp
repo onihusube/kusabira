@@ -1558,6 +1558,38 @@ namespace kusabira_test::preprocessor {
 
       //関数登録
       CHECK_UNARY(pp.define(*reporter, macro_name, rep_list, params, true));
+
+      //実引数リスト作成
+      auto pos2 = ll.emplace_after(pos, 16, 16);
+      (*pos2).line = u8"H2(a, b, c, d)";
+
+      std::pmr::list<pp_token> token_list{&kusabira::def_mr};
+      std::pmr::vector<std::pmr::list<pp_token>> args{&kusabira::def_mr};
+      token_list.emplace_back(pp_token_category::identifier, u8"a", 3, pos2);
+      args.emplace_back(std::move(token_list));
+      token_list.emplace_back(pp_token_category::identifier, u8"b", 6, pos2);
+      args.emplace_back(std::move(token_list));
+      token_list.emplace_back(pp_token_category::identifier, u8"c", 9, pos2);
+      args.emplace_back(std::move(token_list));
+      token_list.emplace_back(pp_token_category::identifier, u8"d", 12, pos2);
+      args.emplace_back(std::move(token_list));
+
+      //関数マクロ実行
+      const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, macro_name, args);
+
+      CHECK_UNARY(success);
+      CHECK_UNARY(complete);
+      CHECK_EQ(5u, result.size());
+
+      std::pmr::list<pp_token> expect{&kusabira::def_mr};
+
+      expect.emplace_back(pp_token_category::identifier, u8"ab", 2, pos2);
+      expect.emplace_back(pp_token_category::op_or_punc).token = u8","sv;
+      expect.emplace_back(pp_token_category::identifier, u8"c", 9, pos2);
+      expect.emplace_back(pp_token_category::op_or_punc).token = u8","sv;
+      expect.emplace_back(pp_token_category::identifier, u8"d", 12, pos2);
+
+      CHECK_EQ(expect, result);
     }
 
     //エラー
