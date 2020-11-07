@@ -41,3 +41,13 @@ SDEF(foo);
 SDEF(bar, 1, 2);
 
 #define H2(X, Y, ...) __VA_OPT__(X ## Y,) __VA_ARGS__
+
+H2(a, b, c, d)
+
+//#define H3(X, ...) #__VA_OPT__(X##X X##X)
+
+//H3(, 0)
+
+#define H4(X, ...) __VA_OPT__(a X ## X) ## b
+
+H4(, 1)

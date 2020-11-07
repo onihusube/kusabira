@@ -442,17 +442,21 @@ namespace kusabira::PP {
             std::forward_iterator auto close_paren = search_close_parenthesis(start_pos, m_tokens.end());
             //かっこ内の要素数、囲むかっこも含める
             std::size_t recursive_N = std::distance(start_pos, ++close_paren) + 1;
+
             //__VA_OPT__(...)のカッコ内だけを再帰処理、開きかっこと閉じかっこは見なくていいのでインデックス操作で飛ばす
             make_id_to_param_pair<true>(index + 2, index + recursive_N, true);
 
             //エラーチェック
             if (m_replist_err != std::nullopt) break;
 
-            //処理済みの分進める（この後ループで++されるので閉じかっこの次から始まる
+            // トークン数を更新（__VA_OPT__の中に#や##がある場合、再帰中にトークンの削除が行われる）
+            const auto old_token_num = reptoken_num;
+            reptoken_num = m_tokens.size();
+            // 再帰処理の過程でトークン削除が行われた場合、かっこ内の要素数は変化している
+            recursive_N -= (old_token_num - reptoken_num);
+            // 処理済みの分進める（この後ループで++されるので閉じかっこの次から始まる
             index += recursive_N;
             std::advance(it, recursive_N);
-            // トークン数を更新（__VA_OPT__の中に#や##がある場合、再帰中にトークンの削除が行われる）
-            reptoken_num = m_tokens.size();
             continue;
           }
         }
