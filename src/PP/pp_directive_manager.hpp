@@ -9,35 +9,6 @@
 #include "../common.hpp"
 #include "../report_output.hpp"
 
-namespace kusabira {
-  inline namespace views {
-
-    template<typename Range>
-    auto reverse(Range& rng) noexcept {
-      using std::rbegin;
-      using std::rend;
-
-      using begin_it = decltype(rbegin(rng));
-      using end_it = decltype(rend(rng));
-
-      struct revrse_impl {
-        begin_it it;
-        end_it sentinel;
-
-        auto begin() const noexcept {
-          return it;
-        }
-
-        auto end() const noexcept {
-          return sentinel;
-        }
-      };
-
-      return revrse_impl{.it = rbegin(rng), .sentinel = rend(rng)};
-    }
-  }
-}
-
 namespace kusabira::PP {
 
   /**
@@ -428,14 +399,14 @@ namespace kusabira::PP {
               break;
             }
             //__VA_OPT__の前に#は来てはならない
-            if (apper_sharp_op == true) {
-              //エラー
-              m_replist_err = std::make_pair(pp_parse_context::Define_InvalidSharp, std::move(*it));
-              break;
-            }
+            //if (apper_sharp_op == true) {
+            //  //エラー
+            //  m_replist_err = std::make_pair(pp_parse_context::Define_InvalidSharp, std::move(*it));
+            //  break;
+            //}
 
             //__VA_OPT__を見つけておく
-            after_vaopt = &std::get<5>(m_correspond.emplace_back(index, 0, false, true, false, false, apper_sharp2_op, false));
+            after_vaopt = &std::get<5>(m_correspond.emplace_back(index, 0, false, true, apper_sharp_op, false, apper_sharp2_op, false));
 
             //閉じかっこを探索
             std::forward_iterator auto start_pos = std::next(it, 2); //開きかっこの次のはず？
@@ -496,7 +467,7 @@ namespace kusabira::PP {
       bool should_remove_placemarker = false;
 
       //置換リスト-引数リスト対応を後ろから処理
-      for (const auto[token_index, arg_index, ignore1, ignore2, sharp_op, sharp2_op, sharp2_op_rhs, ignore3] : views::reverse(m_correspond)) {
+      for (const auto[token_index, arg_index, ignore1, ignore2, sharp_op, sharp2_op, sharp2_op_rhs, ignore3] : m_correspond | std::views::reverse) {
         //置換リストのトークン位置
         const auto it = std::next(head, token_index);
         //##による結合時の右辺を指すイテレータ
@@ -616,7 +587,7 @@ namespace kusabira::PP {
       };
 
       //置換リスト-引数リスト対応を後ろから処理
-      for (const auto[token_index, arg_index, va_args, va_opt, sharp_op, sharp2_op, sharp2_op_rhs, inner_vaopt] : views::reverse(m_correspond)) {
+      for (const auto[token_index, arg_index, va_args, va_opt, sharp_op, sharp2_op, sharp2_op_rhs, inner_vaopt] : m_correspond | std::views::reverse) {
         // 可変長引数が空の時、VA_OPT中の置換処理をスキップする
         if (inner_vaopt and is_va_empty) continue;
 
@@ -644,16 +615,16 @@ namespace kusabira::PP {
           ++open_paren_pos_next;
 
           //対応する閉じ括弧の位置を探索
-          auto vaopt_end = search_close_parenthesis(open_paren_pos_next, replist_end);
+          auto vaopt_close_paren = search_close_parenthesis(open_paren_pos_next, replist_end);
 
           // 対応する閉じかっこの存在は構文解析で保証する
-          assert(vaopt_end != replist_end);
+          assert(vaopt_close_paren != replist_end);
 
           if (is_va_empty) {
             //可変長部分が空ならばVA_OPT全体を削除
 
             //VAOPTの全体を結果トークン列から取り除く
-            auto insert_pos = result_list.erase(it, ++vaopt_end);
+            auto insert_pos = result_list.erase(it, ++vaopt_close_paren);
 
             //##の処理のためにplacemarker tokenを置いておく
             //VA_OPTが##の左辺の時は何もしなくてもいい
@@ -662,13 +633,29 @@ namespace kusabira::PP {
           } else {
             //可変長部分が空でないならば、VA_OPTと対応するかっこだけを削除
 
-            //まずは後ろの閉じ括弧を削除（イテレータが無効化するのを回避するため）
-            auto rhs = result_list.erase(vaopt_end);
-            //次に開きかっことVA_OPT本体を削除
-            result_list.erase(it, open_paren_pos_next);
+            auto rhs = result_list.begin();
 
-            //#__VA_OPT__はエラー
-            assert(not sharp_op);
+            if (sharp_op) {
+              // #__VA_OPT__(...)の処理
+              
+              // 中身のトークン列だけを文字列化
+              // 後ろから処理してるので中身は処理済み、VA_ARGS等考慮しなくていい
+              std::pmr::list<pp_token> stringize_list = pp_stringize<false>(open_paren_pos_next, vaopt_close_paren);
+
+              // VA_OPTの全体を削除
+              auto insert_pos = result_list.erase(it, ++vaopt_close_paren);
+
+              // 文字列化トークンを挿入
+              result_list.splice(insert_pos, std::move(stringize_list));
+
+              // VA_OPT閉じかっこの次の位置、すなわち##の右辺
+              rhs = insert_pos;
+            } else {
+              //まずは後ろの閉じ括弧を削除（イテレータが無効化するのを回避するため）
+              rhs = result_list.erase(vaopt_close_paren);
+              //次に開きかっことVA_OPT本体を削除
+              result_list.erase(it, open_paren_pos_next);
+            }
 
             if (sharp2_op) {
               //##によるトークンの結合処理

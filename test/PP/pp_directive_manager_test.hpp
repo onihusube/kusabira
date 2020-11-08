@@ -1140,7 +1140,7 @@ namespace kusabira_test::preprocessor {
       CHECK_UNARY(pptoken.token == u8R"("The first, second, and third items.")"sv);
     }
 
-    //#__VA_OPT__の登録（失敗）
+    //#__VA_OPT__の処理
     {
       pos = ll.emplace_after(pos, 3, 3);
       (*pos).line = u8"#define str2(...) #__VA_OPT__(__VA_ARGS__)";
@@ -1163,18 +1163,9 @@ namespace kusabira_test::preprocessor {
       rep_list.emplace_back(pp_token_category::identifier, u8"__VA_ARGS__", 29, pos);
       rep_list.emplace_back(pp_token_category::op_or_punc, u8")", 40, pos);
 
-      //エラー出力をクリア
-      report::test_out::extract_string();
+      //関数マクロ登録
+      CHECK_UNARY(pp.define(*reporter, lt2, rep_list, params, true));
 
-      //関数マクロ登録、失敗する
-      CHECK_UNARY_FALSE(pp.define(*reporter, lt2, rep_list, params, true));
-
-      auto expect_err_str = u8R"(test_sharp.hpp:3:18: error: #トークンは仮引数名の前だけに現れなければなりません。
-#define str2(...) #__VA_OPT__(__VA_ARGS__)
-)"sv;
-      auto err_str = report::test_out::extract_string();
-
-      CHECK_UNARY(expect_err_str == err_str);
     }
 
     //#__VA_OPT__の登録（失敗2）
