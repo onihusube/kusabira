@@ -1150,7 +1150,7 @@ namespace kusabira_test::preprocessor {
       std::pmr::list<pp_token> rep_list{&kusabira::def_mr};
 
       //字句トークン
-      pp_token lt2{pp_token_category::identifier, u8"str2", 8, pos};
+      pp_token macro_name{pp_token_category::identifier, u8"str2", 8, pos};
       pp_token lt6{pp_token_category::op_or_punc, u8"...", 12, pos};
 
       //マクロ仮引数トークン列
@@ -1164,11 +1164,67 @@ namespace kusabira_test::preprocessor {
       rep_list.emplace_back(pp_token_category::op_or_punc, u8")", 40, pos);
 
       //関数マクロ登録
-      CHECK_UNARY(pp.define(*reporter, lt2, rep_list, params, true));
+      CHECK_UNARY(pp.define(*reporter, macro_name, rep_list, params, true));
 
+      {
+        //実引数リスト作成
+        auto pos2 = ll.emplace_after(pos, 2, 2);
+        (*pos2).line = u8"str2(, 0, a, b)";
+
+        std::pmr::list<pp_token> token_list{&kusabira::def_mr};
+        std::pmr::vector<std::pmr::list<pp_token>> args{&kusabira::def_mr};
+        args.emplace_back(std::move(token_list));
+        token_list.emplace_back(pp_token_category::pp_number, u8"0", 7, pos2);
+        args.emplace_back(std::move(token_list));
+        token_list.emplace_back(pp_token_category::identifier, u8"a", 10, pos2);
+        args.emplace_back(std::move(token_list));
+        token_list.emplace_back(pp_token_category::identifier, u8"b", 13, pos2);
+        args.emplace_back(std::move(token_list));
+
+        //関数マクロ実行
+        const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, macro_name, args);
+
+        CHECK_UNARY(success);
+        CHECK_UNARY(complete);
+        CHECK_EQ(1u, result.size());
+
+        const auto &pptoken = result.front();
+        CHECK_EQ(pptoken.category, pp_token_category::string_literal);
+        CHECK_UNARY(pptoken.token == u8R"(",0,a,b")"sv);
+      }
+      // ホワイトスペースを含んでいる場合
+      {
+        //実引数リスト作成
+        auto pos2 = ll.emplace_after(pos, 2, 2);
+        (*pos2).line = u8"str2(, 0, a, b)";
+
+        std::pmr::list<pp_token> token_list{&kusabira::def_mr};
+        std::pmr::vector<std::pmr::list<pp_token>> args{&kusabira::def_mr};
+        args.emplace_back(std::move(token_list));
+        token_list.emplace_back(pp_token_category::whitespace, u8" ", 6, pos2);
+        token_list.emplace_back(pp_token_category::pp_number, u8"0", 7, pos2);
+        args.emplace_back(std::move(token_list));
+        token_list.emplace_back(pp_token_category::whitespace, u8" ", 9, pos2);
+        token_list.emplace_back(pp_token_category::identifier, u8"a", 10, pos2);
+        args.emplace_back(std::move(token_list));
+        token_list.emplace_back(pp_token_category::whitespace, u8" ", 10, pos2);
+        token_list.emplace_back(pp_token_category::identifier, u8"b", 13, pos2);
+        args.emplace_back(std::move(token_list));
+
+        //関数マクロ実行
+        const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, macro_name, args);
+
+        CHECK_UNARY(success);
+        CHECK_UNARY(complete);
+        CHECK_EQ(1u, result.size());
+
+        const auto &pptoken = result.front();
+        CHECK_EQ(pptoken.category, pp_token_category::string_literal);
+        CHECK_UNARY(pptoken.token == u8R"(", 0, a, b")"sv);
+      }
     }
 
-    //#__VA_OPT__の登録（失敗2）
+    //#__VA_OPT__の再帰（登録失敗）
     {
       pos = ll.emplace_after(pos, 3, 3);
       (*pos).line = u8"#define R(...) __VA_OPT__(__VA_OPT__())";

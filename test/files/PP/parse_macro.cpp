@@ -44,9 +44,9 @@ SDEF(bar, 1, 2);
 
 H2(a, b, c, d)  // ab, c, d
 
-//#define H3(X, ...) #__VA_OPT__(X##X X##X)
+#define H3(X, ...) #__VA_OPT__(X##X X##X)
 
-//H3(, 0)   // "" （空の文字列トークン
+H3(, 0)   // "" （空の文字列トークン
 
 #define H4(X, ...) __VA_OPT__(a X ## X) ## b
 

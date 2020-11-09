@@ -564,7 +564,7 @@ namespace pp_parsing_test
      //}
 
      // 残ったトークン+改行
-     constexpr auto token_num = 126 + 53;
+     constexpr auto token_num = 127 + 53;
      REQUIRE_EQ(parser.get_phase4_result().size(), token_num);
 
      constexpr std::u8string_view expect_token[] = {
@@ -616,7 +616,7 @@ namespace pp_parsing_test
          u8"",
          u8"",
          u8"",
-         u8"",
+         u8R"("")", u8"",  // H3(, 0)
          u8"",
          u8"",
          u8"",
@@ -673,7 +673,7 @@ namespace pp_parsing_test
          pp_token_category::newline,
          pp_token_category::newline,
          pp_token_category::newline,
-         pp_token_category::newline,
+         pp_token_category::string_literal, pp_token_category::newline,
          pp_token_category::newline,
          pp_token_category::newline,
          pp_token_category::newline,
