@@ -806,9 +806,21 @@ namespace kusabira::PP {
 
           //カンマの出現で1つの実引数のパースを完了する
           if (inner_paren == 0 and deref(it).token == u8","sv) {
+            // 構成した実引数1つ分のリストの最後のホワイトスペース列を取り除く
+            {
+              //auto erase_rng = arg_list | std::views::reverse | std::views::take_while([](const auto& pptoken) { return pptoken.category == pp_token_category::whitespace; });
+              auto erase_rng = arg_list | std::views::reverse;
+              // 後ろからホワイトスペースでない最初のトークン位置を検索
+              auto non_ws_pos = std::ranges::find_if_not(erase_rng, [](const auto& pptoken) { return pptoken.category == pp_token_category::whitespace; });
+              // 終端からそこまでの距離を算出
+              auto distance = std::ranges::distance(erase_rng.begin(), non_ws_pos);
+              auto fin = std::ranges::end(arg_list);
+              // 後ろについてるホワイトスペース列を削除
+              auto fin2 = arg_list.erase(std::ranges::prev(fin, distance), fin);
+              assert(fin == fin2);
+            }
+            // 実引数リストに保存
             args.emplace_back(std::move(arg_list));
-            //要らないけど、一応
-            arg_list = pptoken_list_t{&kusabira::def_mr};
             //カンマは保存しない
             ++it;
             //カンマ直後のホワイトスペースは飛ばす
