@@ -656,6 +656,11 @@ namespace kusabira::PP {
                 macro_result_list = std::move(*comp_result);
               }
 
+              // マクロの結果リストからホワイトスペースを取り除く
+              std::erase_if(macro_result_list, [](const auto &pptoken) {
+                return pptoken.category == pp_token_category::whitespace;
+              });
+
               //置換後リストを末尾にspliceする
               pptoken_list.splice(std::end(pptoken_list), std::move(macro_result_list));
               break;
