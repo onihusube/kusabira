@@ -564,7 +564,7 @@ namespace pp_parsing_test
      //}
 
      // 残ったトークン+改行
-     constexpr auto token_num = 127 + 53;
+     constexpr auto token_num = 128 + 59;
      REQUIRE_EQ(parser.get_phase4_result().size(), token_num);
 
      constexpr std::u8string_view expect_token[] = {
@@ -620,7 +620,13 @@ namespace pp_parsing_test
          u8"",
          u8"",
          u8"",
-         u8"a", u8"b", u8""
+         u8"a", u8"b", u8"",
+         u8"",
+         u8"",  // #define H5A(...) __VA_OPT__()/**/__VA_OPT__()
+         u8"",  // #define H5B(X) a ## X ## b
+         u8"",  // #define H5C(X) H5B(X)
+         u8"",
+         u8"ab", u8"",
      };
      static_assert(std::size(expect_token) == token_num, "The number of pp-tokens between expect_token and token_num does not match.");
 
@@ -677,7 +683,13 @@ namespace pp_parsing_test
          pp_token_category::newline,
          pp_token_category::newline,
          pp_token_category::newline,
-         pp_token_category::identifier, pp_token_category::identifier, pp_token_category::newline
+         pp_token_category::identifier, pp_token_category::identifier, pp_token_category::newline,
+         pp_token_category::newline,
+         pp_token_category::newline,
+         pp_token_category::newline,
+         pp_token_category::newline,
+         pp_token_category::newline,
+         pp_token_category::identifier, pp_token_category::newline
      };
      static_assert(std::size(expect_category) == token_num, "The number of pp-token-categorys between expect_category and token_num does not match.");
 
