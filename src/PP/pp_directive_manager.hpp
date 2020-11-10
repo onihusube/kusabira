@@ -852,9 +852,28 @@ namespace kusabira::PP {
     */
     fn validate_argnum(const std::pmr::vector<std::pmr::list<pp_token>>& args) const noexcept -> bool {
       if (m_is_va == true) {
+        // 可変長マクロ
+        // 可変長部を除いた引数の数以上であればok
         return (m_params.size() - 1u) <= args.size();
       } else {
-        return m_params.size() == args.size();
+        // 非可変長マクロ
+        if (m_params.size() == args.size()) {
+          // 合っていればそれでいい
+          return true;
+        }/* else if (m_params.size() == 0) {
+          // 仮引数の数が0の時
+          // 空の実引数1つ、あるいは空白入力はok
+          if (std::ranges::size(args) == 1) {
+            return std::ranges::empty(args[0])
+              or (std::ranges::size(args[0]) == 1 and args[0].front().category == pp_token_category::whitespace); // ホワイトスペース列は1つに折りたたまれているものとする
+          }
+        } else if (m_params.size() == 1) {
+          // 仮引数の数が1の時
+          // 引き数なしでの呼び出しはok
+          return std::ranges::empty(args);
+        }*/
+
+        return false;
       }
     }
 
