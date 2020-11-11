@@ -175,9 +175,10 @@ namespace kusabira::PP {
   * @todo 引数パースエラーを考慮する必要がある？
   * @return 1つの引数を表すlistを引数分保持したvector
   */
-  template <std::input_iterator Iterator, std::sentinel_for<Iterator> Sentinel>
-    requires std::same_as<std::iter_value_t<Iterator>, pp_token>
-  ifn parse_macro_args(Iterator& it, Sentinel fin) -> std::pmr::vector<std::pmr::list<pp_token>> {
+  template <std::input_iterator Iterator, std::sentinel_for<Iterator> Sentinel, typename F>
+    requires std::same_as<std::iter_value_t<Iterator>, pp_token> and
+             std::invocable<F, Iterator&, Sentinel, std::pmr::list<pp_token>&>
+  ifn parse_macro_args(Iterator& it, Sentinel fin, F&& other_token_func) -> std::pmr::vector<std::pmr::list<pp_token>> {
     using namespace std::string_view_literals;
 
     // 最初の非ホワイトスペーストークンまで進める
@@ -227,19 +228,42 @@ namespace kusabira::PP {
           --inner_paren;
         }
       }
+
+      // その他の種別のトークンを処理する、外部から渡された関数オブジェクトに委譲
+      if (other_token_func(it, fin, arg_list) == false) {
+        // エラーが起きていたらそこで終わる、詳細なエラーハンドリングは外の責任
+        return args;
+      }
+    }
+
+    // 実引数の最後が空だとしても空のリストが引数として追加される
+    // args.emplace_back(std::move(arg_list));
+
+    return args;
+  }
+  
+  
+  /**
+  * @brief 関数マクロ呼び出しの実引数を取得する
+  * @param it 関数マクロ呼び出しの(の次の位置
+  * @param end 関数マクロ呼び出しの)を含むような範囲の終端
+  * @details マクロ展開の途中と最後のタイミングで含まれるマクロを再帰的に展開する時を想定しているので、バリデーションなどは最低限
+  * @todo 引数パースエラーを考慮する必要がある？
+  * @return 1つの引数を表すlistを引数分保持したvector
+  */
+  template <std::input_iterator Iterator, std::sentinel_for<Iterator> Sentinel>
+    requires std::same_as<std::iter_value_t<Iterator>, pp_token>
+  ifn parse_macro_args(Iterator& it, Sentinel fin) -> std::pmr::vector<std::pmr::list<pp_token>> { 
+    return parse_macro_args(it, fin, [](Iterator& itr, Sentinel, auto& arg_list) -> bool {
       //改行はホワイトスペースになってるはずだし、ホワイトスペースは1つに畳まれているはず
       //妥当なプリプロセッシングトークン列としも構成済みのはず
       //従って、ここではその処理を行わない
       //そして、マクロ引数列中のマクロもここでは処理しない（外側マクロの置換後に再スキャンされる）
 
-      arg_list.emplace_back(std::move(*it));
-      ++it;
-    }
-
-    // 実引数の最後が空だとしても空のリストが引数として追加される
-    //args.emplace_back(std::move(arg_list));
-
-    return args;
+      arg_list.emplace_back(std::move(*itr));
+      ++itr;
+      return true;
+    });
   }
 
   /**

@@ -29,6 +29,12 @@ namespace kusabira::PP {
 
   struct pp_err_info {
 
+    // 利便性のため
+    pp_err_info()
+      : token(pp_token_category::empty)
+      , context(pp_parse_context::UnknownError)
+    {}
+
     template<typename Token = pp_token>
     pp_err_info(Token&& lextoken, pp_parse_context err_from)
       : token(std::forward<Token>(lextoken))
@@ -787,103 +793,136 @@ namespace kusabira::PP {
       //開きかっこの次のトークンへ進める、少なくともここがEOFになることはない（改行がその前に来る）
       ++it;
 
-      //auto r = parse_macro_args(it, end);
+      std::optional<pp_err_info> err{};
 
-      // 実引数列の最初の非ホワイトスペーストークンを探索する
-      // ここで改行すっ飛ばしていいの？
-      it = std::ranges::find_if_not(std::move(it), end, [](const pptoken_t &token) {
-        // トークナイズエラーはここでは考慮しないものとする
-        return token.category <= pp_token_category::block_comment;
-      });
-
-      if (it == end) {
-        return kusabira::error(pp_err_info{pptoken_t{pp_token_category::empty}, pp_parse_context::UnexpectedEOF});
-      }
-
-      //実引数リスト、カンマごとにプリプロセッシングトークン列を区切る
-      //引数の数が増えると内部でムーブが起きるが、問題ないか？？？
-      std::pmr::vector<pptoken_list_t> args{&kusabira::def_mr};
-      args.reserve(10);
-
-      //実引数リスト1つ分のリスト、作業用
-      pptoken_list_t arg_list{&kusabira::def_mr};
-      //実引数リストの区切りカンマまでの間に出現したネストかっこの数
-      std::size_t inner_paren = 0;
-      
-      //関数マクロ呼び出しを終了する閉じ括弧が出るまで引数をパースする
-      while (it != end) {
-
-        if (deref(it).category == pp_token_category::op_or_punc) {
-
-          //カンマの出現で1つの実引数のパースを完了する
-          if (inner_paren == 0 and deref(it).token == u8","sv) {
-            // 構成した実引数1つ分のリストの最後のホワイトスペース列を取り除く
-            {
-              //auto erase_rng = arg_list | std::views::reverse | std::views::take_while([](const auto& pptoken) { return pptoken.category == pp_token_category::whitespace; });
-              auto erase_rng = arg_list | std::views::reverse;
-              // 後ろからホワイトスペースでない最初のトークン位置を検索
-              auto non_ws_pos = std::ranges::find_if_not(erase_rng, [](const auto& pptoken) { return pptoken.category == pp_token_category::whitespace; });
-              // 終端からそこまでの距離を算出
-              auto distance = std::ranges::distance(erase_rng.begin(), non_ws_pos);
-              auto fin = std::ranges::end(arg_list);
-              // 後ろについてるホワイトスペース列を削除
-              auto fin2 = arg_list.erase(std::ranges::prev(fin, distance), fin);
-              assert(fin == fin2);
-            }
-            // 実引数リストに保存
-            args.emplace_back(std::move(arg_list));
-            //カンマは保存しない
-            ++it;
-            //カンマ直後のホワイトスペースは飛ばす
-            it = std::ranges::find_if_not(std::move(it), end, [](const pptoken_t &token) {
-              // トークナイズエラーはここでは考慮しないものとする
-              return token.category <= pp_token_category::block_comment;
-            });
-            continue;
-          } else if (deref(it).token == u8"("sv) {
-            //ネストしたかっこの始まり
-            ++inner_paren;
-          } else if (deref(it).token == u8")"sv) {
-            //マクロ終了の閉じかっこ判定
-            if (inner_paren == 0) {
-              args.emplace_back(std::move(arg_list));
-              break;
-            }
-            //ネストしてるかっこの閉じかっこ
-            --inner_paren;
-          }
-        } else if (deref(it).category == pp_token_category::newline) {
+      auto args = parse_macro_args(it, end, [this, &err](Iterator& itr, Sentinel fin, auto& arg_list) -> bool {
+        if (deref(itr).category == pp_token_category::newline) {
           //改行は空白文字として扱う、マクロ引数中の空白文字の並びは1つに圧縮される
           //マクロ呼び出し直後に改行来た時に死ぬよねこれ
-          if (auto &prev_token = arg_list.back(); prev_token.category != pp_token_category::whitespace) {
-            auto& gen_token = arg_list.emplace_back(std::move(*it));
+          if (auto& prev_token = arg_list.back(); prev_token.category != pp_token_category::whitespace) {
+            auto& gen_token = arg_list.emplace_back(std::move(*itr));
             gen_token.category = pp_token_category::whitespace;
             gen_token.token = u8" "sv;
           }
-          ++it;
-          continue;
-        } else if (deref(it).category == pp_token_category::whitespace) {
+          ++itr;
+          return true;
+        } else if (deref(itr).category == pp_token_category::whitespace) {
           //マクロ引数中の空白文字の並びは1つに圧縮される
           if (not std::ranges::empty(arg_list)) {
-            if (auto &prev_token = arg_list.back(); prev_token.category != pp_token_category::whitespace) {
-              arg_list.emplace_back(std::move(*it));
+            if (auto& prev_token = arg_list.back(); prev_token.category != pp_token_category::whitespace) {
+              arg_list.emplace_back(std::move(*itr));
             }
           }
-          ++it;
-          continue;
+          ++itr;
+          return true;
         }
 
         //実引数となるプリプロセッシングトークンを構成する
-        if (auto result = this->construct_next_pptoken<true>(it, end); result) {
+        if (auto result = this->construct_next_pptoken<true>(itr, fin); result) {
           arg_list.splice(arg_list.end(), std::move(*result));
         } else {
           //エラーが起きてる
-          return std::move(result).and_then([](auto &&) -> expecetd_macro_args {
-            //expectedを変換するためのものであって、実際にここが実行されることはない
-            return expecetd_macro_args{};
-          });
+          err = std::move(result).error();
+          return false;
         }
-      }
+        return true;
+      });
+
+      //// 実引数列の最初の非ホワイトスペーストークンを探索する
+      //// ここで改行すっ飛ばしていいの？
+      //it = std::ranges::find_if_not(std::move(it), end, [](const pptoken_t &token) {
+      //  // トークナイズエラーはここでは考慮しないものとする
+      //  return token.category <= pp_token_category::block_comment;
+      //});
+
+      //if (it == end) {
+      //  return kusabira::error(pp_err_info{pptoken_t{pp_token_category::empty}, pp_parse_context::UnexpectedEOF});
+      //}
+
+      ////実引数リスト、カンマごとにプリプロセッシングトークン列を区切る
+      ////引数の数が増えると内部でムーブが起きるが、問題ないか？？？
+      //std::pmr::vector<pptoken_list_t> args{&kusabira::def_mr};
+      //args.reserve(10);
+
+      ////実引数リスト1つ分のリスト、作業用
+      //pptoken_list_t arg_list{&kusabira::def_mr};
+      ////実引数リストの区切りカンマまでの間に出現したネストかっこの数
+      //std::size_t inner_paren = 0;
+      //
+      ////関数マクロ呼び出しを終了する閉じ括弧が出るまで引数をパースする
+      //while (it != end) {
+
+      //  if (deref(it).category == pp_token_category::op_or_punc) {
+
+      //    //カンマの出現で1つの実引数のパースを完了する
+      //    if (inner_paren == 0 and deref(it).token == u8","sv) {
+      //      // 構成した実引数1つ分のリストの最後のホワイトスペース列を取り除く
+      //      {
+      //        //auto erase_rng = arg_list | std::views::reverse | std::views::take_while([](const auto& pptoken) { return pptoken.category == pp_token_category::whitespace; });
+      //        auto erase_rng = arg_list | std::views::reverse;
+      //        // 後ろからホワイトスペースでない最初のトークン位置を検索
+      //        auto non_ws_pos = std::ranges::find_if_not(erase_rng, [](const auto& pptoken) { return pptoken.category == pp_token_category::whitespace; });
+      //        // 終端からそこまでの距離を算出
+      //        auto distance = std::ranges::distance(erase_rng.begin(), non_ws_pos);
+      //        auto fin = std::ranges::end(arg_list);
+      //        // 後ろについてるホワイトスペース列を削除
+      //        auto fin2 = arg_list.erase(std::ranges::prev(fin, distance), fin);
+      //        assert(fin == fin2);
+      //      }
+      //      // 実引数リストに保存
+      //      args.emplace_back(std::move(arg_list));
+      //      //カンマは保存しない
+      //      ++it;
+      //      //カンマ直後のホワイトスペースは飛ばす
+      //      it = std::ranges::find_if_not(std::move(it), end, [](const pptoken_t &token) {
+      //        // トークナイズエラーはここでは考慮しないものとする
+      //        return token.category <= pp_token_category::block_comment;
+      //      });
+      //      continue;
+      //    } else if (deref(it).token == u8"("sv) {
+      //      //ネストしたかっこの始まり
+      //      ++inner_paren;
+      //    } else if (deref(it).token == u8")"sv) {
+      //      //マクロ終了の閉じかっこ判定
+      //      if (inner_paren == 0) {
+      //        args.emplace_back(std::move(arg_list));
+      //        break;
+      //      }
+      //      //ネストしてるかっこの閉じかっこ
+      //      --inner_paren;
+      //    }
+      //  } else if (deref(it).category == pp_token_category::newline) {
+      //    //改行は空白文字として扱う、マクロ引数中の空白文字の並びは1つに圧縮される
+      //    //マクロ呼び出し直後に改行来た時に死ぬよねこれ
+      //    if (auto &prev_token = arg_list.back(); prev_token.category != pp_token_category::whitespace) {
+      //      auto& gen_token = arg_list.emplace_back(std::move(*it));
+      //      gen_token.category = pp_token_category::whitespace;
+      //      gen_token.token = u8" "sv;
+      //    }
+      //    ++it;
+      //    continue;
+      //  } else if (deref(it).category == pp_token_category::whitespace) {
+      //    //マクロ引数中の空白文字の並びは1つに圧縮される
+      //    if (not std::ranges::empty(arg_list)) {
+      //      if (auto &prev_token = arg_list.back(); prev_token.category != pp_token_category::whitespace) {
+      //        arg_list.emplace_back(std::move(*it));
+      //      }
+      //    }
+      //    ++it;
+      //    continue;
+      //  }
+
+      //  //実引数となるプリプロセッシングトークンを構成する
+      //  if (auto result = this->construct_next_pptoken<true>(it, end); result) {
+      //    arg_list.splice(arg_list.end(), std::move(*result));
+      //  } else {
+      //    //エラーが起きてる
+      //    return std::move(result).and_then([](auto &&) -> expecetd_macro_args {
+      //      //expectedを変換するためのものであって、実際にここが実行されることはない
+      //      return expecetd_macro_args{};
+      //    });
+      //  }
+      //}
 
       //閉じかっこで終わってる筈なのでファイル終端に達するはずはない
       if (it == end) {

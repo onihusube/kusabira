@@ -150,7 +150,9 @@ namespace kusabira_test::preprocessor {
       auto it = std::ranges::begin(tokens);
       auto args = kusabira::PP::parse_macro_args(it, tokens.end());
 
-      CHECK_EQ(args.size(), 0);
+      // 空の呼び出しでも空の引数がパースされる
+      CHECK_EQ(args.size(), 1);
+      CHECK_UNARY(std::ranges::empty(args[0]));
     }
     {
       // M(   )
@@ -164,7 +166,9 @@ namespace kusabira_test::preprocessor {
       auto it = std::ranges::begin(tokens);
       auto args = kusabira::PP::parse_macro_args(it, tokens.end());
 
-      CHECK_EQ(args.size(), 0);
+      // 空の呼び出しでも空の引数がパースされる
+      CHECK_EQ(args.size(), 1);
+      CHECK_UNARY(std::ranges::empty(args[0]));
     }
     {
       // M( , 1)
@@ -196,7 +200,8 @@ namespace kusabira_test::preprocessor {
         pp_token{pp_token_category::whitespace, u8" "},
         pp_token{pp_token_category::whitespace, u8" "},
         pp_token{pp_token_category::whitespace, u8" "},
-        pp_token{pp_token_category::whitespace, u8" "}
+        pp_token{pp_token_category::whitespace, u8" "},
+        pp_token{pp_token_category::whitespace, u8")"}
       };
 
       auto it = std::ranges::begin(tokens);
