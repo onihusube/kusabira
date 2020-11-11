@@ -170,54 +170,61 @@ namespace kusabira::PP {
   /**
   * @brief 関数マクロ呼び出しの実引数を取得する
   * @param it 関数マクロ呼び出しの(の次の位置
-  * @param end 関数マクロ呼び出しの)の位置
+  * @param end 関数マクロ呼び出しの)を含むような範囲の終端
   * @details マクロ展開の途中と最後のタイミングで含まれるマクロを再帰的に展開する時を想定しているので、バリデーションなどは最低限
   * @todo 引数パースエラーを考慮する必要がある？
   * @return 1つの引数を表すlistを引数分保持したvector
   */
   template <std::input_iterator Iterator, std::sentinel_for<Iterator> Sentinel>
     requires std::same_as<std::iter_value_t<Iterator>, pp_token>
-  ifn parse_macro_args(Iterator it, Sentinel fin) -> std::pmr::vector<std::pmr::list<pp_token>> {
+  ifn parse_macro_args(Iterator& it, Sentinel fin) -> std::pmr::vector<std::pmr::list<pp_token>> {
     using namespace std::string_view_literals;
 
-    // 見つけた実引数列を保存するもの
-    std::pmr::vector<std::pmr::list<pp_token>> args{ &kusabira::def_mr };
-
     // 最初の非ホワイトスペーストークンまで進める
-    it = std::find_if(it, fin, [](const pp_token &token) {
+    it = std::ranges::find_if_not(std::move(it), fin, [](const pp_token &token) {
       // ここにくるものはプリプロセッシングトークンとして妥当なものであるはず
       // 改行はホワイトスペースになってるはずだし、それ以外に無視すべきトークンは残ってないはず
-      return token.category != pp_token_category::whitespace;
+      return token.category <= pp_token_category::block_comment;
     });
+
+    // 見つけた実引数列
+    std::pmr::vector<std::pmr::list<pp_token>> args{&kusabira::def_mr};
+    // とりあえず引数10個分確保しておく
+    args.reserve(10);
 
     // 実質引数なしだった
     if (it == fin) return args;
 
-    // とりあえず引数10個分確保しておく
-    args.reserve(10);
-
+    // 実引数1つ分のリスト、作業用
     std::pmr::list<pp_token> arg_list{&kusabira::def_mr};
-    std::size_t paren = 0;
+    // 実引数リストの区切りカンマまでの間に出現したネストかっこの数
+    std::size_t inner_paren = 0;
 
     while (it != fin) {
       if (deref(it).category == pp_token_category::op_or_punc) {
         //カンマの出現で1つの実引数のパースを完了する
-        if (paren == 0 and deref(it).token == u8","sv) {
+        if (inner_paren == 0 and deref(it).token == u8","sv) {
           args.emplace_back(std::move(arg_list));
           //要らないけど、一応
           arg_list = std::pmr::list<pp_token>{&kusabira::def_mr};
           //カンマは保存しない
+          ++it;
           //カンマ直後のホワイトスペースは飛ばす
-          it = std::find_if(++it, fin, [](const pp_token &token) {
-            return token.category != pp_token_category::whitespace;
+          it = std::ranges::find_if_not(std::move(it), fin, [](const pp_token& token) {
+            return token.category <= pp_token_category::block_comment;
           });
           continue;
         } else if (deref(it).token == u8"("sv) {
           //かっこの始まり
-          ++paren;
+          ++inner_paren;
         } else if (deref(it).token == u8")"sv) {
+          //マクロ終了の閉じかっこ判定
+          if (inner_paren == 0) {
+            args.emplace_back(std::move(arg_list));
+            break;
+          }
           //閉じかっこ
-          --paren;
+          --inner_paren;
         }
       }
       //改行はホワイトスペースになってるはずだし、ホワイトスペースは1つに畳まれているはず
@@ -228,7 +235,9 @@ namespace kusabira::PP {
       arg_list.emplace_back(std::move(*it));
       ++it;
     }
-    args.emplace_back(std::move(arg_list));
+
+    // 実引数の最後が空だとしても空のリストが引数として追加される
+    //args.emplace_back(std::move(arg_list));
 
     return args;
   }
@@ -1204,7 +1213,7 @@ namespace kusabira::PP {
             if (close_pos == fin) break;
 
             //マクロの閉じ位置と引数リスト取得
-            const auto args = parse_macro_args(start_pos, close_pos);
+            const auto args = parse_macro_args(start_pos, fin);
 
             //関数マクロ置換
             std::tie(success, std::ignore, result, std::ignore) = this->funcmacro<true>(reporter, *it, args);
@@ -1267,14 +1276,14 @@ namespace kusabira::PP {
             close_pos = search_close_parenthesis(start_pos, fin);
             if (close_pos == fin) return { true, false };
 
+            //閉じかっこの次まで進めておく
+            ++close_pos;
+
             //マクロの引数リスト取得
             const auto args = parse_macro_args(start_pos, close_pos);
 
             //関数マクロ置換（再スキャンはこの中で再帰的に行われる）
             std::tie(success, scan_complete, result) = this->funcmacro<false>(reporter, *it, args, outer_macro);
-
-            //閉じかっこの次まで進めておく
-            ++close_pos;
           }
 
           //エラーが起きてればそのまま終わる

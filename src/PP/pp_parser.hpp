@@ -787,6 +787,8 @@ namespace kusabira::PP {
       //開きかっこの次のトークンへ進める、少なくともここがEOFになることはない（改行がその前に来る）
       ++it;
 
+      //auto r = parse_macro_args(it, end);
+
       // 実引数列の最初の非ホワイトスペーストークンを探索する
       // ここで改行すっ飛ばしていいの？
       it = std::ranges::find_if_not(std::move(it), end, [](const pptoken_t &token) {

@@ -91,11 +91,12 @@ namespace kusabira_test::preprocessor {
         pp_token{pp_token_category::op_or_punc, u8")"}
       };
 
-      auto args = kusabira::PP::parse_macro_args(tokens.begin(), --tokens.end());
+      auto it = std::ranges::begin(tokens);
+      auto args = kusabira::PP::parse_macro_args(it, tokens.end());
 
       CHECK_EQ(args.size(), 3);
 
-      auto it = std::ranges::begin(tokens);
+      it = std::ranges::begin(tokens);
       for (auto& list : args) {
         CHECK_EQ(list.size(), 1);
         CHECK_UNARY(std::ranges::equal(list, std::ranges::subrange{it, std::ranges::next(it)}));
@@ -129,13 +130,14 @@ namespace kusabira_test::preprocessor {
         pp_token{pp_token_category::op_or_punc, u8")"}
       };
 
-      auto args = kusabira::PP::parse_macro_args(tokens.begin(), --tokens.end());
+      auto it = std::ranges::begin(tokens);
+      auto args = kusabira::PP::parse_macro_args(it, tokens.end());
 
       CHECK_EQ(args.size(), 2);
       CHECK_EQ(args[0].size(), 13);
       CHECK_EQ(args[1].size(), 7);
 
-      auto it = std::ranges::begin(tokens);
+      it = std::ranges::begin(tokens);
       CHECK_UNARY(std::ranges::equal(args[0], std::ranges::subrange{it, std::ranges::next(it, 13)}));
       CHECK_UNARY(std::ranges::equal(args[1], std::ranges::subrange{std::ranges::next(it, 14), std::ranges::next(it, 14 + 7)}));
     }
@@ -145,7 +147,8 @@ namespace kusabira_test::preprocessor {
         pp_token{pp_token_category::op_or_punc, u8")"}
       };
 
-      auto args = kusabira::PP::parse_macro_args(tokens.begin(), --tokens.end());
+      auto it = std::ranges::begin(tokens);
+      auto args = kusabira::PP::parse_macro_args(it, tokens.end());
 
       CHECK_EQ(args.size(), 0);
     }
@@ -158,7 +161,8 @@ namespace kusabira_test::preprocessor {
         pp_token{pp_token_category::op_or_punc, u8")"}
       };
 
-      auto args = kusabira::PP::parse_macro_args(tokens.begin(), --tokens.end());
+      auto it = std::ranges::begin(tokens);
+      auto args = kusabira::PP::parse_macro_args(it, tokens.end());
 
       CHECK_EQ(args.size(), 0);
     }
@@ -171,13 +175,14 @@ namespace kusabira_test::preprocessor {
         pp_token{pp_token_category::op_or_punc, u8")"}
       };
 
-      auto args = kusabira::PP::parse_macro_args(tokens.begin(), --tokens.end());
+      auto it = std::ranges::begin(tokens);
+      auto args = kusabira::PP::parse_macro_args(it, tokens.end());
 
       CHECK_EQ(args.size(), 2);
       CHECK_EQ(args[0].size(), 0);
       CHECK_EQ(args[1].size(), 1);
 
-      auto it = std::ranges::begin(tokens);
+      it = std::ranges::begin(tokens);
       CHECK_UNARY(std::ranges::equal(args[1], std::ranges::subrange{std::ranges::next(it, 2), std::ranges::next(it, 3)}));
     }
     {
@@ -194,7 +199,8 @@ namespace kusabira_test::preprocessor {
         pp_token{pp_token_category::whitespace, u8" "}
       };
 
-      auto args = kusabira::PP::parse_macro_args(tokens.begin(), --tokens.end());
+      auto it = std::ranges::begin(tokens);
+      auto args = kusabira::PP::parse_macro_args(it, tokens.end());
 
       CHECK_EQ(args.size(), 5);
 
@@ -294,7 +300,7 @@ namespace kusabira_test::preprocessor {
 
       const auto [success, complete, list, memo] = pp.objmacro<false>(*reporter, lt1);
 
-      CHECK_UNARY(success);
+      REQUIRE_UNARY(success);
       CHECK_UNARY(complete);
       CHECK_EQ(list.size(), 1u);
       CHECK_EQ(pptokens, list);
@@ -325,7 +331,7 @@ namespace kusabira_test::preprocessor {
 
       const auto [success, complete, list, memo] = pp.objmacro<false>(*reporter, lt1);
 
-      CHECK_UNARY(success);
+      REQUIRE_UNARY(success);
       CHECK_UNARY(complete);
       CHECK_EQ(list.size(), 3u);
       CHECK_EQ(pptokens, list);
@@ -419,7 +425,7 @@ namespace kusabira_test::preprocessor {
       //関数マクロ実行
       const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, lt1, args);
 
-      CHECK_UNARY(success);
+      REQUIRE_UNARY(success);
       CHECK_UNARY(complete);
       CHECK_EQ(rep_list.size(), result.size());
 
@@ -488,7 +494,7 @@ namespace kusabira_test::preprocessor {
       //関数マクロ実行
       const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, lt1, args);
 
-      CHECK_UNARY(success);
+      REQUIRE_UNARY(success);
       CHECK_UNARY(complete);
       CHECK_EQ(29ull, result.size());
 
@@ -590,7 +596,7 @@ namespace kusabira_test::preprocessor {
       //関数マクロ実行
       const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, lt2, args);
 
-      CHECK_UNARY(success);
+      REQUIRE_UNARY(success);
       CHECK_UNARY(complete);
       CHECK_EQ(14ull, result.size());
 
@@ -619,7 +625,7 @@ namespace kusabira_test::preprocessor {
       //関数マクロ実行
       const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, pp_token{pp_token_category::identifier, u8"F", 8, pos}, std::pmr::vector<std::pmr::list<pp_token>>{&kusabira::def_mr});
 
-      CHECK_UNARY(success);
+      REQUIRE_UNARY(success);
       CHECK_UNARY(complete);
       CHECK_EQ(3ull, result.size());
 
@@ -734,7 +740,7 @@ namespace kusabira_test::preprocessor {
       //関数マクロ実行
       const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, lt2, args);
 
-      CHECK_UNARY(success);
+      REQUIRE_UNARY(success);
       CHECK_UNARY(complete);
       CHECK_EQ(10ull, result.size());
 
@@ -760,7 +766,7 @@ namespace kusabira_test::preprocessor {
       //関数マクロ実行
       const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, pp_token{pp_token_category::identifier, u8"F", 8, pos}, std::pmr::vector<std::pmr::list<pp_token>>{&kusabira::def_mr});
 
-      CHECK_UNARY(success);
+      REQUIRE_UNARY(success);
       CHECK_UNARY(complete);
       CHECK_EQ(4ull, result.size());
 
@@ -784,7 +790,7 @@ namespace kusabira_test::preprocessor {
       //関数マクロ実行
       const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, pp_token{pp_token_category::identifier, u8"F", 8, pos}, args);
 
-      CHECK_UNARY(success);
+      REQUIRE_UNARY(success);
       CHECK_UNARY(complete);
       CHECK_EQ(6ull, result.size());
 
@@ -861,7 +867,7 @@ namespace kusabira_test::preprocessor {
       //関数マクロ実行
       const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, lt2, args);
 
-      CHECK_UNARY(success);
+      REQUIRE_UNARY(success);
       CHECK_UNARY(complete);
       CHECK_EQ(12ull, result.size());
 
@@ -901,7 +907,7 @@ namespace kusabira_test::preprocessor {
       //関数マクロ実行
       const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, pp_token{pp_token_category::identifier, u8"SDEF", 8, pos}, args);
 
-      CHECK_UNARY(success);
+      REQUIRE_UNARY(success);
       CHECK_UNARY(complete);
       CHECK_EQ(2ull, result.size());
 
@@ -1024,7 +1030,7 @@ namespace kusabira_test::preprocessor {
       //関数マクロ実行
       const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, lt2, args);
 
-      CHECK_UNARY(success);
+      REQUIRE_UNARY(success);
       CHECK_UNARY(complete);
       CHECK_EQ(3u, result.size());
 
@@ -1083,7 +1089,7 @@ namespace kusabira_test::preprocessor {
       //関数マクロ実行
       const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, lt2, args);
 
-      CHECK_UNARY(success);
+      REQUIRE_UNARY(success);
       CHECK_UNARY(complete);
       CHECK_EQ(1u, result.size());
 
@@ -1131,7 +1137,7 @@ namespace kusabira_test::preprocessor {
       //関数マクロ実行
       const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, {pp_token_category::identifier, u8"str", 8, pos}, args);
 
-      CHECK_UNARY(success);
+      REQUIRE_UNARY(success);
       CHECK_UNARY(complete);
       CHECK_EQ(1u, result.size());
 
@@ -1184,7 +1190,7 @@ namespace kusabira_test::preprocessor {
         //関数マクロ実行
         const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, macro_name, args);
 
-        CHECK_UNARY(success);
+        REQUIRE_UNARY(success);
         CHECK_UNARY(complete);
         CHECK_EQ(1u, result.size());
 
@@ -1214,7 +1220,7 @@ namespace kusabira_test::preprocessor {
         //関数マクロ実行
         const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, macro_name, args);
 
-        CHECK_UNARY(success);
+        REQUIRE_UNARY(success);
         CHECK_UNARY(complete);
         CHECK_EQ(1u, result.size());
 
@@ -1314,7 +1320,7 @@ namespace kusabira_test::preprocessor {
       //関数マクロ実行
       const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, lt2, args);
 
-      CHECK_UNARY(success);
+      REQUIRE_UNARY(success);
       CHECK_UNARY(complete);
       CHECK_EQ(1u, result.size());
 
@@ -1386,7 +1392,7 @@ namespace kusabira_test::preprocessor {
       //関数マクロ実行
       const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, lt2, args);
 
-      CHECK_UNARY(success);
+      REQUIRE_UNARY(success);
       CHECK_UNARY(complete);
       CHECK_EQ(7u, result.size());
 
@@ -1470,7 +1476,7 @@ namespace kusabira_test::preprocessor {
         //関数マクロ実行
         const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, lt2, args);
 
-        CHECK_UNARY(success);
+        REQUIRE_UNARY(success);
         CHECK_UNARY(complete);
         CHECK_EQ(1u, result.size());
 
@@ -1488,7 +1494,7 @@ namespace kusabira_test::preprocessor {
         //関数マクロ実行
         const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, lt2, args);
 
-        CHECK_UNARY(success);
+        REQUIRE_UNARY(success);
         CHECK_UNARY(complete);
         CHECK_EQ(1u, result.size());
 
@@ -1521,7 +1527,7 @@ namespace kusabira_test::preprocessor {
       //オブジェクトマクロ実行
       const auto [success, complete, result, memo] = pp.objmacro<false>(*reporter, lt2);
 
-      CHECK_UNARY(success);
+      REQUIRE_UNARY(success);
       CHECK_UNARY(complete);
       CHECK_EQ(1u, result.size());
 
@@ -1567,7 +1573,7 @@ namespace kusabira_test::preprocessor {
       //関数マクロ実行
       const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, lt2, args);
 
-      CHECK_UNARY(success);
+      REQUIRE_UNARY(success);
       CHECK_UNARY(complete);
       CHECK_EQ(1u, result.size());
 
@@ -1624,7 +1630,7 @@ namespace kusabira_test::preprocessor {
       //関数マクロ実行
       const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, macro_name, args);
 
-      CHECK_UNARY(success);
+      REQUIRE_UNARY(success);
       CHECK_UNARY(complete);
       CHECK_EQ(5u, result.size());
 
@@ -1803,7 +1809,7 @@ namespace kusabira_test::preprocessor {
 
       const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, { pp_token_category::identifier, u8"F", 0, pos }, args);
 
-      CHECK_UNARY(success);
+      REQUIRE_UNARY(success);
       CHECK_UNARY(complete);
 
       std::pmr::list<pp_token> expect{ &kusabira::def_mr };
@@ -1858,7 +1864,7 @@ namespace kusabira_test::preprocessor {
 
       const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, { pp_token_category::identifier, u8"G", 0, pos }, args);
 
-      CHECK_UNARY(success);
+      REQUIRE_UNARY(success);
       CHECK_UNARY(complete);
 
       std::pmr::list<pp_token> expect{ &kusabira::def_mr };
@@ -1969,7 +1975,7 @@ namespace kusabira_test::preprocessor {
 
       const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, {pp_token_category::identifier, u8"F", 0, pos}, args);
 
-      CHECK_UNARY(success);
+      REQUIRE_UNARY(success);
       CHECK_UNARY(complete);
 
       CHECK_EQ(result.size(), 1);
@@ -1994,7 +2000,7 @@ namespace kusabira_test::preprocessor {
 
       const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, {pp_token_category::identifier, u8"F", 0, pos}, args);
 
-      CHECK_UNARY(success);
+      REQUIRE_UNARY(success);
       CHECK_UNARY(complete);
 
       CHECK_EQ(result.size(), 1);
@@ -2020,7 +2026,7 @@ namespace kusabira_test::preprocessor {
 
       const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, {pp_token_category::identifier, u8"F", 0, pos}, args);
 
-      CHECK_UNARY(success);
+      REQUIRE_UNARY(success);
       CHECK_UNARY(complete);
 
       CHECK_EQ(result.size(), 1);
@@ -2047,7 +2053,7 @@ namespace kusabira_test::preprocessor {
 
       const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, {pp_token_category::identifier, u8"F", 0, pos}, args);
 
-      CHECK_UNARY(success);
+      REQUIRE_UNARY(success);
       CHECK_UNARY(complete);
 
       CHECK_EQ(result.size(), 1);
@@ -2086,7 +2092,7 @@ namespace kusabira_test::preprocessor {
         
         const auto [success, complete, result, memo] = pp.objmacro<false>(*reporter, line_token);
 
-        CHECK_UNARY(success);
+        REQUIRE_UNARY(success);
         CHECK_UNARY(complete);
         CHECK_EQ(1, result.size());
 
@@ -2105,7 +2111,7 @@ namespace kusabira_test::preprocessor {
       {
         const auto [success, complete, result, memo] = pp.objmacro<false>(*reporter, line_token);
 
-        CHECK_UNARY(success);
+        REQUIRE_UNARY(success);
         CHECK_UNARY(complete);
         CHECK_EQ(1, result.size());
 
@@ -2125,7 +2131,7 @@ namespace kusabira_test::preprocessor {
       {
         const auto [success, complete, result, memo] = pp.objmacro<false>(*reporter, line_token);
 
-        CHECK_UNARY(success);
+        REQUIRE_UNARY(success);
         CHECK_UNARY(complete);
         CHECK_EQ(1, result.size());
 
@@ -2145,7 +2151,7 @@ namespace kusabira_test::preprocessor {
       {
         const auto [success, complete, result, memo] = pp.objmacro<false>(*reporter, line_token);
 
-        CHECK_UNARY(success);
+        REQUIRE_UNARY(success);
         CHECK_UNARY(complete);
         CHECK_EQ(1, result.size());
 
@@ -2170,7 +2176,7 @@ namespace kusabira_test::preprocessor {
 
         const auto [success, complete, result, memo] = pp.objmacro<false>(*reporter, file_token);
 
-        CHECK_UNARY(success);
+        REQUIRE_UNARY(success);
         CHECK_UNARY(complete);
         CHECK_EQ(1, result.size());
 
@@ -2194,7 +2200,7 @@ namespace kusabira_test::preprocessor {
       {
         const auto [success, complete, result, memo] = pp.objmacro<false>(*reporter, file_token);
 
-        CHECK_UNARY(success);
+        REQUIRE_UNARY(success);
         CHECK_UNARY(complete);
         CHECK_EQ(1, result.size());
 
@@ -2216,7 +2222,7 @@ namespace kusabira_test::preprocessor {
       {
         const auto [success, complete, result, memo] = pp.objmacro<false>(*reporter, file_token);
 
-        CHECK_UNARY(success);
+        REQUIRE_UNARY(success);
         CHECK_UNARY(complete);
         CHECK_EQ(1, result.size());
 
@@ -2256,7 +2262,7 @@ namespace kusabira_test::preprocessor {
       for (int i = 0; i < 5; ++i) {
         const auto [success, complete, result, memo] = pp.objmacro<false>(*reporter, date_token);
 
-        CHECK_UNARY(success);
+        REQUIRE_UNARY(success);
         CHECK_UNARY(complete);
         CHECK_EQ(1, result.size());
 
@@ -2296,7 +2302,7 @@ namespace kusabira_test::preprocessor {
       for (int i = 0; i < 5; ++i) {
         const auto [success, complete, result, memo] = pp.objmacro<false>(*reporter, time_token);
 
-        CHECK_UNARY(success);
+        REQUIRE_UNARY(success);
         CHECK_UNARY(complete);
         CHECK_EQ(1, result.size());
 
@@ -2322,7 +2328,7 @@ namespace kusabira_test::preprocessor {
 
       const auto [success, complete, result, memo] = pp.objmacro<false>(*reporter, macro_token);
 
-      CHECK_UNARY(success);
+      REQUIRE_UNARY(success);
       CHECK_UNARY(complete);
       CHECK_EQ(1, result.size());
 
@@ -2342,7 +2348,7 @@ namespace kusabira_test::preprocessor {
 
       const auto [success, complete, result, memo] = pp.objmacro<false>(*reporter, macro_token);
 
-      CHECK_UNARY(success);
+      REQUIRE_UNARY(success);
       CHECK_UNARY(complete);
       CHECK_EQ(1, result.size());
 
@@ -2362,7 +2368,7 @@ namespace kusabira_test::preprocessor {
 
       const auto [success, complete, result, memo] = pp.objmacro<false>(*reporter, macro_token);
 
-      CHECK_UNARY(success);
+      REQUIRE_UNARY(success);
       CHECK_UNARY(complete);
       CHECK_EQ(1, result.size());
 
@@ -2382,7 +2388,7 @@ namespace kusabira_test::preprocessor {
 
       const auto [success, complete, result, memo] = pp.objmacro<false>(*reporter, macro_token);
 
-      CHECK_UNARY(success);
+      REQUIRE_UNARY(success);
       CHECK_UNARY(complete);
       CHECK_EQ(1, result.size());
 
