@@ -533,7 +533,7 @@ namespace kusabira::PP {
         }
 
         if (sharp2_op) {
-          //##の処理
+          // ##の左辺の時の処理
           auto lhs = std::prev(rhs);
           if (bool is_valid = (*lhs) += std::move(*rhs); not is_valid){
             //有効ではないプリプロセッシングトークンが生成された、エラー
@@ -542,7 +542,6 @@ namespace kusabira::PP {
           }
           result_list.erase(rhs);
         }
-
       }
 
       if (should_remove_placemarker) {

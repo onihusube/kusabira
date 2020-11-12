@@ -57,3 +57,17 @@ H4(, 1) // a b （識別子二つ
 #define H5C(X) H5B(X)
 
 H5C(H5A())  // ab
+
+#undef debug
+// #, ##のテスト
+#define str(s)      # s
+#define xstr(s)     str(s)
+#define debug(s, t) printf("x" # s "= %d, x" # t "= %s", \
+               x ## s, x ## t)
+#define INCFILE(n)  vers ## n
+#define glue(a, b)  a ## b
+#define xglue(a, b) glue(a, b)
+#define HIGHLOW     "hello"
+#define LOW         LOW ", world"
+
+debug(1, 2);    // printf("x" "1" "= %d, x" "2" "= %s", x1, x2);
