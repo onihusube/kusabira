@@ -172,13 +172,11 @@ namespace kusabira::PP {
   * @param it 関数マクロ呼び出しの(の次の位置
   * @param end 関数マクロ呼び出しの)を含むような範囲の終端
   * @param other_token_func 記号以外のトークンを処理する関数オブジェクト
-  * @details マクロ展開の途中と最後のタイミングで含まれるマクロを再帰的に展開する時を想定しているので、バリデーションなどは最低限
-  * @todo 引数パースエラーを考慮する必要がある？
   * @return 1つの引数を表すlistを引数分保持したvector
   */
-  template <std::input_iterator Iterator, std::sentinel_for<Iterator> Sentinel, typename F>
+  template <std::input_iterator Iterator, std::sentinel_for<Iterator> Sentinel, std::invocable<Iterator&, Sentinel, std::pmr::list<pp_token>&> F>
     requires std::same_as<std::iter_value_t<Iterator>, pp_token> and
-             std::invocable<F, Iterator&, Sentinel, std::pmr::list<pp_token>&>
+             std::convertible_to<std::invoke_result_t<F, Iterator&, Sentinel, std::pmr::list<pp_token>&>, bool>
   ifn parse_macro_args(Iterator& it, Sentinel fin, F&& other_token_func) -> std::pmr::vector<std::pmr::list<pp_token>> {
     using namespace std::string_view_literals;
 
@@ -191,11 +189,12 @@ namespace kusabira::PP {
 
     // 見つけた実引数列
     std::pmr::vector<std::pmr::list<pp_token>> args{&kusabira::def_mr};
+
+    // こうなってたら何か変なきがする
+    if (it == fin) return args;
+
     // とりあえず引数10個分確保しておく
     args.reserve(10);
-
-    // 実質引数なしだった
-    if (it == fin) return args;
 
     // 実引数1つ分のリスト、作業用
     std::pmr::list<pp_token> arg_list{&kusabira::def_mr};
@@ -225,7 +224,7 @@ namespace kusabira::PP {
             args.emplace_back(std::move(arg_list));
             break;
           }
-          //閉じかっこ
+          //入れ子閉じかっこ
           --inner_paren;
         }
       }
@@ -887,7 +886,7 @@ namespace kusabira::PP {
     fn validate_argnum(const std::pmr::vector<std::pmr::list<pp_token>>& args) const noexcept -> bool {
       if (m_is_va == true) {
         // 可変長マクロ
-        // 可変長部を除いた引数の数以上であればok
+        // 可変長部を除いた仮引数の数以上であればok
         return (m_params.size() - 1u) <= args.size();
       } else {
         // 非可変長マクロ
@@ -1315,7 +1314,7 @@ namespace kusabira::PP {
             //リストのスキャンが完了していなければ、戻ってきたリストの先頭からスキャンし関数マクロ名を探す（それより前のマクロは置換済み）
             it = std::begin(result);
           } else {
-            //リストのスキャンが完了していれば、次のトークンからスキャン
+            //リストのスキャンが完了していれば、マクロ全体の次のトークンからスキャン
             it = close_pos;
           }
 
@@ -1324,6 +1323,7 @@ namespace kusabira::PP {
           //置換したマクロ範囲を消去
           list.erase(erase_pos, close_pos);
         } else {
+          // マクロではなかった
           ++it;
         }
       }

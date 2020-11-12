@@ -50,10 +50,10 @@ H3(, 0)   // "" （空の文字列トークン
 
 #define H4(X, ...) __VA_OPT__(a X ## X) ## b
 
-H4(, 1) // a b
+H4(, 1) // a b （識別子二つ
 
 #define H5A(...) __VA_OPT__()/**/__VA_OPT__()
 #define H5B(X) a ## X ## b
 #define H5C(X) H5B(X)
 
-H5C(H5A())
+H5C(H5A())  // ab

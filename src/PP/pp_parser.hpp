@@ -793,6 +793,7 @@ namespace kusabira::PP {
       //開きかっこの次のトークンへ進める、少なくともここがEOFになることはない（改行がその前に来る）
       ++it;
 
+      // 実引数パース中のエラーを保持する
       std::optional<pp_err_info> err{};
 
       auto args = parse_macro_args(it, end, [this, &err](Iterator& itr, Sentinel fin, auto& arg_list) -> bool {
@@ -828,101 +829,9 @@ namespace kusabira::PP {
         return true;
       });
 
-      //// 実引数列の最初の非ホワイトスペーストークンを探索する
-      //// ここで改行すっ飛ばしていいの？
-      //it = std::ranges::find_if_not(std::move(it), end, [](const pptoken_t &token) {
-      //  // トークナイズエラーはここでは考慮しないものとする
-      //  return token.category <= pp_token_category::block_comment;
-      //});
-
-      //if (it == end) {
-      //  return kusabira::error(pp_err_info{pptoken_t{pp_token_category::empty}, pp_parse_context::UnexpectedEOF});
-      //}
-
-      ////実引数リスト、カンマごとにプリプロセッシングトークン列を区切る
-      ////引数の数が増えると内部でムーブが起きるが、問題ないか？？？
-      //std::pmr::vector<pptoken_list_t> args{&kusabira::def_mr};
-      //args.reserve(10);
-
-      ////実引数リスト1つ分のリスト、作業用
-      //pptoken_list_t arg_list{&kusabira::def_mr};
-      ////実引数リストの区切りカンマまでの間に出現したネストかっこの数
-      //std::size_t inner_paren = 0;
-      //
-      ////関数マクロ呼び出しを終了する閉じ括弧が出るまで引数をパースする
-      //while (it != end) {
-
-      //  if (deref(it).category == pp_token_category::op_or_punc) {
-
-      //    //カンマの出現で1つの実引数のパースを完了する
-      //    if (inner_paren == 0 and deref(it).token == u8","sv) {
-      //      // 構成した実引数1つ分のリストの最後のホワイトスペース列を取り除く
-      //      {
-      //        //auto erase_rng = arg_list | std::views::reverse | std::views::take_while([](const auto& pptoken) { return pptoken.category == pp_token_category::whitespace; });
-      //        auto erase_rng = arg_list | std::views::reverse;
-      //        // 後ろからホワイトスペースでない最初のトークン位置を検索
-      //        auto non_ws_pos = std::ranges::find_if_not(erase_rng, [](const auto& pptoken) { return pptoken.category == pp_token_category::whitespace; });
-      //        // 終端からそこまでの距離を算出
-      //        auto distance = std::ranges::distance(erase_rng.begin(), non_ws_pos);
-      //        auto fin = std::ranges::end(arg_list);
-      //        // 後ろについてるホワイトスペース列を削除
-      //        auto fin2 = arg_list.erase(std::ranges::prev(fin, distance), fin);
-      //        assert(fin == fin2);
-      //      }
-      //      // 実引数リストに保存
-      //      args.emplace_back(std::move(arg_list));
-      //      //カンマは保存しない
-      //      ++it;
-      //      //カンマ直後のホワイトスペースは飛ばす
-      //      it = std::ranges::find_if_not(std::move(it), end, [](const pptoken_t &token) {
-      //        // トークナイズエラーはここでは考慮しないものとする
-      //        return token.category <= pp_token_category::block_comment;
-      //      });
-      //      continue;
-      //    } else if (deref(it).token == u8"("sv) {
-      //      //ネストしたかっこの始まり
-      //      ++inner_paren;
-      //    } else if (deref(it).token == u8")"sv) {
-      //      //マクロ終了の閉じかっこ判定
-      //      if (inner_paren == 0) {
-      //        args.emplace_back(std::move(arg_list));
-      //        break;
-      //      }
-      //      //ネストしてるかっこの閉じかっこ
-      //      --inner_paren;
-      //    }
-      //  } else if (deref(it).category == pp_token_category::newline) {
-      //    //改行は空白文字として扱う、マクロ引数中の空白文字の並びは1つに圧縮される
-      //    //マクロ呼び出し直後に改行来た時に死ぬよねこれ
-      //    if (auto &prev_token = arg_list.back(); prev_token.category != pp_token_category::whitespace) {
-      //      auto& gen_token = arg_list.emplace_back(std::move(*it));
-      //      gen_token.category = pp_token_category::whitespace;
-      //      gen_token.token = u8" "sv;
-      //    }
-      //    ++it;
-      //    continue;
-      //  } else if (deref(it).category == pp_token_category::whitespace) {
-      //    //マクロ引数中の空白文字の並びは1つに圧縮される
-      //    if (not std::ranges::empty(arg_list)) {
-      //      if (auto &prev_token = arg_list.back(); prev_token.category != pp_token_category::whitespace) {
-      //        arg_list.emplace_back(std::move(*it));
-      //      }
-      //    }
-      //    ++it;
-      //    continue;
-      //  }
-
-      //  //実引数となるプリプロセッシングトークンを構成する
-      //  if (auto result = this->construct_next_pptoken<true>(it, end); result) {
-      //    arg_list.splice(arg_list.end(), std::move(*result));
-      //  } else {
-      //    //エラーが起きてる
-      //    return std::move(result).and_then([](auto &&) -> expecetd_macro_args {
-      //      //expectedを変換するためのものであって、実際にここが実行されることはない
-      //      return expecetd_macro_args{};
-      //    });
-      //  }
-      //}
+      if (err) {
+        return kusabira::error(*std::move(err));
+      }
 
       //閉じかっこで終わってる筈なのでファイル終端に達するはずはない
       if (it == end) {
@@ -944,67 +853,83 @@ namespace kusabira::PP {
     */
     template<typename Iterator, typename Sentinel>
     fn further_macro_replacement(pptoken_list_t&& list, Iterator& it, Sentinel se, std::pmr::unordered_set<std::u8string_view>& outer_macro) -> kusabira::expected<pptoken_list_t, pp_err_info> {
+      // 未処理トークン列のイテレータだけは参照を保持しておいてもらう
+      using concat_ref = kusabira::vocabulary::concat<std::ranges::iterator_t<pptoken_list_t>, std::ranges::sentinel_t<pptoken_list_t>, Iterator &, Sentinel>;
 
+      // 処理済みPPトークンリスト
       pptoken_list_t complete_list{&kusabira::def_mr};
-
-      //展開途中の関数マクロを探す
+      // マクロ名
+      pp_token macro_name{ pp_token_category::empty };
+      // 実引数リスト
+      expecetd_macro_args arg_list{};
+      // 展開途中の関数マクロを探す
       std::optional<bool> is_funcmacro{};
-      auto pos = std::ranges::find_if(list, [&](auto& token) {
-        is_funcmacro = m_preprocessor.is_macro(token.token);
-        return bool(is_funcmacro);
-      });
+      // 未処理の先頭位置
+      auto untreated_pos = list.begin();
 
-      if (pos == list.end()) {
-        //見つかるはずのマクロが見つからなかった
-        return kusabira::error(pp_err_info{ std::move(*it), pp_parse_context::ControlLine });
-      }
-      //必ず関数マクロのはず
-      assert(*is_funcmacro);
-
-      //マクロ位置までのトークンを移動する
-      complete_list.splice(complete_list.begin(), list, list.begin(), pos);
-
-      //未処理トークン列のイテレータだけは参照を保持しておいてもらう
-      using concat_ref = kusabira::vocabulary::concat<decltype(pos), decltype(list.end()), Iterator&, Sentinel>;
-
-      //マクロ名を保持しておく
-      const auto macro_name = std::move(*pos);
-
-      //リストの残りの関数マクロ呼び出しトークン列と未処理のPPトークン列を連結し、引数リストを構成する
-      auto arg_list = this->funcmacro_args(concat_ref(pos, list.end(), it, se));
-      if (not arg_list) {
-        pp_err_info& errinfo = arg_list.error();
-        if (errinfo.context == pp_parse_context::Funcmacro_NotInvoke) {
-          //マクロの呼び出しではなかった時、マクロ名を単に識別子として処理
-          complete_list.emplace_back(std::move(macro_name));
-          //再スキャンする
-        }
-      }
-      if (not arg_list) {
-        //なんか途中でエラー、expectedを変換してそのまま返す
-        return std::move(arg_list).map([](auto &&) {
-          return pptoken_list_t{};
+      do {
+        auto pos = std::ranges::find_if(untreated_pos, list.end(), [&](auto &token) {
+          is_funcmacro = m_preprocessor.is_macro(token.token);
+          return bool(is_funcmacro);
         });
-      }
+
+        if (pos == list.end()) {
+          // 見つかるはずのマクロが見つからなかった
+          // 入力リストの中に必ず未処理の関数マクロがある、なければ他のマクロ処理部がおかしい
+          return kusabira::error(pp_err_info{ std::move(*it), pp_parse_context::ControlLine });
+        }
+        // 必ず関数マクロのはず（オブジェクトマクロは処理済みなので出てこない）
+        assert(*is_funcmacro);
+
+        // マクロ位置までのトークンを移動する
+        complete_list.splice(complete_list.end(), list, untreated_pos, pos);
+        // 処理済みの位置を更新
+        untreated_pos = pos;
+
+        // マクロ名を記録
+        // ムーブしたいがこれがマクロ呼び出しされているかはここではわからず、ループする可能性があるのでコピー
+        macro_name = *pos;
+
+        // リストの残りの関数マクロ呼び出しトークン列と未処理のPPトークン列を連結し、引数リストを構成する
+        arg_list = this->funcmacro_args(concat_ref(pos, list.end(), it, se));
+        if (not arg_list) {
+          pp_err_info& errinfo = arg_list.error();
+          if (errinfo.context == pp_parse_context::Funcmacro_NotInvoke) {
+            //マクロの呼び出しではなかった時、マクロ名を単に識別子として処理
+            complete_list.emplace_back(std::move(macro_name));
+            //再スキャンする
+            continue;
+          } else {
+            //なんか途中でエラー、expectedを変換してそのまま返す
+            return std::move(arg_list).map([](auto &&) {
+              return pptoken_list_t{};
+            });
+          }
+        }
+      } while (not arg_list);
       
-      //関数マクロ置換
+      // 関数マクロ置換
       auto [success, complete, funcmacro_result] = m_preprocessor.funcmacro<true>(*m_reporter, macro_name, *arg_list, outer_macro);
 
       if (not success) {
-        //なんか途中でエラー、expectedを変換してそのまま返す
+        // なんか途中でエラー、expectedを変換してそのまま返す
         return kusabira::error(pp_err_info{ std::move(*it), pp_parse_context::ControlLine });
       }
       if (not complete) {
-        //resultに対して再帰的に再スキャンする
+        // resultに対して再帰的に再スキャンする
         auto recursive_result = this->further_macro_replacement(std::move(funcmacro_result), it, se, outer_macro);
         if (not recursive_result) {
           return recursive_result;
         }
-        //全てのマクロ処理が完了した結果（となるはず
+        // 全てのマクロ処理が完了した結果（となるはず
         funcmacro_result = std::move(*recursive_result);
       }
 
-      //展開結果をsplice
+      // この関数で処理しているということは、入力リスト（list）の内部では収まらないマクロ呼び出しがあったということ
+      // したがって、マクロ呼び出しが完了すれば入力リストは消費され尽くしていて、未処理トークンはマクロ呼び出し完了点（閉じ括弧）の次で止まってる
+      // そのため、ここではマクロの置換結果として帰ってきたものだけを処理済みトークンとして扱えばいい
+
+      // 展開結果をsplice
       complete_list.splice(complete_list.end(), std::move(funcmacro_result));
 
       return kusabira::ok(std::move(complete_list));
