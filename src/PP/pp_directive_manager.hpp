@@ -171,6 +171,7 @@ namespace kusabira::PP {
   * @brief 関数マクロ呼び出しの実引数を取得する
   * @param it 関数マクロ呼び出しの(の次の位置
   * @param end 関数マクロ呼び出しの)を含むような範囲の終端
+  * @param other_token_func 記号以外のトークンを処理する関数オブジェクト
   * @details マクロ展開の途中と最後のタイミングで含まれるマクロを再帰的に展開する時を想定しているので、バリデーションなどは最低限
   * @todo 引数パースエラーを考慮する必要がある？
   * @return 1つの引数を表すlistを引数分保持したvector
@@ -893,14 +894,10 @@ namespace kusabira::PP {
         if (m_params.size() == args.size()) {
           // 合っていればそれでいい
           return true;
-        }/* else if (m_params.size() == 0) {
-          // 仮引数の数が0の時
-          // 空の実引数1つ、あるいは空白入力はok
-          if (std::ranges::size(args) == 1) {
-            return std::ranges::empty(args[0])
-              or (std::ranges::size(args[0]) == 1 and args[0].front().category == pp_token_category::whitespace); // ホワイトスペース列は1つに折りたたまれているものとする
-          }
-        } else if (m_params.size() == 1) {
+        } else if (m_params.size() == 0) {
+          // 仮引数の数が0の時、空の実引数1つはok
+          return std::ranges::size(args) == 1 and std::ranges::empty(args[0]);
+        }/* else if (m_params.size() == 1) {
           // 仮引数の数が1の時
           // 引き数なしでの呼び出しはok
           return std::ranges::empty(args);

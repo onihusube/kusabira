@@ -201,7 +201,7 @@ namespace kusabira_test::preprocessor {
         pp_token{pp_token_category::whitespace, u8" "},
         pp_token{pp_token_category::whitespace, u8" "},
         pp_token{pp_token_category::whitespace, u8" "},
-        pp_token{pp_token_category::whitespace, u8")"}
+        pp_token{pp_token_category::op_or_punc, u8")"}
       };
 
       auto it = std::ranges::begin(tokens);
