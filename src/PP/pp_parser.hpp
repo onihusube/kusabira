@@ -688,7 +688,7 @@ namespace kusabira::PP {
         case pp_token_category::line_comment:  [[fallthrough]];
         case pp_token_category::block_comment: [[fallthrough]];
         case pp_token_category::whitespace:
-          //マクロの引数パース時のみ処理が必要
+          //マクロの引数パース時の考慮はここではしない
           break;
         case pp_token_category::op_or_punc:
         {
@@ -797,22 +797,29 @@ namespace kusabira::PP {
       std::optional<pp_err_info> err{};
 
       auto args = parse_macro_args(it, end, [this, &err](Iterator& itr, Sentinel fin, auto& arg_list) -> bool {
-        if (deref(itr).category == pp_token_category::newline) {
-          //改行は空白文字として扱う、マクロ引数中の空白文字の並びは1つに圧縮される
-          //マクロ呼び出し直後に改行来た時に死ぬよねこれ
+        const auto cat = deref(itr).category;
+
+        if (cat == pp_token_category::whitespace) {
+          // マクロ引数先頭のホワイトスペースはスキップされているため、空で無いことを仮定できる
+          assert(not std::ranges::empty(arg_list));
+
+          // マクロ引数中の空白文字の並びは1つに圧縮される
           if (auto& prev_token = arg_list.back(); prev_token.category != pp_token_category::whitespace) {
-            auto& gen_token = arg_list.emplace_back(std::move(*itr));
-            gen_token.category = pp_token_category::whitespace;
-            gen_token.token = u8" "sv;
+            arg_list.emplace_back(std::move(*itr));
           }
           ++itr;
           return true;
-        } else if (deref(itr).category == pp_token_category::whitespace) {
-          //マクロ引数中の空白文字の並びは1つに圧縮される
-          if (not std::ranges::empty(arg_list)) {
-            if (auto& prev_token = arg_list.back(); prev_token.category != pp_token_category::whitespace) {
-              arg_list.emplace_back(std::move(*itr));
-            }
+        }
+        if (pp_token_category::newline <= cat and cat <= pp_token_category::block_comment) {
+          // マクロ引数先頭のホワイトスペースはスキップされているため、空で無いことを仮定できる
+          assert(not std::ranges::empty(arg_list));
+
+          // 改行やコメントは1つのは空白文字として扱う、マクロ引数中の空白文字の並びは1つに圧縮される
+          if (auto& prev_token = arg_list.back(); prev_token.category != pp_token_category::whitespace) {
+            // 今のトークンを元にして（ソースコンテキストの情報を受け継いで）ホワイトスペーストークンを生成
+            auto& gen_token = arg_list.emplace_back(std::move(*itr));
+            gen_token.category = pp_token_category::whitespace;
+            gen_token.token = u8" "sv;
           }
           ++itr;
           return true;
