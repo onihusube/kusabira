@@ -314,25 +314,14 @@ namespace kusabira::PP {
         return {false, 0};
       };
 
-      //置換対象トークン数
-      std::size_t reptoken_num = end_index;
-
-      m_correspond.reserve(reptoken_num);
-
-      //#と##の出現をマークする
-      bool apper_sharp_op = false;
-      bool apper_sharp2_op = false;
-      //__VA_OPT__()の直後のトークンかをマーク、nulltprじゃなければVA_OPTの対応における##をマークするbool値への参照
-      //__VA_OPT__(...) ## rhs のような結合をサポートするために__VA_OPT__(...)を指す対応に##の左辺であることを記録しておくためのもの
-      bool* after_vaopt = nullptr;
-
       std::forward_iterator auto it = std::next(m_tokens.begin(), start);
 
+      // 事前のマクロ定義妥当性チェック
       if (it != m_tokens.end()) {
         //先頭と末尾の##の出現を調べる、出てきたらエラー
         pp_token* ptr = nullptr;
 
-        //エラー的にはソースコード上で最初に登場するやつを出したい気がする
+        //エラー的にはソースコード上で最初に登場するやつを出したいので終端->先頭の順でチェック
         if (auto& back = m_tokens.back(); back.token == u8"##"sv) ptr = &back;
         if (auto& front =  *it; front.token == u8"##"sv) ptr = &front;
 
@@ -342,6 +331,19 @@ namespace kusabira::PP {
           return;
         }
       }
+
+      //置換対象トークン数
+      std::size_t reptoken_num = end_index;
+
+      m_correspond.reserve(reptoken_num);
+
+      //#と##の出現をマークする
+      bool apper_sharp_op = false;
+      bool apper_sharp2_op = false;
+
+      //__VA_OPT__(...)の直後のトークンかをマーク、nulltprじゃなければそのVA_OPTが##の左辺であることをマークするbool値（6番目のbool値）への参照
+      //__VA_OPT__(...) ## rhs のような結合をサポートするために__VA_OPT__(...)を指す対応に##の左辺であることを記録しておくためのもの
+      bool* after_vaopt = nullptr;
 
       //置換リストをstartからチェックする
       for (auto index = start; index < reptoken_num; ++index, ++it) {
@@ -355,26 +357,27 @@ namespace kusabira::PP {
               continue;
             }
           } else if (not apper_sharp_op and (*it).token == u8"##"sv) {
-            //#の後に##はエラー
-            //##の後に##が現れる場合、それを結合対象にしてしまう（未定義動作に当たるはず）
-            apper_sharp2_op = true;
+            // #の後に##はエラー
+            // ##の後に##が現れる場合、それを結合対象にしてしまう（未定義動作に当たるはず）
 
-            //最後に登録された対応関係が、1つ前だったかを調べる
-            if (not empty(m_correspond)) {
-              if (after_vaopt != nullptr) {
-                //1つ前で__VA_OPT__()を処理していた時
-                *after_vaopt = true;
-                after_vaopt = nullptr;
-              } else if (std::get<0>(m_correspond.back()) == (index - 1)) {
-                //1つ前が仮引数名のとき
-                //##の左辺であることをマーク
-                std::get<5>(m_correspond.back()) = true;
-              }
+            // 1つ前のトークンを##の左辺として登録する
+            // ##がトークン列の先頭に来ることは事前に弾いている
+            if (after_vaopt != nullptr) {
+              // 1つ前で__VA_OPT__()を処理していた時
+              *after_vaopt = true;
+              after_vaopt = nullptr;
+            } else if (not std::ranges::empty(m_correspond) and 
+                       std::get<0>(m_correspond.back()) == (index - 1)) {
+              // 1つ前が仮引数名のとき
+              std::get<5>(m_correspond.back()) = true;
             } else {
-              //1つ前は普通のトークン、もしくは空の時
-              //置換対象リストに連結対象として加える
+              // 1つ前は仮引数では無い普通のトークンの時
+              // 1つ前のトークンを置換対象リストに連結対象として加える
               m_correspond.emplace_back(index - 1, std::size_t(-1), false, false, false, true, false, is_recursive);
             }
+
+            // ##の直後であることをマークしておく
+            apper_sharp2_op = true;
 
             continue;
           }

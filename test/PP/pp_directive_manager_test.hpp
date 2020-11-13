@@ -1350,6 +1350,66 @@ namespace kusabira_test::preprocessor {
       CHECK_UNARY(result2.front().token == u8"pre"sv);
     }
 
+    //普通の関数マクロ
+    {
+      pos = ll.emplace_after(pos, 0, 0);
+      (*pos).line = u8"#define debug(s, t) printf(x ## s, x ## t)";
+
+      //仮引数列と置換リスト
+      std::pmr::vector<std::u8string_view> params{ &kusabira::def_mr };
+      std::pmr::list<pp_token> rep_list{ &kusabira::def_mr };
+
+      //マクロ名
+      pp_token macro_name{pp_token_category::identifier, u8"debug", 8, pos};
+      //マクロ仮引数トークン列
+      params.emplace_back(u8"s");
+      params.emplace_back(u8"t");
+
+      //置換リスト
+      rep_list.emplace_back(pp_token_category::identifier, u8"printf", 20, pos);
+      rep_list.emplace_back(pp_token_category::op_or_punc, u8"(", 26, pos);
+      rep_list.emplace_back(pp_token_category::identifier, u8"x", 27, pos);
+      rep_list.emplace_back(pp_token_category::op_or_punc, u8"##", 29, pos);
+      rep_list.emplace_back(pp_token_category::identifier, u8"s", 32, pos);
+      rep_list.emplace_back(pp_token_category::op_or_punc, u8",", 33, pos);
+      rep_list.emplace_back(pp_token_category::identifier, u8"x", 35, pos);
+      rep_list.emplace_back(pp_token_category::op_or_punc, u8"##", 37, pos);
+      rep_list.emplace_back(pp_token_category::identifier, u8"t", 40, pos);
+      rep_list.emplace_back(pp_token_category::op_or_punc, u8")", 41, pos);
+
+      //関数マクロ登録
+      CHECK_UNARY(pp.define(*reporter, macro_name, rep_list, params, false));
+
+      //実引数リスト作成
+      auto pos2 = ll.emplace_after(pos, 1, 1);
+      (*pos2).line = u8"debug(yz1, wv2)";
+
+      std::pmr::list<pp_token> token_list{ &kusabira::def_mr };
+      std::pmr::vector<std::pmr::list<pp_token>> args{ &kusabira::def_mr };
+      token_list.emplace_back(pp_token_category::identifier, u8"yz1", 6, pos2);
+      args.emplace_back(std::move(token_list));
+      token_list.emplace_back(pp_token_category::identifier, u8"wv2", 11, pos2);
+      args.emplace_back(std::move(token_list));
+
+      //関数マクロ実行
+      const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, macro_name, args);
+
+      REQUIRE_UNARY(success);
+      CHECK_UNARY(complete);
+      CHECK_EQ(6u, result.size());
+
+      std::pmr::list<pp_token> expect = {
+        pp_token{pp_token_category::identifier, u8"printf"},
+        pp_token{pp_token_category::op_or_punc, u8"("},
+        pp_token{pp_token_category::identifier, u8"xyz1"},
+        pp_token{pp_token_category::op_or_punc, u8","},
+        pp_token{pp_token_category::identifier, u8"xwv2"},
+        pp_token{pp_token_category::op_or_punc, u8")"}
+      };
+
+      CHECK_EQ(expect, result);
+    }
+
     //可変長マクロの例
     {
       pos = ll.emplace_after(pos, 0, 0);
