@@ -18,7 +18,7 @@ namespace pp_automaton_test
     //最後の文字a、非空白
     auto res = sm.input_char(input.back());
     CHECK_UNARY(res != pp_token_category::Unaccepted);
-    CHECK_EQ(res, kusabira::PP::pp_token_category::whitespace);
+    CHECK_EQ(res, kusabira::PP::pp_token_category::whitespaces);
   }
 
   TEST_CASE("identifer test") {
@@ -533,7 +533,7 @@ namespace pp_automaton_test
 
     auto res = sm.input_newline();
     CHECK_UNARY(res != pp_token_category::Unaccepted);
-    CHECK_EQ(res, kusabira::PP::pp_token_category::whitespace);
+    CHECK_EQ(res, kusabira::PP::pp_token_category::whitespaces);
 
 
     //コメントっぽい？

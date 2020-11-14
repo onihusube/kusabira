@@ -130,7 +130,7 @@ namespace kusabira::PP {
 
       //プリプロセッシングトークン分類
       newline = 0,
-      whitespace,
+      whitespaces,  // ホワイトスペース列、単一の場合もあるし連続の場合もある
       empty,
       line_comment,
       block_comment,

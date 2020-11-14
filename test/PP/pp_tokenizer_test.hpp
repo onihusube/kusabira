@@ -30,7 +30,7 @@ CHECK_EQ(token->column, col);}
     //#include <iostream>
     TOKEN_CHECK(pp_token_category::op_or_punc, u8"#", 0u);
     TOKEN_CHECK(pp_token_category::identifier, u8"include", 1u);
-    TOKEN_CHECK(pp_token_category::whitespace, u8" ", 8u);
+    TOKEN_CHECK(pp_token_category::whitespaces, u8" ", 8u);
     TOKEN_CHECK(pp_token_category::op_or_punc, u8"<", 9u);
     TOKEN_CHECK(pp_token_category::identifier, u8"iostream", 10u);
     TOKEN_CHECK(pp_token_category::op_or_punc, u8">", 18u);
@@ -47,13 +47,13 @@ CHECK_EQ(token->column, col);}
     //#include "hoge.hpp"
     TOKEN_CHECK(pp_token_category::op_or_punc, u8"#", 0u);
     TOKEN_CHECK(pp_token_category::identifier, u8"include", 1u);
-    TOKEN_CHECK(pp_token_category::whitespace, u8" ", 8u);
+    TOKEN_CHECK(pp_token_category::whitespaces, u8" ", 8u);
     TOKEN_CHECK(pp_token_category::string_literal, u8R"("hoge.hpp")", 9u);
     TOKEN_CHECK(pp_token_category::newline, u8"", 19u);
 
     //import <type_traits>
     TOKEN_CHECK(pp_token_category::identifier, u8"import", 0u);
-    TOKEN_CHECK(pp_token_category::whitespace, u8" ", 6u);
+    TOKEN_CHECK(pp_token_category::whitespaces, u8" ", 6u);
     TOKEN_CHECK(pp_token_category::op_or_punc, u8"<", 7u);
     TOKEN_CHECK(pp_token_category::identifier, u8"type_traits", 8u);
     TOKEN_CHECK(pp_token_category::op_or_punc, u8">", 19u);
@@ -65,9 +65,9 @@ CHECK_EQ(token->column, col);}
     //#define N 10
     TOKEN_CHECK(pp_token_category::op_or_punc, u8"#", 0u);
     TOKEN_CHECK(pp_token_category::identifier, u8"define", 1u);
-    TOKEN_CHECK(pp_token_category::whitespace, u8" ", 7u);
+    TOKEN_CHECK(pp_token_category::whitespaces, u8" ", 7u);
     TOKEN_CHECK(pp_token_category::identifier, u8"N", 8u);
-    TOKEN_CHECK(pp_token_category::whitespace, u8" ", 9u);
+    TOKEN_CHECK(pp_token_category::whitespaces, u8" ", 9u);
     TOKEN_CHECK(pp_token_category::pp_number, u8"10", 10u);
     TOKEN_CHECK(pp_token_category::newline, u8"", 12u);
 
@@ -76,29 +76,29 @@ CHECK_EQ(token->column, col);}
 
     //main関数宣言
     TOKEN_CHECK(pp_token_category::identifier, u8"int", 0u);
-    TOKEN_CHECK(pp_token_category::whitespace, u8" ", 3u);
+    TOKEN_CHECK(pp_token_category::whitespaces, u8" ", 3u);
     TOKEN_CHECK(pp_token_category::identifier, u8"main", 4u);
     TOKEN_CHECK(pp_token_category::op_or_punc, u8"(", 8u);
     TOKEN_CHECK(pp_token_category::op_or_punc, u8")", 9u);
-    TOKEN_CHECK(pp_token_category::whitespace, u8" ", 10u);
+    TOKEN_CHECK(pp_token_category::whitespaces, u8" ", 10u);
     TOKEN_CHECK(pp_token_category::op_or_punc, u8"{", 11u);
     TOKEN_CHECK(pp_token_category::newline, u8"", 12u);
 
     //int n = 0;
-    TOKEN_CHECK(pp_token_category::whitespace, u8"  ", 0u);
+    TOKEN_CHECK(pp_token_category::whitespaces, u8"  ", 0u);
     TOKEN_CHECK(pp_token_category::identifier, u8"int", 2u);
-    TOKEN_CHECK(pp_token_category::whitespace, u8" ", 5u);
+    TOKEN_CHECK(pp_token_category::whitespaces, u8" ", 5u);
     TOKEN_CHECK(pp_token_category::identifier, u8"n", 6u);
-    TOKEN_CHECK(pp_token_category::whitespace, u8" ", 7u);
+    TOKEN_CHECK(pp_token_category::whitespaces, u8" ", 7u);
     TOKEN_CHECK(pp_token_category::op_or_punc, u8"=", 8u);
-    TOKEN_CHECK(pp_token_category::whitespace, u8" ", 9u);
+    TOKEN_CHECK(pp_token_category::whitespaces, u8" ", 9u);
     TOKEN_CHECK(pp_token_category::pp_number, u8"0", 10u);
     TOKEN_CHECK(pp_token_category::op_or_punc, u8";", 11u);
     //行コメント
     TOKEN_CHECK(pp_token_category::line_comment, u8"//line comment", 12u);
     TOKEN_CHECK(pp_token_category::newline, u8"",26u);
 
-    TOKEN_CHECK(pp_token_category::whitespace, u8"  ", 0u);
+    TOKEN_CHECK(pp_token_category::whitespaces, u8"  ", 0u);
     //ブロックコメント
     TOKEN_CHECK(pp_token_category::block_comment, u8"/*    ", 2u);
     TOKEN_CHECK(pp_token_category::newline, u8"", 8u);
@@ -110,39 +110,39 @@ CHECK_EQ(token->column, col);}
     TOKEN_CHECK(pp_token_category::newline, u8"", 4u);
 
     //u8文字列リテラル
-    TOKEN_CHECK(pp_token_category::whitespace, u8"  ", 0u);
+    TOKEN_CHECK(pp_token_category::whitespaces, u8"  ", 0u);
     TOKEN_CHECK(pp_token_category::identifier, u8"auto", 2u);
-    TOKEN_CHECK(pp_token_category::whitespace, u8" ", 6u);
+    TOKEN_CHECK(pp_token_category::whitespaces, u8" ", 6u);
     TOKEN_CHECK(pp_token_category::identifier, u8"str", 7u);
-    TOKEN_CHECK(pp_token_category::whitespace, u8" ", 10u);
+    TOKEN_CHECK(pp_token_category::whitespaces, u8" ", 10u);
     TOKEN_CHECK(pp_token_category::op_or_punc, u8"=", 11u);
-    TOKEN_CHECK(pp_token_category::whitespace, u8" ", 12u);
+    TOKEN_CHECK(pp_token_category::whitespaces, u8" ", 12u);
     TOKEN_CHECK(pp_token_category::string_literal, u8R"(u8"string")", 13u);
     TOKEN_CHECK(pp_token_category::identifier, u8"sv", 23u);
     TOKEN_CHECK(pp_token_category::op_or_punc, u8";", 25u);
     TOKEN_CHECK(pp_token_category::newline, u8"", 26u);
 
     //生文字列リテラル
-    TOKEN_CHECK(pp_token_category::whitespace, u8"  ", 0u);
+    TOKEN_CHECK(pp_token_category::whitespaces, u8"  ", 0u);
     TOKEN_CHECK(pp_token_category::identifier, u8"auto", 2u);
-    TOKEN_CHECK(pp_token_category::whitespace, u8" ", 6u);
+    TOKEN_CHECK(pp_token_category::whitespaces, u8" ", 6u);
     TOKEN_CHECK(pp_token_category::identifier, u8"rawstr", 7u);
-    TOKEN_CHECK(pp_token_category::whitespace, u8" ", 13u);
+    TOKEN_CHECK(pp_token_category::whitespaces, u8" ", 13u);
     TOKEN_CHECK(pp_token_category::op_or_punc, u8"=", 14u);
-    TOKEN_CHECK(pp_token_category::whitespace, u8" ", 15u);
+    TOKEN_CHECK(pp_token_category::whitespaces, u8" ", 15u);
     TOKEN_CHECK(pp_token_category::raw_string_literal, u8R"*(R"(raw string)")*" ,16u);
     TOKEN_CHECK(pp_token_category::identifier, u8"_udl", 31u);
     TOKEN_CHECK(pp_token_category::op_or_punc, u8";", 35u);
     TOKEN_CHECK(pp_token_category::newline, u8"", 36u);
 
     //改行あり生文字列リテラル
-    TOKEN_CHECK(pp_token_category::whitespace, u8"  ", 0u);
+    TOKEN_CHECK(pp_token_category::whitespaces, u8"  ", 0u);
     TOKEN_CHECK(pp_token_category::identifier, u8"auto", 2u);
-    TOKEN_CHECK(pp_token_category::whitespace, u8" ", 6u);
+    TOKEN_CHECK(pp_token_category::whitespaces, u8" ", 6u);
     TOKEN_CHECK(pp_token_category::identifier, u8"rawstr2", 7u);
-    TOKEN_CHECK(pp_token_category::whitespace, u8" ", 14u);
+    TOKEN_CHECK(pp_token_category::whitespaces, u8" ", 14u);
     TOKEN_CHECK(pp_token_category::op_or_punc, u8"=", 15u);
-    TOKEN_CHECK(pp_token_category::whitespace, u8" ", 16u);
+    TOKEN_CHECK(pp_token_category::whitespaces, u8" ", 16u);
     TOKEN_CHECK(pp_token_category::during_raw_string_literal, u8R"*(R"+*(raw)*", 17u);
     TOKEN_CHECK(pp_token_category::newline, u8"", 25u);
     TOKEN_CHECK(pp_token_category::during_raw_string_literal, u8"string", 0u);
@@ -155,13 +155,13 @@ CHECK_EQ(token->column, col);}
     TOKEN_CHECK(pp_token_category::newline, u8"", 17u);
 
     //浮動小数点リテラル
-    TOKEN_CHECK(pp_token_category::whitespace, u8"  ", 0u);
+    TOKEN_CHECK(pp_token_category::whitespaces, u8"  ", 0u);
     TOKEN_CHECK(pp_token_category::identifier, u8"float", 2u);
-    TOKEN_CHECK(pp_token_category::whitespace, u8" ", 7u);
+    TOKEN_CHECK(pp_token_category::whitespaces, u8" ", 7u);
     TOKEN_CHECK(pp_token_category::identifier, u8"f", 8u);
-    TOKEN_CHECK(pp_token_category::whitespace, u8" ", 9u);
+    TOKEN_CHECK(pp_token_category::whitespaces, u8" ", 9u);
     TOKEN_CHECK(pp_token_category::op_or_punc, u8"=", 10u);
-    TOKEN_CHECK(pp_token_category::whitespace, u8" ", 11u);
+    TOKEN_CHECK(pp_token_category::whitespaces, u8" ", 11u);
     TOKEN_CHECK(pp_token_category::pp_number, u8"1.0E-8f", 12u);
     TOKEN_CHECK(pp_token_category::op_or_punc, u8";", 19u);
     TOKEN_CHECK(pp_token_category::newline, u8"", 20u);

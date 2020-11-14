@@ -47,7 +47,7 @@ namespace pp_paser_test {
     test_tokens.reserve(23);
 
     for (auto i = 0u; i < 5u; ++ i) {
-      test_tokens.emplace_back(test_token{.category = pp_token_category::whitespace});
+      test_tokens.emplace_back(test_token{.category = pp_token_category::whitespaces});
     }
     test_tokens.emplace_back(test_token{.category = pp_token_category::identifier});
 
@@ -57,7 +57,7 @@ namespace pp_paser_test {
     test_tokens.emplace_back(test_token{.category = pp_token_category::pp_number});
 
     for (auto i = 0u; i < 11u; ++ i) {
-      test_tokens.emplace_back(test_token{.category = pp_token_category::whitespace});
+      test_tokens.emplace_back(test_token{.category = pp_token_category::whitespaces});
       test_tokens.emplace_back(test_token{.category = pp_token_category::block_comment});
     }
     test_tokens.emplace_back(test_token{.category = pp_token_category::string_literal});
@@ -138,7 +138,7 @@ namespace pp_paser_test {
 
     //何もしないはずのトークン種別の入力
     test_tokens.clear();
-    test_tokens.emplace_back(test_token{ .category = pp_token_category::whitespace });
+    test_tokens.emplace_back(test_token{ .category = pp_token_category::whitespaces });
     test_tokens.emplace_back(test_token{ .category = pp_token_category::line_comment });
     test_tokens.emplace_back(test_token{ .category = pp_token_category::block_comment });
     test_tokens.emplace_back(test_token{ .category = pp_token_category::pp_number });
@@ -365,7 +365,7 @@ newline)")**"sv;
     tokens.emplace_back(pp_token_category::op_or_punc, u8"<:"sv, 0, pos);
     tokens.emplace_back(pp_token_category::op_or_punc, u8"::"sv, 2, pos);
     tokens.emplace_back(pp_token_category::op_or_punc, u8">"sv,4, pos);
-    tokens.emplace_back(pp_token_category::whitespace, u8" "sv, 5, pos);
+    tokens.emplace_back(pp_token_category::whitespaces, u8" "sv, 5, pos);
 
     {
       auto it = std::begin(tokens);
@@ -391,7 +391,7 @@ newline)")**"sv;
     tokens.clear();
     tokens.emplace_back(pp_token_category::op_or_punc, u8"<:"sv, 0, pos);
     tokens.emplace_back(pp_token_category::op_or_punc, u8":>"sv, 2, pos);
-    tokens.emplace_back(pp_token_category::whitespace, u8" "sv, 4, pos);
+    tokens.emplace_back(pp_token_category::whitespaces, u8" "sv, 4, pos);
 
     {
       auto it = std::begin(tokens);

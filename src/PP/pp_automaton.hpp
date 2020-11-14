@@ -241,7 +241,7 @@ namespace kusabira::PP
     };
 
     struct white_space_seq {
-      static constexpr pp_token_category Category = pp_token_category::whitespace;
+      static constexpr pp_token_category Category = pp_token_category::whitespaces;
     };
 
     struct maybe_comment {
@@ -537,7 +537,7 @@ namespace kusabira::PP
               return { pp_token_category::Unaccepted };
             } else {
               //ホワイトスペース以外出現で終了
-              return this->restart(state, pp_token_category::whitespace);
+              return this->restart(state, pp_token_category::whitespaces);
             }
           },
           //コメント判定

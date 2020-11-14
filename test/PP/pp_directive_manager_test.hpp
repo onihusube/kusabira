@@ -107,25 +107,25 @@ namespace kusabira_test::preprocessor {
       // M(1 * 2 * 1 + 0, (arg + 1 ))
       std::vector<pp_token> tokens{
         pp_token{pp_token_category::pp_number, u8"1"},
-        pp_token{pp_token_category::whitespace, u8" "},
+        pp_token{pp_token_category::whitespaces, u8" "},
         pp_token{pp_token_category::op_or_punc, u8"*"},
-        pp_token{pp_token_category::whitespace, u8" "},
+        pp_token{pp_token_category::whitespaces, u8" "},
         pp_token{pp_token_category::pp_number, u8"2"},
-        pp_token{pp_token_category::whitespace, u8" "},
+        pp_token{pp_token_category::whitespaces, u8" "},
         pp_token{pp_token_category::op_or_punc, u8"*"},
-        pp_token{pp_token_category::whitespace, u8" "},
+        pp_token{pp_token_category::whitespaces, u8" "},
         pp_token{pp_token_category::pp_number, u8"1"},
-        pp_token{pp_token_category::whitespace, u8" "},
+        pp_token{pp_token_category::whitespaces, u8" "},
         pp_token{pp_token_category::op_or_punc, u8"+"},
-        pp_token{pp_token_category::whitespace, u8" "},
+        pp_token{pp_token_category::whitespaces, u8" "},
         pp_token{pp_token_category::pp_number, u8"0"},
         pp_token{pp_token_category::op_or_punc, u8","},
         pp_token{pp_token_category::op_or_punc, u8"("},
         pp_token{pp_token_category::identifier, u8"arg"},
         pp_token{pp_token_category::op_or_punc, u8"+"},
-        pp_token{pp_token_category::whitespace, u8" "},
+        pp_token{pp_token_category::whitespaces, u8" "},
         pp_token{pp_token_category::pp_number, u8"1"},
-        pp_token{pp_token_category::whitespace, u8" "},
+        pp_token{pp_token_category::whitespaces, u8" "},
         pp_token{pp_token_category::op_or_punc, u8")"},
         pp_token{pp_token_category::op_or_punc, u8")"}
       };
@@ -157,9 +157,9 @@ namespace kusabira_test::preprocessor {
     {
       // M(   )
       std::vector<pp_token> tokens{
-        pp_token{pp_token_category::whitespace, u8" "},
-        pp_token{pp_token_category::whitespace, u8" "},
-        pp_token{pp_token_category::whitespace, u8" "},
+        pp_token{pp_token_category::whitespaces, u8" "},
+        pp_token{pp_token_category::whitespaces, u8" "},
+        pp_token{pp_token_category::whitespaces, u8" "},
         pp_token{pp_token_category::op_or_punc, u8")"}
       };
 
@@ -173,7 +173,7 @@ namespace kusabira_test::preprocessor {
     {
       // M( , 1)
       std::vector<pp_token> tokens{
-        pp_token{pp_token_category::whitespace, u8" "},
+        pp_token{pp_token_category::whitespaces, u8" "},
         pp_token{pp_token_category::op_or_punc, u8","},
         pp_token{pp_token_category::pp_number, u8"1"},
         pp_token{pp_token_category::op_or_punc, u8")"}
@@ -193,14 +193,14 @@ namespace kusabira_test::preprocessor {
       // M(, ,,,    )
       std::vector<pp_token> tokens{
         pp_token{pp_token_category::op_or_punc, u8","},
-        pp_token{pp_token_category::whitespace, u8" "},
+        pp_token{pp_token_category::whitespaces, u8" "},
         pp_token{pp_token_category::op_or_punc, u8","},
         pp_token{pp_token_category::op_or_punc, u8","},
         pp_token{pp_token_category::op_or_punc, u8","},
-        pp_token{pp_token_category::whitespace, u8" "},
-        pp_token{pp_token_category::whitespace, u8" "},
-        pp_token{pp_token_category::whitespace, u8" "},
-        pp_token{pp_token_category::whitespace, u8" "},
+        pp_token{pp_token_category::whitespaces, u8" "},
+        pp_token{pp_token_category::whitespaces, u8" "},
+        pp_token{pp_token_category::whitespaces, u8" "},
+        pp_token{pp_token_category::whitespaces, u8" "},
         pp_token{pp_token_category::op_or_punc, u8")"}
       };
 
@@ -1020,15 +1020,15 @@ namespace kusabira_test::preprocessor {
       token_list.emplace_back(pp_token_category::op_or_punc, u8"(", 14, pos2);
       token_list.emplace_back(pp_token_category::string_literal, u8R"("abc\0d")", 15, pos2);
       token_list.emplace_back(pp_token_category::op_or_punc, u8",", 23, pos2);
-      token_list.emplace_back(pp_token_category::whitespace, u8" ", 24, pos2);
+      token_list.emplace_back(pp_token_category::whitespaces, u8" ", 24, pos2);
       token_list.emplace_back(pp_token_category::string_literal, u8R"("abc")", 25, pos2);
       token_list.emplace_back(pp_token_category::op_or_punc, u8",", 30, pos2);
-      token_list.emplace_back(pp_token_category::whitespace, u8" ", 31, pos2);
+      token_list.emplace_back(pp_token_category::whitespaces, u8" ", 31, pos2);
       token_list.emplace_back(pp_token_category::charcter_literal, u8R"('\4')", 32, pos2);
       token_list.emplace_back(pp_token_category::op_or_punc, u8")", 36, pos2);
-      token_list.emplace_back(pp_token_category::whitespace, u8" ", 37, pos2);
+      token_list.emplace_back(pp_token_category::whitespaces, u8" ", 37, pos2);
       token_list.emplace_back(pp_token_category::op_or_punc, u8"==", 38, pos2);
-      token_list.emplace_back(pp_token_category::whitespace, u8" ", 40, pos2);
+      token_list.emplace_back(pp_token_category::whitespaces, u8" ", 40, pos2);
       token_list.emplace_back(pp_token_category::pp_number, u8"0", 41, pos2);
       args.emplace_back(std::move(token_list));
 
@@ -1083,9 +1083,9 @@ namespace kusabira_test::preprocessor {
       token_list.emplace_back(pp_token_category::identifier, u8"int", 12, pos2);
       args.emplace_back(std::move(token_list));
       token_list.emplace_back(pp_token_category::identifier, u8"a", 17, pos2);
-      token_list.emplace_back(pp_token_category::whitespace, u8" ", 18, pos2);
+      token_list.emplace_back(pp_token_category::whitespaces, u8" ", 18, pos2);
       token_list.emplace_back(pp_token_category::op_or_punc, u8"*", 19, pos2);
-      token_list.emplace_back(pp_token_category::whitespace, u8" ", 20, pos2);
+      token_list.emplace_back(pp_token_category::whitespaces, u8" ", 20, pos2);
       token_list.emplace_back(pp_token_category::identifier, u8"b", 21, pos2);
       token_list.emplace_back(pp_token_category::op_or_punc, u8"+", 22, pos2);
       token_list.emplace_back(pp_token_category::pp_number, u8"0", 23, pos2);
@@ -1127,15 +1127,15 @@ namespace kusabira_test::preprocessor {
       std::pmr::list<pp_token> token_list{&kusabira::def_mr};
       std::pmr::vector<std::pmr::list<pp_token>> args{&kusabira::def_mr};
       token_list.emplace_back(pp_token_category::identifier, u8"The", 4, pos2);
-      token_list.emplace_back(pp_token_category::whitespace, u8" ", 18, pos2);
+      token_list.emplace_back(pp_token_category::whitespaces, u8" ", 18, pos2);
       token_list.emplace_back(pp_token_category::identifier, u8"first", 8, pos2);
       args.emplace_back(std::move(token_list));
       token_list.emplace_back(pp_token_category::identifier, u8"second", 15, pos2);
       args.emplace_back(std::move(token_list));
       token_list.emplace_back(pp_token_category::identifier, u8"and", 23, pos2);
-      token_list.emplace_back(pp_token_category::whitespace, u8" ", 18, pos2);
+      token_list.emplace_back(pp_token_category::whitespaces, u8" ", 18, pos2);
       token_list.emplace_back(pp_token_category::identifier, u8"third", 27, pos2);
-      token_list.emplace_back(pp_token_category::whitespace, u8" ", 18, pos2);
+      token_list.emplace_back(pp_token_category::whitespaces, u8" ", 18, pos2);
       token_list.emplace_back(pp_token_category::identifier, u8"items.", 33, pos2);
       args.emplace_back(std::move(token_list));
 
@@ -1212,13 +1212,13 @@ namespace kusabira_test::preprocessor {
         std::pmr::list<pp_token> token_list{&kusabira::def_mr};
         std::pmr::vector<std::pmr::list<pp_token>> args{&kusabira::def_mr};
         args.emplace_back(std::move(token_list));
-        token_list.emplace_back(pp_token_category::whitespace, u8" ", 6, pos2);
+        token_list.emplace_back(pp_token_category::whitespaces, u8" ", 6, pos2);
         token_list.emplace_back(pp_token_category::pp_number, u8"0", 7, pos2);
         args.emplace_back(std::move(token_list));
-        token_list.emplace_back(pp_token_category::whitespace, u8" ", 9, pos2);
+        token_list.emplace_back(pp_token_category::whitespaces, u8" ", 9, pos2);
         token_list.emplace_back(pp_token_category::identifier, u8"a", 10, pos2);
         args.emplace_back(std::move(token_list));
-        token_list.emplace_back(pp_token_category::whitespace, u8" ", 10, pos2);
+        token_list.emplace_back(pp_token_category::whitespaces, u8" ", 10, pos2);
         token_list.emplace_back(pp_token_category::identifier, u8"b", 13, pos2);
         args.emplace_back(std::move(token_list));
 

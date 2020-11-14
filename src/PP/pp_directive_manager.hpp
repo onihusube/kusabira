@@ -1622,7 +1622,7 @@ namespace kusabira::PP {
     void skip_whitespace(TokensIterator& it, TokensSentinel end) const {
       do {
         ++it;
-      } while (it != end and (*it).category == pp_token_category::whitespace);
+      } while (it != end and (*it).category == pp_token_category::whitespaces);
     }
 
   };  
