@@ -136,7 +136,6 @@ namespace kusabira::sm {
     }
 
     state_base() = default;
-    ~state_base() = default;
   };
 
 } // namespace kusabira::sm
@@ -294,7 +293,11 @@ namespace kusabira::PP
 
       raw_string_literal() = default;
 
+      // 暗黙コピーはバグの元
       raw_string_literal(const raw_string_literal &) = delete;
+
+      raw_string_literal(raw_string_literal&&) = default;
+      raw_string_literal& operator=(raw_string_literal&&) = default;
 
       detail::rawstr_literal_accepter m_reader{};
 
@@ -356,7 +359,11 @@ namespace kusabira::PP
       punct_seq(int iddex = 0) : m_index{iddex}
       {}
 
+      // 暗黙コピーはバグの元
       punct_seq(const punct_seq &) = delete;
+
+      punct_seq(punct_seq&&) = default;
+      punct_seq& operator=(punct_seq&&) = default;
 
       /**
       * @brief 演算子、区切り文字をチェックする

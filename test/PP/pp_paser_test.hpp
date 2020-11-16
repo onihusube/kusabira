@@ -84,18 +84,6 @@ namespace pp_paser_test {
     CHECK_UNARY_FALSE(skip_whitespaces(it, end));
   }
 
-  // TEST_CASE("status to category test") {
-    
-  //   using ll_paser = kusabira::PP::ll_paser<kusabira::PP::tokenizer<kusabira::PP::filereader, kusabira::PP::pp_tokenizer_sm>>;
-  //   using kusabira::PP::pp_token_category;
-  //   using kusabira::PP::pp_token_category;
-
-  //   CHECK_EQ(ll_paser::tokenize_status_to_category(pp_token_category::identifier), pp_token_category::identifier);
-  //   CHECK_EQ(ll_paser::tokenize_status_to_category(pp_token_category::pp_number), pp_token_category::pp_number);
-  //   CHECK_EQ(ll_paser::tokenize_status_to_category(pp_token_category::op_or_punc), pp_token_category::op_or_punc);
-  //   CHECK_EQ(ll_paser::tokenize_status_to_category(pp_token_category::other_character), pp_token_category::other_character);
-  // }
-
   TEST_CASE("string literal calssify test") {
     
     using ll_paser = kusabira::PP::ll_paser<kusabira::PP::tokenizer<kusabira::PP::filereader, kusabira::PP::pp_tokenizer_sm>>;
@@ -423,15 +411,14 @@ namespace pp_parsing_test
     using kusabira::PP::pp_token;
     using namespace std::literals;
     using pp_tokenizer = kusabira::PP::tokenizer<kusabira::PP::filereader, kusabira::PP::pp_tokenizer_sm>;
-    using ll_paser = kusabira::PP::ll_paser<pp_tokenizer>;
 
     auto testdir = kusabira::test::get_testfiles_dir() / "PP";
 
     REQUIRE_UNARY(std::filesystem::is_directory(testdir));
     REQUIRE_UNARY(std::filesystem::exists(testdir));
 
-    //pp_tokenizer tokenizer{testdir / "parse_text-line.cpp"};
-    ll_paser parser{testdir / "parse_text-line.cpp"};
+    auto testfile_path = testdir / "parse_text-line.cpp";
+    kusabira::PP::ll_paser parser{pp_tokenizer{testfile_path}, std::move(testfile_path)};
 
     auto status = parser.start();
 
@@ -544,15 +531,14 @@ namespace pp_parsing_test
     using kusabira::PP::pp_token_category;
     using namespace std::literals;
     using pp_tokenizer = kusabira::PP::tokenizer<kusabira::PP::filereader, kusabira::PP::pp_tokenizer_sm>;
-    using ll_paser = kusabira::PP::ll_paser<pp_tokenizer>;
 
     auto testdir = kusabira::test::get_testfiles_dir() / "PP";
 
     REQUIRE_UNARY(std::filesystem::is_directory(testdir));
     REQUIRE_UNARY(std::filesystem::exists(testdir));
 
-    //pp_tokenizer tokenizer{testdir / "parse_macro.cpp"};
-    ll_paser parser{testdir / "parse_macro.cpp"};
+    auto testfile_path = testdir / "parse_macro.cpp";
+    kusabira::PP::ll_paser parser{pp_tokenizer{testfile_path}, std::move(testfile_path)};
 
     auto status = parser.start();
 

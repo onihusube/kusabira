@@ -10,15 +10,38 @@
 
 #include "common.hpp"
 
+namespace kusabira::PP::concepts {
+
+  template<typename T>
+  concept file_reader =
+    std::move_constructible<T> and
+    std::constructible_from<T, const fs::path&, std::pmr::memory_resource*> and
+    requires(T& fr) {
+      {fr.readline()} -> std::same_as<std::optional<kusabira::PP::logical_line>>;
+    };
+
+  template<typename T>
+  concept token_identifier =
+    std::move_constructible<T> and
+    std::default_initializable<T> and
+    requires(T& a) {
+      a.input_char(char8_t{});
+      a.input_newline();
+    };
+
+}
+
 namespace kusabira::PP::inline tokenizer_v2 {
 
   /**
   * @brief ソースファイルからプリプロセッシングトークンを抽出する
   * @tparam FileReader ファイル読み込みを実装した型
   * @tparam Automaton 入力トークンを識別するオートマトンの型
+  * @todo コンセプトをきちんと定義しよう
   */
-  template<typename FileReader, typename Automaton>
-  class tokenizer {
+  template <concepts::file_reader FileReader, std::move_constructible Automaton>
+  class tokenizer
+  {
     using line_iterator = std::pmr::forward_list<logical_line>::const_iterator;
     using char_iterator = std::pmr::u8string::const_iterator;
 

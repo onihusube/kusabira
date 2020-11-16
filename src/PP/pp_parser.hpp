@@ -105,6 +105,7 @@ namespace kusabira::PP {
     std::ranges::input_range Tokenizer = kusabira::PP::tokenizer<kusabira::PP::filereader, kusabira::PP::pp_tokenizer_sm>,
     typename ReporterFactory = report::reporter_factory<>
   >
+    requires std::move_constructible<Tokenizer>
   struct ll_paser {
     using iterator = std::ranges::iterator_t<Tokenizer>;
     using sentinel = std::ranges::sentinel_t<Tokenizer>;
@@ -122,8 +123,14 @@ namespace kusabira::PP {
 
   public:
 
-    ll_paser(fs::path filepath, report::report_lang lang = report::report_lang::ja)
-      : m_tokenizer{filepath}
+    /**
+    * @brief コンストラクタ
+    * @param tokenizer トークナイザー実装オブジェクト、所有権を引き取る
+    * @param filepath ソースファイルパス
+    * @param lang 出力メッセージの言語指定
+    */
+    ll_paser(Tokenizer&& tokenizer, fs::path filepath, report::report_lang lang = report::report_lang::ja)
+      : m_tokenizer{std::move(tokenizer)}
       , m_preprocessor{filepath}
       , m_filename{std::move(filepath)}
       , m_reporter(ReporterFactory::create(lang))
@@ -1169,4 +1176,6 @@ namespace kusabira::PP {
     }
   };
 
+  template<typename T>
+  ll_paser(T&&) -> ll_paser<std::remove_cvref_t<T>>;
 } // namespace kusabira::PP
