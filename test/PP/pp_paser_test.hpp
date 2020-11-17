@@ -418,7 +418,7 @@ namespace pp_parsing_test
     REQUIRE_UNARY(std::filesystem::exists(testdir));
 
     auto testfile_path = testdir / "parse_text-line.cpp";
-    kusabira::PP::ll_paser parser{pp_tokenizer{testfile_path}, std::move(testfile_path)};
+    kusabira::PP::ll_paser parser{pp_tokenizer{testfile_path}, testfile_path};
 
     auto status = parser.start();
 
@@ -538,7 +538,7 @@ namespace pp_parsing_test
     REQUIRE_UNARY(std::filesystem::exists(testdir));
 
     auto testfile_path = testdir / "parse_macro.cpp";
-    kusabira::PP::ll_paser parser{pp_tokenizer{testfile_path}, std::move(testfile_path)};
+    kusabira::PP::ll_paser parser{pp_tokenizer{testfile_path}, testfile_path};
 
     auto status = parser.start();
 

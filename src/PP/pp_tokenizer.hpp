@@ -102,8 +102,8 @@ namespace kusabira::PP::inline tokenizer_v2 {
 
   public:
 
-    tokenizer(const fs::path& srcpath) 
-      : m_fr{srcpath, &kusabira::def_mr}
+    tokenizer(fs::path srcpath) 
+      : m_fr{std::move(srcpath), &kusabira::def_mr}
       , m_lines{ &kusabira::def_mr }
       , m_line_pos{m_lines.before_begin()}
     {
