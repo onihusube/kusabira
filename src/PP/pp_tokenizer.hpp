@@ -12,21 +12,36 @@
 
 namespace kusabira::PP::concepts {
 
+  /**
+  * @brief ソースファイルを読みこみ一行づつ出力するクラスを表すコンセプト
+  * @details 型Tの非const左辺値frとfr.readline()の結果を示すオブジェクトoptについて、次の条件を満たす場合に限って、型Tはfile_readerのモデルである
+  * @details bool(opt) == true ならば、*optは入力ファイルの論理1行を表すオブジェクトであり、論理1行分の文字列を所有している
+  * @details bool(opt) == false ならば、入力ファイルを全て読み終わっている（ファイル終端に到達している）
+  */
   template<typename T>
   concept file_reader =
     std::move_constructible<T> and
     std::constructible_from<T, const fs::path&, std::pmr::memory_resource*> and
     requires(T& fr) {
-      {fr.readline()} -> std::same_as<std::optional<kusabira::PP::logical_line>>;
+      {fr.readline()} -> std::same_as<std::optional<kusabira::PP::logical_line>>; // 等しさを保持することを要求しない
     };
 
-  template<typename T>
-  concept token_identifier =
+  /**
+  * @brief 1文字づつ入力し、トークン一つの判別と分類を行う有限状態機械型を表すコンセプト
+  * @details 型Tの非const左辺値smと任意の文字cに対するfr.input_char(c)の結果を示すオブジェクトis_accept、input_newline()の結果を示すオブジェクトcatについて、次の条件を満たす場合に限って、型Tはtokenize_fsmのモデルである
+  * @details デフォルト構築直後、smは初期状態
+  * @details is_accept > pp_token_category::Unacceptedとなる時、smは初期状態
+  * @details is_accept > pp_token_category::Unacceptedとなる時、is_acceptは初期状態の最初の入力からそれまでの文字列を一つのトークンとしたトークン種別を表す
+  * @details トークンとして不正な文字が入力された時、is_accept < pp_token_category::Unaccepted となる（その後のsmの状態は未規定）
+  * @details cat == pp_token_category::Unacceptedとならない
+  */
+  template <typename T>
+  concept tokenize_fsm =
     std::move_constructible<T> and
     std::default_initializable<T> and
-    requires(T& a) {
-      a.input_char(char8_t{});
-      a.input_newline();
+    requires(T &sm) {
+      {sm.input_char(char8_t{})} -> std::same_as<kusabira::PP::pp_token_category>; // 等しさを保持することを要求しない
+      {sm.input_newline()} -> std::same_as<kusabira::PP::pp_token_category>;       // 等しさを保持することを要求しない
     };
 
 }
@@ -39,7 +54,7 @@ namespace kusabira::PP::inline tokenizer_v2 {
   * @tparam Automaton 入力トークンを識別するオートマトンの型
   * @todo コンセプトをきちんと定義しよう
   */
-  template <concepts::file_reader FileReader, std::move_constructible Automaton>
+  template <concepts::file_reader FileReader, concepts::tokenize_fsm Automaton>
   class tokenizer
   {
     using line_iterator = std::pmr::forward_list<logical_line>::const_iterator;
