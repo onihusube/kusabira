@@ -52,7 +52,6 @@ namespace kusabira::PP::inline tokenizer_v2 {
   * @brief ソースファイルからプリプロセッシングトークンを抽出する
   * @tparam FileReader ファイル読み込みを実装した型
   * @tparam Automaton 入力トークンを識別するオートマトンの型
-  * @todo コンセプトをきちんと定義しよう
   */
   template <concepts::file_reader FileReader, concepts::tokenize_fsm Automaton>
   class tokenizer

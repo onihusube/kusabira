@@ -73,3 +73,5 @@ H5C(H5A())  // ab
 debug(1, 2);    // printf("x" "1" "= %d, x" "2" "= %s", x1, x2);
 fputs(str(strncmp("abc\0d", "abc", '\4')        // 呼び出し中のコメント、改行、消える
     == 0) str(: @\n), s);   // fputs("strncmp(\"abc\\0d\", \"abc\", '\\4') == 0" ": @\n", s);
+xstr(INCFILE(2).h)  // "vers2.h"
+glue(HIGH, LOW);    // "hello";
