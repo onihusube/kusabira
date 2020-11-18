@@ -347,6 +347,10 @@ namespace kusabira::PP {
 
       //置換リストをstartからチェックする
       for (auto index = start; index < reptoken_num; ++index, ++it) {
+        if ((*it).category == pp_token_category::white_spaces) {
+          continue;
+        }
+
         //#,##をチェック
         if ((*it).category == pp_token_category::op_or_punc) {
 

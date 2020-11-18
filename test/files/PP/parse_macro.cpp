@@ -75,3 +75,11 @@ fputs(str(strncmp("abc\0d", "abc", '\4')        // 呼び出し中のコメン�
     == 0) str(: @\n), s);   // fputs("strncmp(\"abc\\0d\", \"abc\", '\\4') == 0" ": @\n", s);
 xstr(INCFILE(2).h)  // "vers2.h"
 glue(HIGH, LOW);    // "hello";
+xglue(HIGH, LOW)    // "hello" ", world"
+
+#define hash_hash # ## #
+#define mkstr(a) #a
+#define in_between(a) mkstr(a)
+#define join(c, d) in_between(c hash_hash d)
+
+join(x, y); // "x ## y";

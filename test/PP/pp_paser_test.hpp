@@ -550,7 +550,7 @@ namespace pp_parsing_test
     //}
 
     // 残ったトークン+改行
-    constexpr auto token_num = 152 + 75;
+    constexpr auto token_num = 156 + 83;
     REQUIRE_EQ(parser.get_phase4_result().size(), token_num);
 
     constexpr std::u8string_view expect_token[] = {
@@ -628,7 +628,15 @@ namespace pp_parsing_test
         u8"printf", u8"(", u8R"("x")", u8R"("1")", u8R"("= %d, x")", u8R"("2")", u8R"("= %s")", u8",", u8"x1", u8",", u8"x2", u8")", u8";", u8"",
         u8"fputs", u8"(", u8R"++("strncmp(\"abc\\0d\", \"abc\", '\\4') == 0")++", u8R"(": @\n")", u8",", u8"s", u8")", u8";", u8"",
         u8R"++("vers2.h")++", u8"",
-        u8R"++("hello")++", u8";", u8""
+        u8R"++("hello")++", u8";", u8"",
+        u8R"++("hello")++", u8R"++(", world")++", u8"",
+        u8"", // #define hash_hash # ## #
+        u8"",
+        u8"",
+        u8"",
+        u8"",
+        u8"", // #define join(c, d) in_between(c hash_hash d)
+        u8R"++("x ## y")++", u8";", u8""
     };
     static_assert(std::size(expect_token) == token_num, "The number of pp-tokens between expect_token and token_num does not match.");
 
@@ -707,6 +715,14 @@ namespace pp_parsing_test
         pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::string_literal, pp_token_category::string_literal, pp_token_category::string_literal, pp_token_category::string_literal, pp_token_category::string_literal, pp_token_category::op_or_punc, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::op_or_punc, pp_token_category::newline,
         pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::string_literal, pp_token_category::string_literal, pp_token_category::op_or_punc, pp_token_category::identifier, pp_token_category::op_or_punc, pp_token_category::op_or_punc, pp_token_category::newline,
         pp_token_category::string_literal, pp_token_category::newline,
+        pp_token_category::string_literal, pp_token_category::op_or_punc, pp_token_category::newline,
+        pp_token_category::string_literal, pp_token_category::string_literal, pp_token_category::newline,
+        pp_token_category::newline,
+        pp_token_category::newline,
+        pp_token_category::newline,
+        pp_token_category::newline,
+        pp_token_category::newline,
+        pp_token_category::newline,
         pp_token_category::string_literal, pp_token_category::op_or_punc, pp_token_category::newline
     };
     static_assert(std::size(expect_category) == token_num, "The number of pp-token-categorys between expect_category and token_num does not match.");
