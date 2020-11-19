@@ -347,7 +347,18 @@ namespace kusabira::PP {
 
       //置換リストをstartからチェックする
       for (auto index = start; index < reptoken_num; ++index, ++it) {
-        if ((*it).category == pp_token_category::white_spaces) {
+
+        // ホワイトスペース列は何らかの対象とはなり得ない、このループ処理では現れていないかのごとく扱う
+        // 考慮すべきホワイトスペースは、# ## の前後にあるもののみ
+        if ((*it).category == pp_token_category::whitespaces) {
+          // #, ## トークンの後に出現しているホワイトスペースを削除する
+          if (apper_sharp_op or apper_sharp2_op) {
+            //今のトークン（ホワイトスペース）を消す
+            m_tokens.erase(it);
+            //消した分indexとトークン数を修正
+            --index;
+            --reptoken_num;
+          }
           continue;
         }
 
@@ -363,6 +374,20 @@ namespace kusabira::PP {
           } else if (not apper_sharp_op and (*it).token == u8"##"sv) {
             // #の後に##はエラー
             // ##の後に##が現れる場合、それを結合対象にしてしまう（未定義動作に当たるはず）
+
+            // ##の左辺との間にあるホワイトスペースを無かったことにする
+            // #, ##がトークン先頭に現れることはなく、先頭に到達するまでに必ずループは終了する（はず
+            for (auto rit = std::prev(it); ; --rit) {
+              if ((*it).category == pp_token_category::whitespaces) {
+                m_tokens.erase(rit);
+                // 置換リストのインデックスとトークン数を修正
+                --index;
+                --reptoken_num;
+              } else {
+                // 非ホワイトスペーストークンの出現で終わり
+                break;
+              }
+            }
 
             // 1つ前のトークンを##の左辺として登録する
             // ##がトークン列の先頭に来ることは事前に弾いている

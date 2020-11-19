@@ -695,7 +695,14 @@ namespace kusabira::PP {
         case pp_token_category::line_comment:  [[fallthrough]];
         case pp_token_category::block_comment: [[fallthrough]];
         case pp_token_category::whitespaces:
-          //マクロの引数パース時の考慮はここではしない
+          // マクロの引数パース時のホワイトスペースはここでは処理されていない
+          if constexpr (MacroExpandOff) {
+            // マクロの置換リスト構成時にホワイトスペースを残す
+            // コメント等はホワイトスペース1つとして扱う
+            auto &token = pptoken_list.emplace_back(std::move(*it));
+            token.category = pp_token_category::whitespaces;
+            token.token = u8" "sv;
+          }
           break;
         case pp_token_category::op_or_punc:
         {
