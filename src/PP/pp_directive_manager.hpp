@@ -1434,6 +1434,11 @@ namespace kusabira::PP {
         //メモを消す
         if (complete) outer_macro.erase(macro_name.token);
 
+        // ホワイトスペースの除去
+        std::erase_if(*result, [](const auto& pptoken) {
+          return pptoken.category == pp_token_category::whitespaces;
+        });
+
         return std::make_tuple(success, complete, std::pmr::list<pp_token>{std::move(*result)});
       } else {
         //オブジェクトマクロはこっちにこないのでは？
@@ -1493,6 +1498,11 @@ namespace kusabira::PP {
 
         //メモを消す
         if (complete) outer_macro.erase(macro_name.token);
+
+        // ホワイトスペースの除去
+        std::erase_if(*result, [](const auto& pptoken) {
+          return pptoken.category == pp_token_category::whitespaces;
+        });
 
         return {success, complete, std::pmr::list<pp_token>{std::move(*result)}};
       } else {

@@ -766,7 +766,7 @@ namespace kusabira::PP {
     * @brief 関数マクロの実引数プリプロセッシングトークン列を読み出す
     * @param it 現在の先頭トークン
     * @param end トークン列の終端
-    * @details 呼び出し開始の開きかっこ"("の直後から開始すること
+    * @details マクロ名の次から（空白あるいは呼び出し開始の開きかっこ"("から）開始すること
     * @details 各引数トークン列はマクロ置換をせずにプリプロセッサへ転送する、引数内マクロはプリプロセッサ内で置換の直前に展開される
     * @return エラーが起きた場合その情報、正常終了すれば実引数リスト
     */
@@ -780,13 +780,17 @@ namespace kusabira::PP {
     * @brief 関数マクロの実引数プリプロセッシングトークンを構成する
     * @param it 現在の先頭トークン
     * @param end トークン列の終端
-    * @details 呼び出し開始の開きかっこ"("の前から（マクロ名の次から）
+    * @details マクロ名の次から（空白あるいは呼び出し開始の開きかっこ"("から）開始すること
     * @details 各引数トークン列はマクロ置換をせずにプリプロセッサへ転送する、引数内マクロはプリプロセッサ内で置換の直前に展開される
     * @return エラーが起きた場合その情報、正常終了すれば実引数リスト
     */
     template<typename Iterator, typename Sentinel>
     fn funcmacro_args(Iterator& it, Sentinel end) -> expecetd_macro_args {
       using namespace std::string_view_literals;
+
+      // 事前条件、マクロ名の”次”から始まっていること（すなわち、空白文字やコメント、もしくは開きかっこ"("）
+      assert(deref(it).category != pp_token_category::identifier);
+      assert(deref(it).category == pp_token_category::op_or_punc or deref(it).category <= pp_token_category::block_comment);
 
       //開きかっこまでトークンを進める（ここで改行すっ飛ばしていいの？
       it = std::ranges::find_if_not(std::move(it), end, [](const pptoken_t &token) {
@@ -879,7 +883,7 @@ namespace kusabira::PP {
     template<typename Iterator, typename Sentinel>
     fn further_macro_replacement(pptoken_list_t&& list, Iterator& it, Sentinel se, std::pmr::unordered_set<std::u8string_view>& outer_macro) -> kusabira::expected<pptoken_list_t, pp_err_info> {
       // 未処理トークン列のイテレータだけは参照を保持しておいてもらう
-      using concat_ref = kusabira::vocabulary::concat<std::ranges::iterator_t<pptoken_list_t>, std::ranges::sentinel_t<pptoken_list_t>, Iterator &, Sentinel>;
+      using concat_ref = kusabira::vocabulary::concat<std::ranges::iterator_t<pptoken_list_t>&, std::ranges::sentinel_t<pptoken_list_t>, Iterator &, Sentinel>;
 
       // 処理済みPPトークンリスト
       pptoken_list_t complete_list{&kusabira::def_mr};
@@ -892,6 +896,7 @@ namespace kusabira::PP {
       // 未処理の先頭位置
       auto untreated_pos = list.begin();
 
+      // ここにきている場合、関数マクロの呼び出し候補そのものは処理済みのリスト内で見つかるはず
       do {
         auto pos = std::ranges::find_if(untreated_pos, list.end(), [&](auto &token) {
           is_funcmacro = m_preprocessor.is_macro(token.token);
@@ -908,15 +913,17 @@ namespace kusabira::PP {
 
         // マクロ位置までのトークンを移動する
         complete_list.splice(complete_list.end(), list, untreated_pos, pos);
-        // 処理済みの位置を更新
-        untreated_pos = pos;
 
         // マクロ名を記録
         // ムーブしたいがこれがマクロ呼び出しされているかはここではわからず、ループする可能性があるのでコピー
         macro_name = *pos;
 
         // リストの残りの関数マクロ呼び出しトークン列と未処理のPPトークン列を連結し、引数リストを構成する
-        arg_list = this->funcmacro_args(concat_ref(pos, list.end(), it, se));
+        arg_list = this->funcmacro_args(concat_ref(++pos, list.end(), it, se));
+
+        // 処理済みの位置を更新
+        untreated_pos = pos;
+
         if (not arg_list) {
           pp_err_info& errinfo = arg_list.error();
           if (errinfo.context == pp_parse_context::Funcmacro_NotInvoke) {
@@ -932,9 +939,15 @@ namespace kusabira::PP {
           }
         }
       } while (not arg_list);
+
+      // マクロ名をメモ
+      const auto [memo_it, ignore] = outer_macro.emplace(macro_name.token.to_view());
       
       // 関数マクロ置換
       auto [success, complete, funcmacro_result] = m_preprocessor.funcmacro<true>(*m_reporter, macro_name, *arg_list, outer_macro);
+
+      // メモを削除
+      outer_macro.erase(memo_it);
 
       if (not success) {
         // なんか途中でエラー、expectedを変換してそのまま返す
