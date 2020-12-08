@@ -940,14 +940,8 @@ namespace kusabira::PP {
         }
       } while (not arg_list);
 
-      // マクロ名をメモ
-      const auto [memo_it, ignore] = outer_macro.emplace(macro_name.token.to_view());
-      
       // 関数マクロ置換
       auto [success, complete, funcmacro_result] = m_preprocessor.funcmacro<true>(*m_reporter, macro_name, *arg_list, outer_macro);
-
-      // メモを削除
-      outer_macro.erase(memo_it);
 
       if (not success) {
         // なんか途中でエラー、expectedを変換してそのまま返す
