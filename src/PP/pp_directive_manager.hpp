@@ -314,7 +314,7 @@ namespace kusabira::PP {
         return {false, 0};
       };
 
-      std::forward_iterator auto it = std::next(m_tokens.begin(), start);
+      std::bidirectional_iterator auto it = std::next(m_tokens.begin(), start);
 
       // 事前のマクロ定義妥当性チェック
       if (it != m_tokens.end()) {
@@ -354,8 +354,9 @@ namespace kusabira::PP {
           // #, ## トークンの後に出現しているホワイトスペースを削除する
           if (apper_sharp_op or apper_sharp2_op) {
             //今のトークン（ホワイトスペース）を消す
-            m_tokens.erase(it);
+            it = m_tokens.erase(it);
             //消した分indexとトークン数を修正
+            --it;
             --index;
             --reptoken_num;
           }
@@ -376,17 +377,15 @@ namespace kusabira::PP {
             // ##の後に##が現れる場合、それを結合対象にしてしまう（未定義動作に当たるはず）
 
             // ##の左辺との間にあるホワイトスペースを無かったことにする
-            // #, ##がトークン先頭に現れることはなく、先頭に到達するまでに必ずループは終了する（はず
-            for (auto rit = std::prev(it); ; --rit) {
-              if ((*it).category == pp_token_category::whitespaces) {
-                m_tokens.erase(rit);
-                // 置換リストのインデックスとトークン数を修正
-                --index;
-                --reptoken_num;
-              } else {
-                // 非ホワイトスペーストークンの出現で終わり
-                break;
-              }
+            // #, ##がトークン先頭に現れることはなく、ホワイトスペース列は1つに圧縮されているはず
+            if (auto prev_it = std::prev(it); deref(prev_it).category == pp_token_category::whitespaces) {
+              // これにかかる時はパースでホワイトスペース列の畳み込みができてない
+              assert(deref(std::prev(prev_it)).category != pp_token_category::whitespaces);
+
+              m_tokens.erase(prev_it);
+              // 置換リストのインデックスとトークン数を修正
+              --index;
+              --reptoken_num;
             }
 
             // 1つ前のトークンを##の左辺として登録する
