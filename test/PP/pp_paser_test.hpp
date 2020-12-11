@@ -731,6 +731,7 @@ namespace pp_parsing_test
 
     for (auto i = 0u; i < token_num; ++i) {
       auto &pptoken = *it;
+      CAPTURE(i);
       CHECK_EQ(pptoken, pp_token{expect_category[i], expect_token[i]});
       ++it;
     }

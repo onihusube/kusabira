@@ -819,23 +819,35 @@ namespace kusabira::PP {
           continue;
         }
 
-        //一つ前のイテレータを得ておく
-        auto prev = it;
-        --prev;
 
-        //##を消して次のイテレータを得る
-        auto next = m_tokens.erase(it);
+        // ##を消して次のイテレータを得る
+        auto rhs = m_tokens.erase(it);
+        // 左辺オペランドを指すイテレータ
+        auto lhs = std::prev(rhs);
 
-        if (bool is_valid = (*prev) += std::move(*next); not is_valid) {
+        // ホワイトスペースなら消す、ホワイトスペースは1つに折り畳まれている（はず
+        if (deref(lhs).category == pp_token_category::whitespaces) {
+          auto tmp = m_tokens.erase(lhs); // 消した位置の次を指すイテレータが得られる
+          lhs = std::prev(tmp);
+        }
+        if (deref(rhs).category == pp_token_category::whitespaces) {
+          rhs = m_tokens.erase(rhs);
+        }
+
+        // ホワイトスペースが1つにたたまれていない、パーサがおかしい
+        assert(deref(lhs).category != pp_token_category::whitespaces);
+        assert(deref(rhs).category != pp_token_category::whitespaces);
+
+        if (bool is_valid = (*lhs) += std::move(*rhs); not is_valid) {
           //有効ではないプリプロセッシングトークンが生成された、エラー
           //失敗した場合、rhsに破壊的変更はされていないのでエラー出力にはそっちを使う
-          m_replist_err = std::make_pair(pp_parse_context::Define_InvalidTokenConcat, std::move(*next));
+          m_replist_err = std::make_pair(pp_parse_context::Define_InvalidTokenConcat, std::move(*rhs));
         }
 
         //結合したので次のトークンを消す
-        m_tokens.erase(next);
+        m_tokens.erase(rhs);
 
-        it = prev;
+        it = lhs;
       }
     }
 
