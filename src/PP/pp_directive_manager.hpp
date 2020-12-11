@@ -112,8 +112,8 @@ namespace kusabira::PP {
   * @param end 文字列化対象のトークン列の終端
   * @return 文字列化されたトークン（列）、必ず1要素になる
   */
-  template<bool IsVA, std::forward_iterator Iterator, std::sentinel_for<Iterator> Sentinel>
-  ifn pp_stringize(Iterator it, Sentinel end) -> std::pmr::list<pp_token> {
+  template<bool IsVA, std::ranges::bidirectional_range R>
+  ifn pp_stringize(R&& range) -> std::pmr::list<pp_token> {
     using namespace std::string_view_literals;
 
     //結果のリスト
@@ -126,21 +126,32 @@ namespace kusabira::PP {
     //字句トークン列挿入位置
     auto insert_pos = first.composed_tokens.before_begin();
 
-    for (; it != end; ++it) {
-      auto&& tmp = (*it).token.to_string();
+    // 先頭と末尾のホワイトスペースとプレイスメーカートークンを無視する
+    auto skip = [](const auto& token) {
+      return token.category == pp_token_category::whitespaces or token.category == pp_token_category::placemarker_token;
+    };
 
-      //"と\ をエスケープする必要がある
-      if (auto cat = (*it).category; pp_token_category::charcter_literal <= cat and cat <= pp_token_category::user_defined_raw_string_literal) {
-        //バックスラッシュをエスケープする
-        constexpr auto npos = std::u8string::npos;
+    for (auto& pptoken : range | std::views::drop_while(skip)
+                               | std::views::reverse
+                               | std::views::drop_while(skip)
+                               | std::views::reverse)
+    {
+      // プレイスメーカートークンはいないものとする
+      if (pptoken.category == pp_token_category::placemarker_token) continue;
+
+      auto&& tmp = pptoken.token.to_string();
+
+      // "と\ をエスケープする必要がある
+      if (auto cat = pptoken.category; pp_token_category::charcter_literal <= cat and cat <= pp_token_category::user_defined_raw_string_literal) {
+        // バックスラッシュをエスケープする
         auto bpos = tmp.find(u8'\\');
-        while(bpos != npos) {
+        while (bpos != std::u8string::npos) {
           tmp.replace(bpos, 1, u8R"(\\)");
           bpos = tmp.find(u8'\\', bpos + 2);
         }
 
         if (pp_token_category::string_literal <= cat) {
-          //"をエスケープする
+          // "をエスケープする
           auto lpos = tmp.find(u8'"');
           tmp.replace(lpos, 1, u8R"(\")");
           auto rpos = tmp.rfind(u8'"');
@@ -148,17 +159,16 @@ namespace kusabira::PP {
         }
       }
       str.append(std::move(tmp));
-      
+
       if constexpr (IsVA) {
-        //カンマの後にスペースを補う
-        if ((*it).token == u8","sv) {
+        // カンマの後にスペースを補う
+        if (pptoken.token == u8","sv) {
           str.append(u8" ");
         }
       }
 
-      //構成する字句トークン列への参照を保存しておく
-      //insert_pos = first.lextokens.insert_after(insert_pos, (*it).lextokens.begin(), (*it).lextokens.end());
-      insert_pos = first.composed_tokens.insert_after(insert_pos, std::move(*it));
+      // 文字列化したプリプロセッシングトークンを構成するトークン列を保存しておく
+      insert_pos = first.composed_tokens.insert_after(insert_pos, pptoken);
     }
 
     str.append(u8"\"");
@@ -543,7 +553,7 @@ namespace kusabira::PP {
 
           //文字列化
           if (sharp_op) {
-            arg_list = pp_stringize<false>(std::begin(arg_list), std::end(arg_list));
+            arg_list = pp_stringize<false>(arg_list);
           } else if (empty(arg_list)) {
             //文字列化対象ではなく引数が空の時、プレイスメーカートークンを挿入しておく
             result_list.insert(it, pp_token{ pp_token_category::placemarker_token });
@@ -703,7 +713,7 @@ namespace kusabira::PP {
               
               // 中身のトークン列だけを文字列化
               // 後ろから処理してるので中身は処理済み、VA_ARGS等考慮しなくていい
-              std::pmr::list<pp_token> stringize_list = pp_stringize<false>(open_paren_pos_next, vaopt_close_paren);
+              std::pmr::list<pp_token> stringize_list = pp_stringize<false>(std::ranges::subrange{ open_paren_pos_next, vaopt_close_paren });
 
               // VA_OPTの全体を削除
               auto insert_pos = result_list.erase(it, ++vaopt_close_paren);
@@ -758,9 +768,9 @@ namespace kusabira::PP {
         if (sharp_op) {
           //#演算子の処理、文字列化を行う
           if (va_args) {
-            arg_list = pp_stringize<true>(std::begin(arg_list), std::end(arg_list));
+            arg_list = pp_stringize<true>(arg_list);
           } else {
-            arg_list = pp_stringize<false>(std::begin(arg_list), std::end(arg_list));
+            arg_list = pp_stringize<false>(arg_list);
           }
         } else if (empty(arg_list)){
           //文字列化対象ではない時、プレイスメーカートークンを挿入する

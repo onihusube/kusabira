@@ -952,26 +952,70 @@ namespace kusabira_test::preprocessor {
     vec.emplace_back(pp_token_category::op_or_punc).token = u8","sv;
     vec.emplace_back(pp_token_category::pp_number, u8"12345ull"sv, 0, pos);
 
-    auto str_list = kusabira::PP::pp_stringize<true>(vec.begin(), vec.end());
+    {
+      auto str_list = kusabira::PP::pp_stringize<true>(vec);
 
-    CHECK_EQ(1ull, str_list.size());
+      CHECK_EQ(1ull, str_list.size());
 
-    const auto& pptoken = str_list.front();
-    CHECK_EQ(pptoken.category, pp_token_category::string_literal);
-    CHECK_EQ(5ull, std::distance(pptoken.composed_tokens.begin(), pptoken.composed_tokens.end()));
-    auto str = u8R"**("test, L\"abcd\\aaa\\\\ggg\\\"sv, 12345ull")**"sv;
-    CHECK_UNARY(pptoken.token == str);
-
+      const auto& pptoken = str_list.front();
+      CHECK_EQ(pptoken.category, pp_token_category::string_literal);
+      CHECK_EQ(5ull, std::distance(pptoken.composed_tokens.begin(), pptoken.composed_tokens.end()));
+      auto str = u8R"**("test, L\"abcd\\aaa\\\\ggg\\\"sv, 12345ull")**"sv;
+      CHECK_UNARY(pptoken.token == str);
+    }
     vec.clear();
 
     //空の入力
-    auto empty_str_list = kusabira::PP::pp_stringize<true>(vec.begin(), vec.end());
-    CHECK_EQ(1ull, empty_str_list.size());
+    {
+      auto empty_str_list = kusabira::PP::pp_stringize<true>(vec);
+      CHECK_EQ(1ull, empty_str_list.size());
 
-    const auto& emptystr_token = empty_str_list.front();
-    CHECK_EQ(emptystr_token.category, pp_token_category::string_literal);
-    CHECK_EQ(0ull, std::distance(emptystr_token.composed_tokens.begin(), emptystr_token.composed_tokens.end()));
-    CHECK_UNARY(emptystr_token.token == u8R"("")"sv);
+      const auto& emptystr_token = empty_str_list.front();
+      CHECK_EQ(emptystr_token.category, pp_token_category::string_literal);
+      CHECK_EQ(0ull, std::distance(emptystr_token.composed_tokens.begin(), emptystr_token.composed_tokens.end()));
+      CHECK_UNARY(emptystr_token.token == u8R"("")"sv);
+    }
+
+    vec.clear();
+
+    // 実質空の入力
+    vec.emplace_back(pp_token_category::whitespaces, u8" "sv, 0, pos);
+    vec.emplace_back(pp_token_category::placemarker_token, u8""sv, 0, pos);
+    vec.emplace_back(pp_token_category::placemarker_token, u8""sv, 0, pos);
+    vec.emplace_back(pp_token_category::whitespaces, u8" "sv, 0, pos);
+    vec.emplace_back(pp_token_category::placemarker_token, u8""sv, 0, pos);
+    {
+      auto empty_str_list = kusabira::PP::pp_stringize<true>(vec);
+      CHECK_EQ(1ull, empty_str_list.size());
+
+      const auto& emptystr_token = empty_str_list.front();
+      CHECK_EQ(emptystr_token.category, pp_token_category::string_literal);
+      CHECK_EQ(0ull, std::distance(emptystr_token.composed_tokens.begin(), emptystr_token.composed_tokens.end()));
+      CHECK_UNARY(emptystr_token.token == u8R"("")"sv);
+    }
+
+    vec.clear();
+
+    // ホワイトスペースとプレイスメーカートークンに囲まれた入力
+    vec.emplace_back(pp_token_category::whitespaces, u8" "sv, 0, pos);
+    vec.emplace_back(pp_token_category::whitespaces, u8" "sv, 0, pos);
+    vec.emplace_back(pp_token_category::placemarker_token, u8""sv, 0, pos);
+    vec.emplace_back(pp_token_category::placemarker_token, u8""sv, 0, pos);
+    vec.emplace_back(pp_token_category::identifier, u8"test"sv, 0, pos);
+    vec.emplace_back(pp_token_category::placemarker_token, u8""sv, 0, pos);
+    vec.emplace_back(pp_token_category::placemarker_token, u8""sv, 0, pos);
+    vec.emplace_back(pp_token_category::whitespaces, u8" "sv, 0, pos);
+    vec.emplace_back(pp_token_category::whitespaces, u8" "sv, 0, pos);
+    vec.emplace_back(pp_token_category::placemarker_token, u8""sv, 0, pos);
+    {
+      auto str_list = kusabira::PP::pp_stringize<true>(vec);
+      CHECK_EQ(1ull, str_list.size());
+
+      const auto& emptystr_token = str_list.front();
+      CHECK_EQ(emptystr_token.category, pp_token_category::string_literal);
+      CHECK_EQ(1ull, std::distance(emptystr_token.composed_tokens.begin(), emptystr_token.composed_tokens.end()));
+      CHECK_UNARY(emptystr_token.token == u8R"("test")"sv);
+    }
   }
 
   TEST_CASE("# operator test") {
