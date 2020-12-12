@@ -1277,8 +1277,12 @@ namespace kusabira::PP {
             //オブジェクトマクロ置換
             std::tie(success, std::ignore, result, std::ignore) = this->objmacro<true>(reporter, *it);
           } else {
-            //マクロ引数列の先頭（開きかっこの次）
-            auto start_pos = std::next(it, 2);
+            //マクロ引数列の先頭（開きかっこの次）位置を探索
+            auto start_pos = std::ranges::find_if(it, fin, [](const auto& pptoken) {
+              return pptoken.token == u8"(";
+              });
+            ++start_pos;
+            //auto start_pos = std::next(it, 2);
 
             //終端かっこのチェック、マクロが閉じる前に終端に達した場合何もしない
             auto close_pos = search_close_parenthesis(start_pos, fin);
@@ -1341,8 +1345,12 @@ namespace kusabira::PP {
             //オブジェクトマクロ置換（再スキャンはこの中で再帰的に行われる）
             std::tie(success, scan_complete, result) = this->objmacro<false>(reporter, *it, outer_macro);
           } else {
-            //マクロ引数列の先頭（開きかっこの次）
-            auto start_pos = std::next(it, 2);
+            //マクロ引数列の先頭（開きかっこの次）位置を探索
+            auto start_pos = std::ranges::find_if(it, fin, [](const auto& pptoken) {
+              return pptoken.token == u8"(";
+            });
+            ++start_pos;
+            //auto start_pos = std::next(it, 2);
 
             //終端かっこのチェック、マクロが閉じる前に終端に達した場合何もしない（外側で再処理）
             close_pos = search_close_parenthesis(start_pos, fin);

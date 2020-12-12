@@ -324,7 +324,9 @@ namespace kusabira_test::preprocessor {
 
       //PPトークン列
       pptokens.emplace_back(pp_token_category::identifier, u8"macro", 14, pos);
+      pptokens.emplace_back(pp_token_category::whitespaces, u8" ", 19, pos);
       pptokens.emplace_back(pp_token_category::identifier, u8"replacement", 20, pos);
+      pptokens.emplace_back(pp_token_category::whitespaces, u8" ", 31, pos);
       pptokens.emplace_back(pp_token_category::identifier, u8"test", 32, pos);
 
       CHECK_UNARY(pp.define(*reporter, lt1, pptokens));
@@ -339,6 +341,10 @@ namespace kusabira_test::preprocessor {
       REQUIRE_UNARY(success);
       CHECK_UNARY(complete);
       CHECK_EQ(list.size(), 3u);
+
+      std::erase_if(pptokens, [](const auto& token) {
+        return token.category == pp_token_category::whitespaces;
+      });
       CHECK_EQ(pptokens, list);
     }
 
@@ -392,15 +398,21 @@ namespace kusabira_test::preprocessor {
       rep_list.emplace_back(pp_token_category::op_or_punc, u8"(", 19, pos);
       rep_list.emplace_back(pp_token_category::identifier, u8"a", 20, pos);
       rep_list.emplace_back(pp_token_category::op_or_punc, u8")", 21, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 22, pos);
       rep_list.emplace_back(pp_token_category::op_or_punc, u8">", 23, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 24, pos);
       rep_list.emplace_back(pp_token_category::op_or_punc, u8"(", 25, pos);
       rep_list.emplace_back(pp_token_category::identifier, u8"b", 26, pos);
       rep_list.emplace_back(pp_token_category::op_or_punc, u8")", 27, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 28, pos);
       rep_list.emplace_back(pp_token_category::op_or_punc, u8"?", 29, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 30, pos);
       rep_list.emplace_back(pp_token_category::op_or_punc, u8"(", 31, pos);
       rep_list.emplace_back(pp_token_category::identifier, u8"a", 32, pos);
       rep_list.emplace_back(pp_token_category::op_or_punc, u8")", 33, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 34, pos);
       rep_list.emplace_back(pp_token_category::op_or_punc, u8":", 35, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 36, pos);
       rep_list.emplace_back(pp_token_category::op_or_punc, u8"(", 37, pos);
       rep_list.emplace_back(pp_token_category::identifier, u8"b", 38, pos);
       rep_list.emplace_back(pp_token_category::op_or_punc, u8")", 39, pos);
@@ -432,7 +444,7 @@ namespace kusabira_test::preprocessor {
 
       REQUIRE_UNARY(success);
       CHECK_UNARY(complete);
-      CHECK_EQ(rep_list.size(), result.size());
+      CHECK_EQ(rep_list.size() - 6, result.size());
 
       std::pmr::list<pp_token> expect{ &kusabira::def_mr };
       expect.emplace_back(pp_token_category::op_or_punc, u8"(", 18, pos);
@@ -482,13 +494,19 @@ namespace kusabira_test::preprocessor {
 
       std::pmr::list<pp_token> token1{&kusabira::def_mr};
       token1.emplace_back(pp_token_category::pp_number, u8"1", 0, pos);
+      token1.emplace_back(pp_token_category::whitespaces, u8" ", 1, pos);
       token1.emplace_back(pp_token_category::op_or_punc, u8"+", 2, pos);
+      token1.emplace_back(pp_token_category::whitespaces, u8" ", 3, pos);
       token1.emplace_back(pp_token_category::pp_number, u8"2", 4, pos);
       std::pmr::list<pp_token> token2{&kusabira::def_mr};
       token2.emplace_back(pp_token_category::identifier, u8"a", 7, pos);
+      token2.emplace_back(pp_token_category::whitespaces, u8" ", 8, pos);
       token2.emplace_back(pp_token_category::op_or_punc, u8"+", 9, pos);
+      token2.emplace_back(pp_token_category::whitespaces, u8" ", 10, pos);
       token2.emplace_back(pp_token_category::identifier, u8"b", 11, pos);
+      token2.emplace_back(pp_token_category::whitespaces, u8" ", 12, pos);
       token2.emplace_back(pp_token_category::op_or_punc, u8"-", 13, pos);
+      token2.emplace_back(pp_token_category::whitespaces, u8" ", 14, pos);
       token2.emplace_back(pp_token_category::identifier, u8"c", 15, pos);
 
       //実引数トークン列
@@ -502,6 +520,13 @@ namespace kusabira_test::preprocessor {
       REQUIRE_UNARY(success);
       CHECK_UNARY(complete);
       CHECK_EQ(29ull, result.size());
+
+      std::erase_if(token1, [](const auto& token) {
+        return token.category == pp_token_category::whitespaces;
+      });
+      std::erase_if(token2, [](const auto& token) {
+        return token.category == pp_token_category::whitespaces;
+      });
 
       std::pmr::list<pp_token> expect{&kusabira::def_mr};
       expect.emplace_back(pp_token_category::op_or_punc, u8"(", 18, pos);
@@ -592,7 +617,9 @@ namespace kusabira_test::preprocessor {
       token_list.emplace_back(pp_token_category::pp_number, u8"0", 8, pos2);
       args.emplace_back(std::move(token_list));
       token_list.emplace_back(pp_token_category::identifier, u8"a", 11, pos2);
+      token_list.emplace_back(pp_token_category::whitespaces, u8" ", 12, pos2);
       token_list.emplace_back(pp_token_category::op_or_punc, u8"+", 13, pos2);
+      token_list.emplace_back(pp_token_category::whitespaces, u8" ", 14, pos2);
       token_list.emplace_back(pp_token_category::identifier, u8"b", 15, pos2);
       args.emplace_back(std::move(token_list));
       token_list.emplace_back(pp_token_category::string_literal, u8R"("str")", 18, pos2);
@@ -717,12 +744,12 @@ namespace kusabira_test::preprocessor {
       rep_list.emplace_back(pp_token_category::identifier, u8"f", 15, pos);
       rep_list.emplace_back(pp_token_category::op_or_punc, u8"(", 16, pos);
       rep_list.emplace_back(pp_token_category::pp_number, u8"0", 17, pos);
-      //rep_list.emplace_back(pp_token_category::whitespace, lt9);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ",  18, pos);
       rep_list.emplace_back(pp_token_category::identifier, u8"__VA_OPT__", 19, pos);
       rep_list.emplace_back(pp_token_category::op_or_punc, u8"(", 29, pos);
       rep_list.emplace_back(pp_token_category::op_or_punc, u8",", 30, pos);
       rep_list.emplace_back(pp_token_category::op_or_punc, u8")", 31, pos);
-      //rep_list.emplace_back(pp_token_category::whitespace, lt14);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 32, pos);
       rep_list.emplace_back(pp_token_category::identifier, u8"__VA_ARGS__", 33, pos);
       rep_list.emplace_back(pp_token_category::op_or_punc, u8")", 44, pos);
 
@@ -831,26 +858,29 @@ namespace kusabira_test::preprocessor {
       std::pmr::list<pp_token> rep_list{&kusabira::def_mr};
 
       //字句トークン
-      pp_token lt2{pp_token_category::identifier, u8"SDEF", 8, pos};
-      pp_token lt4{pp_token_category::identifier, u8"sname", 13, pos};
-      pp_token lt6{pp_token_category::op_or_punc, u8"...", 20, pos};
+      pp_token macro_name{pp_token_category::identifier, u8"SDEF", 8, pos};
 
       //マクロ仮引数トークン列
-      params.emplace_back(lt4.token);
-      params.emplace_back(lt6.token);
+      params.emplace_back(u8"sname");
+      params.emplace_back(u8"...");
       //置換リスト
       rep_list.emplace_back(pp_token_category::identifier, u8"S", 25, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 26, pos);
       rep_list.emplace_back(pp_token_category::identifier, u8"sname", 27, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 28, pos);
       rep_list.emplace_back(pp_token_category::identifier, u8"__VA_OPT__", 33, pos);
       rep_list.emplace_back(pp_token_category::op_or_punc, u8"(", 43, pos);
       rep_list.emplace_back(pp_token_category::op_or_punc, u8"=", 44, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 45, pos);
       rep_list.emplace_back(pp_token_category::op_or_punc, u8"{", 46, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 47, pos);
       rep_list.emplace_back(pp_token_category::identifier, u8"__VA_ARGS__", 48, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 49, pos);
       rep_list.emplace_back(pp_token_category::op_or_punc, u8"}", 60, pos);
       rep_list.emplace_back(pp_token_category::op_or_punc, u8")", 61, pos);
 
       //関数マクロ登録
-      CHECK_UNARY(pp.define(*reporter, lt2, rep_list, params, true));
+      CHECK_UNARY(pp.define(*reporter, macro_name, rep_list, params, true));
 
       //実引数リスト作成
       auto pos2 = ll.emplace_after(pos, 1, 1);
@@ -865,12 +895,14 @@ namespace kusabira_test::preprocessor {
       token_list.emplace_back(pp_token_category::pp_number, u8"2", 13, pos2);
       args.emplace_back(std::move(token_list));
       token_list.emplace_back(pp_token_category::pp_number, u8"3", 16, pos2);
+      token_list.emplace_back(pp_token_category::whitespaces, u8" ", 17, pos2);
       token_list.emplace_back(pp_token_category::op_or_punc, u8"+", 18, pos2);
+      token_list.emplace_back(pp_token_category::whitespaces, u8" ", 19, pos2);
       token_list.emplace_back(pp_token_category::pp_number, u8"4", 20, pos2);
       args.emplace_back(std::move(token_list));
 
       //関数マクロ実行
-      const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, lt2, args);
+      const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, macro_name, args);
 
       REQUIRE_UNARY(success);
       CHECK_UNARY(complete);
@@ -1047,8 +1079,11 @@ namespace kusabira_test::preprocessor {
 
       //置換リスト
       rep_list.emplace_back(pp_token_category::op_or_punc, u8"#", 18, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 19, pos);
       rep_list.emplace_back(pp_token_category::identifier, u8"s", 20, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 21, pos);
       rep_list.emplace_back(pp_token_category::string_literal, u8R"("_append")", 22, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 31, pos);
       rep_list.emplace_back(pp_token_category::op_or_punc, u8";", 32, pos);
 
       //関数マクロ登録
@@ -1344,9 +1379,13 @@ namespace kusabira_test::preprocessor {
 
       //置換リスト
       rep_list.emplace_back(pp_token_category::identifier, u8"pre", 19, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 20, pos);
       rep_list.emplace_back(pp_token_category::op_or_punc, u8"##", 23, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 24, pos);
       rep_list.emplace_back(pp_token_category::identifier, u8"a", 26, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 24, pos);
       rep_list.emplace_back(pp_token_category::op_or_punc, u8"##", 29, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 30, pos);
       rep_list.emplace_back(pp_token_category::identifier, u8"b", 31, pos);
       //マクロ仮引数トークン列
       params.emplace_back(lt4.token);
@@ -1413,11 +1452,16 @@ namespace kusabira_test::preprocessor {
       rep_list.emplace_back(pp_token_category::identifier, u8"printf", 20, pos);
       rep_list.emplace_back(pp_token_category::op_or_punc, u8"(", 26, pos);
       rep_list.emplace_back(pp_token_category::identifier, u8"x", 27, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 28, pos);
       rep_list.emplace_back(pp_token_category::op_or_punc, u8"##", 29, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 28, pos);
       rep_list.emplace_back(pp_token_category::identifier, u8"s", 32, pos);
       rep_list.emplace_back(pp_token_category::op_or_punc, u8",", 33, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 28, pos);
       rep_list.emplace_back(pp_token_category::identifier, u8"x", 35, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 28, pos);
       rep_list.emplace_back(pp_token_category::op_or_punc, u8"##", 37, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 38, pos);
       rep_list.emplace_back(pp_token_category::identifier, u8"t", 40, pos);
       rep_list.emplace_back(pp_token_category::op_or_punc, u8")", 41, pos);
 
@@ -1470,10 +1514,14 @@ namespace kusabira_test::preprocessor {
 
       //置換リスト
       rep_list.emplace_back(pp_token_category::identifier, u8"X", 19, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 20, pos);
       rep_list.emplace_back(pp_token_category::op_or_punc, u8"##", 23, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 25, pos);
       rep_list.emplace_back(pp_token_category::identifier, u8"__VA_ARGS__", 26, pos);
-      rep_list.emplace_back(pp_token_category::op_or_punc, u8"##", 23, pos);
-      rep_list.emplace_back(pp_token_category::identifier, u8"X", 19, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 37, pos);
+      rep_list.emplace_back(pp_token_category::op_or_punc, u8"##", 38, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 40, pos);
+      rep_list.emplace_back(pp_token_category::identifier, u8"X", 41, pos);
       //マクロ仮引数トークン列
       params.emplace_back(lt4.token);
       params.emplace_back(lt6.token);
@@ -1544,25 +1592,27 @@ namespace kusabira_test::preprocessor {
       std::pmr::list<pp_token> rep_list{&kusabira::def_mr};
 
       //字句トークン
-      pp_token lt2{pp_token_category::identifier, u8"G", 8, pos};
-      pp_token lt4{pp_token_category::identifier, u8"X", 10, pos};
-      pp_token lt6{pp_token_category::op_or_punc, u8"...", 13, pos};
+      pp_token macro_name{pp_token_category::identifier, u8"G", 8, pos};
 
       //置換リスト
       rep_list.emplace_back(pp_token_category::identifier, u8"X", 18, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 19, pos);
       rep_list.emplace_back(pp_token_category::op_or_punc, u8"##", 20, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 22, pos);
       rep_list.emplace_back(pp_token_category::identifier, u8"__VA_OPT__", 23, pos);
       rep_list.emplace_back(pp_token_category::op_or_punc, u8"(", 33, pos);
       rep_list.emplace_back(pp_token_category::identifier, u8"bcd", 34, pos);
       rep_list.emplace_back(pp_token_category::op_or_punc, u8")", 37, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 38, pos);
       rep_list.emplace_back(pp_token_category::op_or_punc, u8"##", 39, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 41, pos);
       rep_list.emplace_back(pp_token_category::identifier, u8"X", 42, pos);
       //マクロ仮引数トークン列
-      params.emplace_back(lt4.token);
-      params.emplace_back(lt6.token);
+      params.emplace_back(u8"X");
+      params.emplace_back(u8"...");
 
       //関数マクロ登録
-      CHECK_UNARY(pp.define(*reporter, lt2, rep_list, params, true));
+      CHECK_UNARY(pp.define(*reporter, macro_name, rep_list, params, true));
 
       //実引数リスト作成
       auto pos2 = ll.emplace_after(pos, 1, 1);
@@ -1583,7 +1633,7 @@ namespace kusabira_test::preprocessor {
 
       {
         //関数マクロ実行
-        const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, lt2, args);
+        const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, macro_name, args);
 
         REQUIRE_UNARY(success);
         CHECK_UNARY(complete);
@@ -1601,7 +1651,7 @@ namespace kusabira_test::preprocessor {
         args.emplace_back(std::move(token_list));
 
         //関数マクロ実行
-        const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, lt2, args);
+        const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, macro_name, args);
 
         REQUIRE_UNARY(success);
         CHECK_UNARY(complete);
@@ -1627,7 +1677,9 @@ namespace kusabira_test::preprocessor {
 
       //置換リスト
       rep_list.emplace_back(pp_token_category::op_or_punc, u8"#", 18, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 19, pos);
       rep_list.emplace_back(pp_token_category::op_or_punc, u8"##", 20, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 22, pos);
       rep_list.emplace_back(pp_token_category::op_or_punc, u8"#", 23, pos);
 
       //オブジェクトマクロ登録
@@ -1659,9 +1711,13 @@ namespace kusabira_test::preprocessor {
 
       //置換リスト
       rep_list.emplace_back(pp_token_category::identifier, u8"R", 13, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 14, pos);
       rep_list.emplace_back(pp_token_category::op_or_punc, u8"##", 15, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 17, pos);
       rep_list.emplace_back(pp_token_category::identifier, u8"b", 18, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 19, pos);
       rep_list.emplace_back(pp_token_category::op_or_punc, u8"##", 20, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 22, pos);
       rep_list.emplace_back(pp_token_category::identifier, u8"sv", 23, pos);
 
       //マクロ仮引数トークン列
@@ -1707,10 +1763,13 @@ namespace kusabira_test::preprocessor {
       rep_list.emplace_back(pp_token_category::identifier, u8"__VA_OPT__", 22, pos);
       rep_list.emplace_back(pp_token_category::op_or_punc, u8"(", 32, pos);
       rep_list.emplace_back(pp_token_category::identifier, u8"X", 33, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 34, pos);
       rep_list.emplace_back(pp_token_category::op_or_punc, u8"##", 35, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 37, pos);
       rep_list.emplace_back(pp_token_category::identifier, u8"Y", 38, pos);
       rep_list.emplace_back(pp_token_category::op_or_punc, u8",", 39, pos);
       rep_list.emplace_back(pp_token_category::op_or_punc, u8")", 40, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 41, pos);
       rep_list.emplace_back(pp_token_category::identifier, u8"__VA_ARGS__", 42, pos);
 
       //マクロ仮引数トークン列
@@ -1769,8 +1828,11 @@ namespace kusabira_test::preprocessor {
 
       //置換リスト
       rep_list.emplace_back(pp_token_category::op_or_punc, u8"#", 22, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 23, pos);
       rep_list.emplace_back(pp_token_category::op_or_punc, u8"##", 24, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 26, pos);
       rep_list.emplace_back(pp_token_category::op_or_punc, u8"#", 27, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 28, pos);
       rep_list.emplace_back(pp_token_category::identifier, u8"a", 29, pos);
 
       //マクロ仮引数トークン列
@@ -1806,10 +1868,12 @@ namespace kusabira_test::preprocessor {
 
       //置換リスト
       rep_list.emplace_back(pp_token_category::identifier, u8"X", 26, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 27, pos);
       rep_list.emplace_back(pp_token_category::identifier, u8"__VA_OPT__", 28, pos);
       rep_list.emplace_back(pp_token_category::op_or_punc, u8"(", 38, pos);
       rep_list.emplace_back(pp_token_category::op_or_punc, u8"##", 39, pos);
       rep_list.emplace_back(pp_token_category::op_or_punc, u8")", 41, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 42, pos);
       rep_list.emplace_back(pp_token_category::identifier, u8"__VA_ARGS__", 43, pos);
 
       //マクロ仮引数トークン列
@@ -1857,10 +1921,14 @@ namespace kusabira_test::preprocessor {
 
       //置換リスト
       rep_list.emplace_back(pp_token_category::identifier, u8"a", 22, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 23, pos);
       rep_list.emplace_back(pp_token_category::op_or_punc, u8"#", 24, pos);
       rep_list.emplace_back(pp_token_category::identifier, u8"b", 25, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 26, pos);
       rep_list.emplace_back(pp_token_category::op_or_punc, u8"##", 27, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 29, pos);
       rep_list.emplace_back(pp_token_category::identifier, u8"c", 30, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 31, pos);
       rep_list.emplace_back(pp_token_category::identifier, u8"d", 32, pos);
       //マクロ仮引数トークン列
       params.emplace_back(lt1.token);
@@ -1944,6 +2012,7 @@ namespace kusabira_test::preprocessor {
 
       //置換リスト
       rep_list.emplace_back(pp_token_category::identifier, u8"__VA_ARGS__", 15, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 16, pos);
       rep_list.emplace_back(pp_token_category::identifier, u8"vatest", 27, pos);
       //マクロ仮引数トークン列
       params.emplace_back(lt1.token);
@@ -2056,10 +2125,13 @@ namespace kusabira_test::preprocessor {
       rep_list.emplace_back(pp_token_category::identifier, u8"__VA_OPT__", 22, pos);
       rep_list.emplace_back(pp_token_category::op_or_punc, u8"(", 32, pos);
       rep_list.emplace_back(pp_token_category::identifier, u8"G", 33, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 34, pos);
       rep_list.emplace_back(pp_token_category::identifier, u8"R", 35, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 36, pos);
       rep_list.emplace_back(pp_token_category::identifier, u8"X", 37, pos);
       rep_list.emplace_back(pp_token_category::op_or_punc, u8")", 38, pos);
-      rep_list.emplace_back(pp_token_category::op_or_punc, u8")", 41, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 39, pos);
+      rep_list.emplace_back(pp_token_category::op_or_punc, u8")", 40, pos);
 
       //関数マクロ登録
       CHECK_UNARY(pp.define(*reporter, {pp_token_category::identifier, u8"F", 8, pos}, rep_list, params, true));
