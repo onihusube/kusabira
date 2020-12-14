@@ -380,36 +380,55 @@ namespace kusabira::PP {
       });
     }
 
+    /**
+    * @brief identifier-list（関数マクロの仮引数列）を構成する
+    * @param it 現在の先頭トークン、マクロ定義の開きかっこ"("を指していること
+    * @param end トークン列の終端
+    * @return { { パースステータス, 結果となるプリプロセッシングトークンリスト} | エラー情報 }
+    */
     fn identifier_list(iterator &it, sentinel end) -> kusabira::expected<std::pair<pp_parse_status, std::pmr::vector<std::u8string_view>>, pp_err_info> {
       using namespace std::string_view_literals;
+
+      // 事前条件
+      assert(deref(it).token == u8"(");
+      assert(it != end);
+
+      ++it;
       //仮引数文字列
       std::pmr::vector<std::u8string_view> param_list{ &kusabira::def_mr};
       param_list.reserve(10);
 
       for (;; ++it) {
-        if (it = skip_whitespaces_except_newline(std::move(++it), end); deref(it).category == pp_token_category::newline) {
-          // 改行に至るのは変
-          return kusabira::error(pp_err_info{std::move(*it), pp_parse_context::Define_ParamlistBreak});
-        }
+        // 最初の非ホワイトスペース文字を探す
+        it = skip_whitespaces_except_newline(std::move(it), end);
 
-        if (deref(it).category == pp_token_category::identifier) {
-          //普通の識別子なら仮引数名
-          param_list.emplace_back((*it).token);
-        } else if (deref(it).category == pp_token_category::op_or_punc) {
-          //記号が出てきたら可変長マクロか閉じ括弧の可能性がある
-          if (deref(it).token == u8"..."sv) {
-            return kusabira::ok(std::make_pair(pp_parse_status::DefineVA, std::move(param_list)));
-          } else if ((*it).token == u8")"sv) {
-            return kusabira::ok(std::make_pair(pp_parse_status::DefineRparen, std::move(param_list)));
-          }
+        if (it == end)
+          return kusabira::error(pp_err_info{ pptoken_t{pp_token_category::empty}, pp_parse_context::UnexpectedEOF });
 
-          //エラー：現れてはいけない記号が現れている
-          m_reporter->pp_err_report(m_filename, *it, pp_parse_context::Define_InvalidDirective);
-          return kusabira::error(pp_err_info{std::move(*it), pp_parse_context::Define_InvalidDirective});
-        } else {
-          //エラー：現れるべきトークンが現れなかった（ここのエラーコンテキスト、分けたほうが良くない？
-          m_reporter->pp_err_report(m_filename, *it, pp_parse_context::Define_InvalidDirective);
-          return kusabira::error(pp_err_info{std::move(*it), pp_parse_context::Define_InvalidDirective});
+        switch (deref(it).category) {
+          case pp_token_category::identifier:
+            // 普通の識別子なら仮引数名
+            param_list.emplace_back((*it).token);
+            break;
+          case pp_token_category::op_or_punc:
+            // 記号が出てきたら可変長マクロか閉じ括弧の可能性がある
+            if (deref(it).token == u8"..."sv) {
+              return kusabira::ok(std::make_pair(pp_parse_status::DefineVA, std::move(param_list)));
+            } else if ((*it).token == u8")"sv) {
+              // 関数マクロの終わり
+              return kusabira::ok(std::make_pair(pp_parse_status::DefineRparen, std::move(param_list)));
+            }
+
+            // エラー：現れてはいけない記号が現れている
+            m_reporter->pp_err_report(m_filename, *it, pp_parse_context::Define_InvalidDirective);
+            return kusabira::error(pp_err_info{ std::move(*it), pp_parse_context::Define_InvalidDirective });
+          case pp_token_category::newline:
+            // 改行に至るのは変
+            return kusabira::error(pp_err_info{ std::move(*it), pp_parse_context::Define_ParamlistBreak });
+          default:
+            // エラー：現れるべきトークンが現れなかった（ここのエラーコンテキスト、分けたほうが良くない？
+            m_reporter->pp_err_report(m_filename, *it, pp_parse_context::Define_InvalidDirective);
+            return kusabira::error(pp_err_info{ std::move(*it), pp_parse_context::Define_InvalidDirective });
         }
 
         //仮引数リストの区切りとなるカンマを探す
@@ -424,14 +443,14 @@ namespace kusabira::PP {
             continue;
           }
           if ((*it).token == u8")"sv) {
-            //関数マクロの終わり
+            // 関数マクロの終わり
             return kusabira::ok(std::make_pair(pp_parse_status::DefineRparen, std::move(param_list)));
           }
         }
   
-        //エラー：現れるべきトークンが現れなかった
-        m_reporter->pp_err_report(m_filename, *it, pp_parse_context::Define_InvalidDirective);
-        return kusabira::error(pp_err_info{std::move(*it), pp_parse_context::Define_InvalidDirective});
+        //エラー：現れるべきトークン（カンマ）が現れなかった
+        m_reporter->pp_err_report(m_filename, *it, pp_parse_context::Define_MissingComma);
+        return kusabira::error(pp_err_info{std::move(*it), pp_parse_context::Define_MissingComma });
       }
     }
 

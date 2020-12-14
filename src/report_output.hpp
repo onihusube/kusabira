@@ -43,6 +43,7 @@ namespace kusabira::PP {
     Define_VAOPTRecursive,      // __VA_OPT__が再帰している
     Define_InvalidTokenConcat,  // 不正なプリプロセッシングトークンの連結が行われた
     Define_InvalidDirective,    // #defineディレクティブが正しくない
+    Define_MissingComma,        // #defineディレクティブ（関数マクロ）の仮引数列中のカンマの位置に不正なトークンがいる
     Funcmacro_NotInvoke,        // 関数マクロ名が参照されているが、呼び出しではなかった（エラーじゃない）
     Funcmacro_InsufficientArgs, // 関数マクロ呼び出しの際、引数が足りなかった
     Funcmacro_ReplacementFail,  // 関数マクロの呼び出し中、引数に対するマクロ置換が失敗した
@@ -140,6 +141,7 @@ namespace kusabira::report {
       {PP::pp_parse_context::Define_VAOPTRecursive, u8"__VA_OPT__ must not be recursive."},
       {PP::pp_parse_context::Define_InvalidTokenConcat, u8"Concatenation result by ## is not a valid preprocessing token."},
       {PP::pp_parse_context::Define_InvalidDirective, u8"Unexpected characters appear in #define directive."},
+      {PP::pp_parse_context::Define_MissingComma, u8"In the parameter sequence of the function macro, other tokens are appearing where commas should appear."},
       {PP::pp_parse_context::Funcmacro_InsufficientArgs, u8"The number of arguments of the function macro call does not match."},
       {PP::pp_parse_context::Funcmacro_ReplacementFail, u8"Macro expansion failed to replace the macro contained in the argument."},
       {PP::pp_parse_context::ControlLine_Undef, u8"Specify the macro name."},
@@ -272,6 +274,7 @@ namespace kusabira::report {
       {PP::pp_parse_context::Define_VAOPTRecursive, u8"__VA_OPT__は再帰してはいけません。"},
       {PP::pp_parse_context::Define_InvalidTokenConcat, u8"##による連結結果は有効なプリプロセッシングトークンではありません。"},
       {PP::pp_parse_context::Define_InvalidDirective, u8"#defineディレクティブに予期しない文字が現れています。"},
+      {PP::pp_parse_context::Define_MissingComma, u8"関数マクロの仮引数列において、カンマが現れるべき位置に他のトークンが現れています。"},
       {PP::pp_parse_context::ControlLine_Undef, u8"マクロ名を指定してください。"},
       {PP::pp_parse_context::Funcmacro_InsufficientArgs, u8"関数マクロ呼び出しの引数の数が合いません。"},
       {PP::pp_parse_context::Funcmacro_ReplacementFail, u8"マクロ展開時、実引数に含まれているマクロの置換に失敗しました。"},
