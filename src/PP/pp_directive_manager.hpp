@@ -1243,6 +1243,13 @@ namespace kusabira::PP {
       return std::nullopt;
     }
 
+    /**
+    * @brief マクロ置換処理の共通部分
+    * @param reporter エラー出力先
+    * @param list 引数1つのプリプロセッシングトークンのリスト
+    * @param outer_macro 外側のマクロ名のメモ（この関数自体はこのメモを書き換えない、ただし再帰呼び出し先が書き換えてる）
+    * @return {エラーが起きなかった, マクロのスキャンは完了（falseならば関数マクロの引数リストが閉じていない）}
+    */
     template<bool Rescanning, typename Reporter>
     fn macro_replacement_impl(Reporter& reporter, std::pmr::list<pp_token>& list, std::pmr::unordered_set<std::u8string_view>& outer_macro) const -> std::pair<bool, bool> {
       auto it = std::begin(list);
@@ -1276,10 +1283,16 @@ namespace kusabira::PP {
               std::tie(success, scan_complete, result) = this->objmacro<false>(reporter, *it, outer_macro);
             }
           } else {
-            // マクロ引数列の先頭（開きかっこの次）位置を探索
+            // マクロ引数列の先頭位置を探索
+            // (が出るまでの間の他のトークンを考慮してない、バグってる
             auto start_pos = std::ranges::find_if(it, fin, [](const auto& pptoken) {
               return pptoken.token == u8"(";
-              });
+            });
+
+            // マクロ呼び出しではなかった
+            if (start_pos == fin) return { true, false };
+
+            // 開きかっこの次へ移動
             ++start_pos;
 
             // 終端かっこのチェック、マクロが閉じる前に終端に達した場合何もしない（外側で再処理）
@@ -1292,7 +1305,7 @@ namespace kusabira::PP {
             const auto args = parse_macro_args(start_pos, close_pos);
 
             if constexpr (not Rescanning) {
-              // 関数マクロ置換
+              // 関数マクロ置換（再スキャンしない）
               std::tie(success, std::ignore, result, std::ignore) = this->funcmacro<true>(reporter, *it, args);
             } else {
               // 関数マクロ置換（再スキャンはこの中で再帰的に行われる）
