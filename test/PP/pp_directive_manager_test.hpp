@@ -2371,7 +2371,7 @@ namespace kusabira_test::preprocessor {
 
       CHECK_UNARY(pp.define(*reporter, {pp_token_category::identifier, u8"F7", 8, pos}, rep_list, params, true));
 
-      pos = ll.emplace_after(pos, 8, 8);
+      pos = ll.emplace_after(pos, 9, 9);
       (*pos).line = u8"#define F8(...) __VA_OPT__(__VA_ARGS__) ## __VA_ARGS__";
 
       // 置換リスト
@@ -2386,9 +2386,19 @@ namespace kusabira_test::preprocessor {
       rep_list.emplace_back(pp_token_category::identifier, u8"__VA_ARGS__", 42, pos);
 
       CHECK_UNARY(pp.define(*reporter, {pp_token_category::identifier, u8"F8", 8, pos}, rep_list, params, true));
+
+      pos = ll.emplace_after(pos, 10, 10);
+      (*pos).line = u8"#define g t";
+
+      // 置換リスト
+      rep_list.clear();
+      rep_list.emplace_back(pp_token_category::identifier, u8"t", 10, pos);
+
+      // 関数マクロ登録
+      CHECK_UNARY(pp.define(*reporter, { pp_token_category::identifier, u8"g", 8, pos }, rep_list));
     }
 
-    // F1の実行
+    // 実行
     {
       pos = ll.emplace_after(pos, 17, 17);
       (*pos).line = u8"F1(A, t(0))";
@@ -2515,7 +2525,248 @@ namespace kusabira_test::preprocessor {
     }
 
     // コーナーケースのチェック
+    {
 
+      pos = ll.emplace_after(pos, 30, 30);
+      (*pos).line = u8"F4(t   (0))";
+
+
+      // マクロの開きかっこまでにホワイトスペースがある場合
+      {
+        // 実引数1つのリストと実引数全体のリスト
+        std::pmr::list<pp_token> token_list{ &kusabira::def_mr };
+        std::pmr::vector<std::pmr::list<pp_token>> args{ &kusabira::def_mr };
+        token_list.emplace_back(pp_token_category::identifier, u8"t", 3, pos);
+        token_list.emplace_back(pp_token_category::whitespaces, u8" ", 4, pos);
+        token_list.emplace_back(pp_token_category::whitespaces, u8" ", 5, pos);
+        token_list.emplace_back(pp_token_category::whitespaces, u8" ", 6, pos);
+        token_list.emplace_back(pp_token_category::op_or_punc, u8"(", 7, pos);
+        token_list.emplace_back(pp_token_category::pp_number, u8"0", 8, pos);
+        token_list.emplace_back(pp_token_category::op_or_punc, u8")", 9, pos);
+        args.emplace_back(std::exchange(token_list, std::pmr::list<pp_token>{&kusabira::def_mr}));
+
+        const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, { pp_token_category::identifier, u8"F4", 0, pos }, args);
+
+        // 引数バリデーションバグってるらしい、こう呼び出すと実行時エラー
+        //const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, { pp_token_category::identifier, u8"F1", 0, pos }, args);
+
+        REQUIRE_UNARY(success);
+        CHECK_UNARY(complete);
+
+        CHECK_EQ(result.size(), 1);
+        CHECK_EQ(result, std::pmr::list<pp_token>{pp_token{ pp_token_category::pp_number, u8"0" }});
+      }
+
+      // マクロの開きかっこまでに別の文字がある場合
+      pos = ll.emplace_after(pos, 31, 31);
+      (*pos).line = u8"F4(t a(0))";
+
+      {
+        // 実引数1つのリストと実引数全体のリスト
+        std::pmr::list<pp_token> token_list{ &kusabira::def_mr };
+        std::pmr::vector<std::pmr::list<pp_token>> args{ &kusabira::def_mr };
+        token_list.emplace_back(pp_token_category::identifier, u8"t", 3, pos);
+        token_list.emplace_back(pp_token_category::whitespaces, u8" ", 4, pos);
+        token_list.emplace_back(pp_token_category::identifier, u8"a", 5, pos);
+        token_list.emplace_back(pp_token_category::op_or_punc, u8"(", 6, pos);
+        token_list.emplace_back(pp_token_category::pp_number, u8"0", 7, pos);
+        token_list.emplace_back(pp_token_category::op_or_punc, u8")", 8, pos);
+        args.emplace_back(std::exchange(token_list, std::pmr::list<pp_token>{&kusabira::def_mr}));
+
+        const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, { pp_token_category::identifier, u8"F4", 0, pos }, args);
+
+        REQUIRE_UNARY(success);
+        CHECK_UNARY(complete);
+
+        CHECK_EQ(result.size(), 5);
+        CHECK_EQ(result, std::pmr::list<pp_token>{pp_token{ pp_token_category::identifier, u8"t" }, pp_token{ pp_token_category::identifier, u8"a" }, pp_token{ pp_token_category::op_or_punc, u8"(" }, pp_token{ pp_token_category::pp_number, u8"0" }, pp_token{ pp_token_category::op_or_punc, u8")" }});
+      }
+
+      // マクロの開きかっこまでに別の文字がある場合2
+      pos = ll.emplace_after(pos, 31, 31);
+      (*pos).line = u8"F4(t t  (0))";
+
+      {
+        // 実引数1つのリストと実引数全体のリスト
+        std::pmr::list<pp_token> token_list{ &kusabira::def_mr };
+        std::pmr::vector<std::pmr::list<pp_token>> args{ &kusabira::def_mr };
+        token_list.emplace_back(pp_token_category::identifier, u8"t", 3, pos);
+        token_list.emplace_back(pp_token_category::whitespaces, u8" ", 4, pos);
+        token_list.emplace_back(pp_token_category::identifier, u8"t", 5, pos);
+        token_list.emplace_back(pp_token_category::whitespaces, u8" ", 6, pos);
+        token_list.emplace_back(pp_token_category::whitespaces, u8" ", 7, pos);
+        token_list.emplace_back(pp_token_category::op_or_punc, u8"(", 8, pos);
+        token_list.emplace_back(pp_token_category::pp_number, u8"0", 9, pos);
+        token_list.emplace_back(pp_token_category::op_or_punc, u8")", 10, pos);
+        args.emplace_back(std::exchange(token_list, std::pmr::list<pp_token>{&kusabira::def_mr}));
+
+        const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, { pp_token_category::identifier, u8"F4", 0, pos }, args);
+
+        REQUIRE_UNARY(success);
+        CHECK_UNARY(complete);
+
+        CHECK_EQ(result.size(), 2);
+        CHECK_EQ(result, std::pmr::list<pp_token>{pp_token{ pp_token_category::identifier, u8"t" }, pp_token{ pp_token_category::pp_number, u8"0" }});
+      }
+
+      // 途中で中断するマクロ呼び出し
+      pos = ll.emplace_after(pos, 31, 31);
+      (*pos).line = u8"F4(t(  )";
+
+      {
+        // 実引数1つのリストと実引数全体のリスト
+        std::pmr::list<pp_token> token_list{ &kusabira::def_mr };
+        std::pmr::vector<std::pmr::list<pp_token>> args{ &kusabira::def_mr };
+        token_list.emplace_back(pp_token_category::identifier, u8"t", 3, pos);
+        token_list.emplace_back(pp_token_category::op_or_punc, u8"(", 4, pos);
+        token_list.emplace_back(pp_token_category::whitespaces, u8" ", 5, pos);
+        token_list.emplace_back(pp_token_category::whitespaces, u8" ", 6, pos);
+        args.emplace_back(std::exchange(token_list, std::pmr::list<pp_token>{&kusabira::def_mr}));
+
+        const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, { pp_token_category::identifier, u8"F4", 0, pos }, args);
+
+        REQUIRE_UNARY(success);
+        // マクロ展開は完了していない
+        CHECK_UNARY_FALSE(complete);
+
+        CHECK_EQ(result.size(), 2);
+        CHECK_EQ(result, std::pmr::list<pp_token>{pp_token{ pp_token_category::identifier, u8"t" }, pp_token{ pp_token_category::op_or_punc, u8"(" }});
+      }
+
+      // ネストするマクロ呼び出し
+      pos = ll.emplace_after(pos, 31, 31);
+      (*pos).line = u8"F4(t(1 + t(0)))";
+
+      {
+        // 実引数1つのリストと実引数全体のリスト
+        std::pmr::list<pp_token> token_list{ &kusabira::def_mr };
+        std::pmr::vector<std::pmr::list<pp_token>> args{ &kusabira::def_mr };
+        token_list.emplace_back(pp_token_category::identifier, u8"t", 3, pos);
+        token_list.emplace_back(pp_token_category::op_or_punc, u8"(", 4, pos);
+        token_list.emplace_back(pp_token_category::pp_number, u8"1", 5, pos);
+        token_list.emplace_back(pp_token_category::whitespaces, u8" ", 6, pos);
+        token_list.emplace_back(pp_token_category::op_or_punc, u8"+", 7, pos);
+        token_list.emplace_back(pp_token_category::whitespaces, u8" ", 8, pos);
+        token_list.emplace_back(pp_token_category::identifier, u8"t", 9, pos);
+        token_list.emplace_back(pp_token_category::op_or_punc, u8"(", 10, pos);
+        token_list.emplace_back(pp_token_category::pp_number, u8"0", 11, pos);
+        token_list.emplace_back(pp_token_category::op_or_punc, u8")", 12, pos);
+        token_list.emplace_back(pp_token_category::op_or_punc, u8")", 13, pos);
+        args.emplace_back(std::exchange(token_list, std::pmr::list<pp_token>{&kusabira::def_mr}));
+
+        const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, { pp_token_category::identifier, u8"F4", 0, pos }, args);
+
+        REQUIRE_UNARY(success);
+        CHECK_UNARY(complete);
+
+        CHECK_EQ(result.size(), 3);
+        CHECK_EQ(result, std::pmr::list<pp_token>{pp_token{ pp_token_category::pp_number, u8"1" }, pp_token{ pp_token_category::op_or_punc, u8"+" }, pp_token{ pp_token_category::pp_number, u8"0" }});
+      }
+
+      // ネストするマクロ呼び出し2
+      pos = ll.emplace_after(pos, 31, 31);
+      (*pos).line = u8"F4(t(t(A)))";
+
+      {
+        // 実引数1つのリストと実引数全体のリスト
+        std::pmr::list<pp_token> token_list{ &kusabira::def_mr };
+        std::pmr::vector<std::pmr::list<pp_token>> args{ &kusabira::def_mr };
+        token_list.emplace_back(pp_token_category::identifier, u8"t", 3, pos);
+        token_list.emplace_back(pp_token_category::op_or_punc, u8"(", 4, pos);
+        token_list.emplace_back(pp_token_category::identifier, u8"t", 5, pos);
+        token_list.emplace_back(pp_token_category::op_or_punc, u8"(", 6, pos);
+        token_list.emplace_back(pp_token_category::identifier, u8"A", 7, pos);
+        token_list.emplace_back(pp_token_category::op_or_punc, u8")", 8, pos);
+        token_list.emplace_back(pp_token_category::op_or_punc, u8")", 9, pos);
+        args.emplace_back(std::exchange(token_list, std::pmr::list<pp_token>{&kusabira::def_mr}));
+
+        const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, { pp_token_category::identifier, u8"F4", 0, pos }, args);
+
+        REQUIRE_UNARY(success);
+        CHECK_UNARY(complete);
+
+        CHECK_EQ(result.size(), 1);
+        CHECK_EQ(result, std::pmr::list<pp_token>{pp_token{ pp_token_category::pp_number, u8"20" }});
+      }
+
+      // マクロ展開後にマクロ呼び出しが現れる
+      pos = ll.emplace_after(pos, 32, 32);
+      (*pos).line = u8"F4(g(0))";
+
+      {
+        // 実引数1つのリストと実引数全体のリスト
+        std::pmr::list<pp_token> token_list{ &kusabira::def_mr };
+        std::pmr::vector<std::pmr::list<pp_token>> args{ &kusabira::def_mr };
+        token_list.emplace_back(pp_token_category::identifier, u8"g", 3, pos);
+        token_list.emplace_back(pp_token_category::op_or_punc, u8"(", 4, pos);
+        token_list.emplace_back(pp_token_category::pp_number, u8"0", 3, pos);
+        token_list.emplace_back(pp_token_category::op_or_punc, u8")", 5, pos);
+        args.emplace_back(std::exchange(token_list, std::pmr::list<pp_token>{&kusabira::def_mr}));
+
+        const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, { pp_token_category::identifier, u8"F4", 0, pos }, args);
+
+        REQUIRE_UNARY(success);
+        CHECK_UNARY(complete);
+
+        CHECK_EQ(result.size(), 1);
+        CHECK_EQ(result, std::pmr::list<pp_token>{pp_token{ pp_token_category::pp_number, u8"0" }});
+      }
+
+      // マクロ展開後にマクロ呼び出しが現れる
+      pos = ll.emplace_after(pos, 32, 32);
+      (*pos).line = u8"F4(t(g)(0))";
+
+      {
+        // 実引数1つのリストと実引数全体のリスト
+        std::pmr::list<pp_token> token_list{ &kusabira::def_mr };
+        std::pmr::vector<std::pmr::list<pp_token>> args{ &kusabira::def_mr };
+        token_list.emplace_back(pp_token_category::identifier, u8"t", 3, pos);
+        token_list.emplace_back(pp_token_category::op_or_punc, u8"(", 4, pos);
+        token_list.emplace_back(pp_token_category::identifier, u8"g", 5, pos);
+        token_list.emplace_back(pp_token_category::op_or_punc, u8")", 6, pos);
+        token_list.emplace_back(pp_token_category::op_or_punc, u8"(", 7, pos);
+        token_list.emplace_back(pp_token_category::pp_number, u8"0", 8, pos);
+        token_list.emplace_back(pp_token_category::op_or_punc, u8")", 9, pos);
+        args.emplace_back(std::exchange(token_list, std::pmr::list<pp_token>{&kusabira::def_mr}));
+
+        const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, { pp_token_category::identifier, u8"F4", 0, pos }, args);
+
+        REQUIRE_UNARY(success);
+        CHECK_UNARY(complete);
+
+        CHECK_EQ(result.size(), 1);
+        CHECK_EQ(result, std::pmr::list<pp_token>{pp_token{ pp_token_category::pp_number, u8"0" }});
+      }
+
+      // マクロ展開後にマクロ呼び出しが現れる
+      pos = ll.emplace_after(pos, 32, 32);
+      (*pos).line = u8"F4(t(t(g)(0)))";
+
+      {
+        // 実引数1つのリストと実引数全体のリスト
+        std::pmr::list<pp_token> token_list{ &kusabira::def_mr };
+        std::pmr::vector<std::pmr::list<pp_token>> args{ &kusabira::def_mr };
+        token_list.emplace_back(pp_token_category::identifier, u8"t", 3, pos);
+        token_list.emplace_back(pp_token_category::op_or_punc, u8"(", 4, pos);
+        token_list.emplace_back(pp_token_category::identifier, u8"t", 5, pos);
+        token_list.emplace_back(pp_token_category::op_or_punc, u8"(", 6, pos);
+        token_list.emplace_back(pp_token_category::identifier, u8"g", 7, pos);
+        token_list.emplace_back(pp_token_category::op_or_punc, u8")", 8, pos);
+        token_list.emplace_back(pp_token_category::op_or_punc, u8"(", 9, pos);
+        token_list.emplace_back(pp_token_category::pp_number, u8"0", 10, pos);
+        token_list.emplace_back(pp_token_category::op_or_punc, u8")", 11, pos);
+        token_list.emplace_back(pp_token_category::op_or_punc, u8")", 12, pos);
+        args.emplace_back(std::exchange(token_list, std::pmr::list<pp_token>{&kusabira::def_mr}));
+
+        const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, { pp_token_category::identifier, u8"F4", 0, pos }, args);
+
+        REQUIRE_UNARY(success);
+        CHECK_UNARY(complete);
+
+        CHECK_EQ(result.size(), 4);
+        CHECK_EQ(result, std::pmr::list<pp_token>{pp_token{ pp_token_category::identifier, u8"t" }, pp_token{ pp_token_category::op_or_punc, u8"(" }, pp_token{ pp_token_category::pp_number, u8"0" }, pp_token{ pp_token_category::op_or_punc, u8")" }});
+      }
+    }
   }
 
   TEST_CASE("predfined macro test") {
