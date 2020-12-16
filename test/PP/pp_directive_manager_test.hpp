@@ -2244,6 +2244,280 @@ namespace kusabira_test::preprocessor {
     }
   }
 
+  TEST_CASE("inner argment macro test") {
+    //論理行保持コンテナ
+    std::pmr::forward_list<logical_line> ll{};
+    //エラー出力先
+    auto reporter = kusabira::report::reporter_factory<report::test_out>::create();
+    //プリプロセッサ
+    kusabira::PP::pp_directive_manager pp{"/kusabira/test_complex1.hpp"};
+    auto pos = ll.before_begin();
+
+    // 登録
+    {
+      pos = ll.emplace_after(pos, 0, 0);
+      (*pos).line = u8"#define A 20";
+
+      // 置換リスト
+      std::pmr::list<pp_token> rep_list{&kusabira::def_mr};
+      rep_list.emplace_back(pp_token_category::pp_number, u8"20", 10, pos);
+
+      // 関数マクロ登録
+      CHECK_UNARY(pp.define(*reporter, {pp_token_category::identifier, u8"A", 8, pos}, rep_list));
+
+      pos = ll.emplace_after(pos, 1, 1);
+      (*pos).line = u8"#define t(a) a";
+
+      // 置換リスト
+      rep_list.clear();
+      rep_list.emplace_back(pp_token_category::identifier, u8"a", 13, pos);
+
+      // 仮引数
+      std::pmr::vector<std::u8string_view> params{&kusabira::def_mr};
+      params.emplace_back(u8"a"sv);
+
+      CHECK_UNARY(pp.define(*reporter, {pp_token_category::identifier, u8"t", 8, pos}, rep_list, params, true));
+
+      pos = ll.emplace_after(pos, 2, 2);
+      (*pos).line = u8"#define F1(a1, a2) a1 a2";
+
+      // 置換リスト
+      rep_list.clear();
+      rep_list.emplace_back(pp_token_category::identifier, u8"a1", 19, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 21, pos);
+      rep_list.emplace_back(pp_token_category::identifier, u8"a2", 22, pos);
+
+      // 仮引数
+      params.clear();
+      params.emplace_back(u8"a1"sv);
+      params.emplace_back(u8"a2"sv);
+
+      CHECK_UNARY(pp.define(*reporter, {pp_token_category::identifier, u8"F1", 8, pos}, rep_list, params, true));
+
+      pos = ll.emplace_after(pos, 3, 3);
+      (*pos).line = u8"#define F2(a1, a2) #a1 # a2";
+
+      // 置換リスト
+      rep_list.clear();
+      rep_list.emplace_back(pp_token_category::op_or_punc, u8"#", 18, pos);
+      rep_list.emplace_back(pp_token_category::identifier, u8"a1", 19, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 21, pos);
+      rep_list.emplace_back(pp_token_category::op_or_punc, u8"#", 22, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 23, pos);
+      rep_list.emplace_back(pp_token_category::identifier, u8"a2", 24, pos);
+
+      CHECK_UNARY(pp.define(*reporter, {pp_token_category::identifier, u8"F2", 8, pos}, rep_list, params, true));
+
+      pos = ll.emplace_after(pos, 4, 4);
+      (*pos).line = u8"#define F3(a1, a2) a1 ## a2";
+
+      // 置換リスト
+      rep_list.clear();
+      rep_list.emplace_back(pp_token_category::identifier, u8"a1", 19, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 20, pos);
+      rep_list.emplace_back(pp_token_category::op_or_punc, u8"##", 21, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 22, pos);
+      rep_list.emplace_back(pp_token_category::identifier, u8"a2", 23, pos);
+
+      CHECK_UNARY(pp.define(*reporter, {pp_token_category::identifier, u8"F3", 8, pos}, rep_list, params, true));
+
+      pos = ll.emplace_after(pos, 5, 5);
+      (*pos).line = u8"#define F4(...) __VA_ARGS__";
+
+      // 置換リスト
+      rep_list.clear();
+      rep_list.emplace_back(pp_token_category::identifier, u8"__VA_ARGS__", 16, pos);
+
+      // 仮引数
+      params.clear();
+      params.emplace_back(u8"..."sv);
+
+      CHECK_UNARY(pp.define(*reporter, {pp_token_category::identifier, u8"F4", 8, pos}, rep_list, params, true));
+
+      pos = ll.emplace_after(pos, 6, 6);
+      (*pos).line = u8"#define F5(...) # __VA_ARGS__";
+
+      // 置換リスト
+      rep_list.clear();
+      rep_list.emplace_back(pp_token_category::op_or_punc, u8"#", 16, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 17, pos);
+      rep_list.emplace_back(pp_token_category::identifier, u8"__VA_ARGS__", 18, pos);
+
+      CHECK_UNARY(pp.define(*reporter, {pp_token_category::identifier, u8"F5", 8, pos}, rep_list, params, true));
+
+      pos = ll.emplace_after(pos, 7, 7);
+      (*pos).line = u8"#define F6(...) __VA_OPT__(__VA_ARGS__)";
+
+      // 置換リスト
+      rep_list.clear();
+      rep_list.emplace_back(pp_token_category::identifier, u8"__VA_OPT__", 16, pos);
+      rep_list.emplace_back(pp_token_category::op_or_punc, u8"(", 26, pos);
+      rep_list.emplace_back(pp_token_category::identifier, u8"__VA_ARGS__", 27, pos);
+      rep_list.emplace_back(pp_token_category::op_or_punc, u8")", 38, pos);
+
+      CHECK_UNARY(pp.define(*reporter, {pp_token_category::identifier, u8"F6", 8, pos}, rep_list, params, true));
+
+      pos = ll.emplace_after(pos, 8, 8);
+      (*pos).line = u8"#define F7(...) __VA_OPT__(# __VA_ARGS__)";
+
+      // 置換リスト
+      rep_list.clear();
+      rep_list.emplace_back(pp_token_category::identifier, u8"__VA_OPT__", 16, pos);
+      rep_list.emplace_back(pp_token_category::op_or_punc, u8"(", 26, pos);
+      rep_list.emplace_back(pp_token_category::op_or_punc, u8"#", 27, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 28, pos);
+      rep_list.emplace_back(pp_token_category::identifier, u8"__VA_ARGS__", 29, pos);
+      rep_list.emplace_back(pp_token_category::op_or_punc, u8")", 40, pos);
+
+      CHECK_UNARY(pp.define(*reporter, {pp_token_category::identifier, u8"F7", 8, pos}, rep_list, params, true));
+
+      pos = ll.emplace_after(pos, 8, 8);
+      (*pos).line = u8"#define F8(...) __VA_OPT__(__VA_ARGS__) ## __VA_ARGS__";
+
+      // 置換リスト
+      rep_list.clear();
+      rep_list.emplace_back(pp_token_category::identifier, u8"__VA_OPT__", 16, pos);
+      rep_list.emplace_back(pp_token_category::op_or_punc, u8"(", 26, pos);
+      rep_list.emplace_back(pp_token_category::identifier, u8"__VA_ARGS__", 27, pos);
+      rep_list.emplace_back(pp_token_category::op_or_punc, u8")", 38, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 39, pos);
+      rep_list.emplace_back(pp_token_category::op_or_punc, u8"##", 40, pos);
+      rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 41, pos);
+      rep_list.emplace_back(pp_token_category::identifier, u8"__VA_ARGS__", 42, pos);
+
+      CHECK_UNARY(pp.define(*reporter, {pp_token_category::identifier, u8"F8", 8, pos}, rep_list, params, true));
+    }
+
+    // F1の実行
+    {
+      pos = ll.emplace_after(pos, 17, 17);
+      (*pos).line = u8"F1(A, t(0))";
+
+      // 実引数1つのリストと実引数全体のリスト
+      std::pmr::list<pp_token> token_list{&kusabira::def_mr};
+      std::pmr::vector<std::pmr::list<pp_token>> args{&kusabira::def_mr};
+      token_list.emplace_back(pp_token_category::identifier, u8"A", 3, pos);
+      args.emplace_back(std::exchange(token_list, std::pmr::list<pp_token>{&kusabira::def_mr}));
+      token_list.emplace_back(pp_token_category::identifier, u8"t", 6, pos);
+      token_list.emplace_back(pp_token_category::op_or_punc, u8"(", 7, pos);
+      token_list.emplace_back(pp_token_category::pp_number, u8"0", 8, pos);
+      token_list.emplace_back(pp_token_category::op_or_punc, u8")", 9, pos);
+      args.emplace_back(std::exchange(token_list, std::pmr::list<pp_token>{&kusabira::def_mr}));
+
+      // F1の実行（単純な置換のみ）
+      {
+        const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, {pp_token_category::identifier, u8"F1", 0, pos}, args);
+
+        REQUIRE_UNARY(success);
+        CHECK_UNARY(complete);
+
+        CHECK_EQ(result.size(), 2);
+        CHECK_EQ(result, std::pmr::list<pp_token>{pp_token{pp_token_category::pp_number, u8"20"}, pp_token{pp_token_category::pp_number, u8"0"}});
+      }
+
+      // F2の実行（文字列化）
+      pos = ll.emplace_after(pos, 8, 8);
+      (*pos).line = u8"F2(A, t(0))";
+
+      {
+        const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, {pp_token_category::identifier, u8"F2", 0, pos}, args);
+
+        REQUIRE_UNARY(success);
+        CHECK_UNARY(complete);
+
+        CHECK_EQ(result.size(), 2);
+        CHECK_EQ(result, std::pmr::list<pp_token>{pp_token{pp_token_category::string_literal, u8R"++("A")++"}, pp_token{pp_token_category::string_literal, u8R"++("t(0)")++"}});
+      }
+
+      // F3の実行（トークン結合）
+      pos = ll.emplace_after(pos, 8, 8);
+      (*pos).line = u8"F3(A, t(0))";
+
+      {
+        const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, {pp_token_category::identifier, u8"F3", 0, pos}, args);
+
+        REQUIRE_UNARY(success);
+        CHECK_UNARY(complete);
+
+        CHECK_EQ(result.size(), 4);
+        CHECK_EQ(result, std::pmr::list<pp_token>{pp_token{pp_token_category::identifier, u8"At"}, pp_token{pp_token_category::op_or_punc, u8"("}, pp_token{pp_token_category::pp_number, u8"0"}, pp_token{pp_token_category::op_or_punc, u8")"}});
+      }
+
+      // F4の実行（可変引数マクロ）
+      pos = ll.emplace_after(pos, 8, 8);
+      (*pos).line = u8"F4(A, t(0))";
+
+      {
+        const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, {pp_token_category::identifier, u8"F4", 0, pos}, args);
+
+        REQUIRE_UNARY(success);
+        CHECK_UNARY(complete);
+
+        CHECK_EQ(result.size(), 3);
+        CHECK_EQ(result, std::pmr::list<pp_token>{pp_token{pp_token_category::pp_number, u8"20"}, pp_token{pp_token_category::op_or_punc, u8","}, pp_token{pp_token_category::pp_number, u8"0"}});
+      }
+
+      // F5の実行（可変引数マクロの文字列化）
+      pos = ll.emplace_after(pos, 8, 8);
+      (*pos).line = u8"F5(A, t(0))";
+
+      {
+        const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, {pp_token_category::identifier, u8"F5", 0, pos}, args);
+
+        REQUIRE_UNARY(success);
+        CHECK_UNARY(complete);
+
+        CHECK_EQ(result.size(), 1);
+        CHECK_EQ(result, std::pmr::list<pp_token>{pp_token{pp_token_category::string_literal, u8R"++("A, t(0)")++"}});
+      }
+
+      // F6の実行（VA_OPT内のVA_ARGS）
+      pos = ll.emplace_after(pos, 8, 8);
+      (*pos).line = u8"F6(A, t(0))";
+
+      {
+        const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, {pp_token_category::identifier, u8"F6", 0, pos}, args);
+
+        REQUIRE_UNARY(success);
+        CHECK_UNARY(complete);
+
+        CHECK_EQ(result.size(), 3);
+        CHECK_EQ(result, std::pmr::list<pp_token>{pp_token{pp_token_category::pp_number, u8"20"}, pp_token{pp_token_category::op_or_punc, u8","}, pp_token{pp_token_category::pp_number, u8"0"}});
+      }
+
+      // F7の実行（VA_OPT内VA_ARGSの文字列化）
+      pos = ll.emplace_after(pos, 8, 8);
+      (*pos).line = u8"F7(A, t(0))";
+
+      {
+        const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, {pp_token_category::identifier, u8"F7", 0, pos}, args);
+
+        REQUIRE_UNARY(success);
+        CHECK_UNARY(complete);
+
+        CHECK_EQ(result.size(), 1);
+        CHECK_EQ(result, std::pmr::list<pp_token>{pp_token{pp_token_category::string_literal, u8R"++("A, t(0)")++"}});
+      }
+
+      // F8の実行（VA_OPT内VA_ARGSとVA_ARGSの結合）
+      pos = ll.emplace_after(pos, 8, 8);
+      (*pos).line = u8"F8(A, t(0))";
+
+      {
+        const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, {pp_token_category::identifier, u8"F8", 0, pos}, args);
+
+        REQUIRE_UNARY(success);
+        CHECK_UNARY(complete);
+
+        CHECK_EQ(result.size(), 5);
+        CHECK_EQ(result, std::pmr::list<pp_token>{pp_token{pp_token_category::pp_number, u8"20"}, pp_token{pp_token_category::op_or_punc, u8","}, pp_token{pp_token_category::pp_number, u8"0A"}, pp_token{pp_token_category::op_or_punc, u8","}, pp_token{pp_token_category::pp_number, u8"0"}});
+      }
+    }
+
+    // コーナーケースのチェック
+
+  }
+
   TEST_CASE("predfined macro test") {
 
     //プリプロセッサ

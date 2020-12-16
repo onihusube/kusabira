@@ -1271,7 +1271,7 @@ namespace kusabira::PP {
 
           const bool is_funcmacro = *opt;
 
-          //マクロの終端位置（マクロの閉じトークンの次）
+          // マクロの終端位置（関数マクロなら閉じかっこの次を計算して入れておく）
           auto close_pos = std::next(it);
 
           if (not is_funcmacro) {
@@ -1283,14 +1283,19 @@ namespace kusabira::PP {
               std::tie(success, scan_complete, result) = this->objmacro<false>(reporter, *it, outer_macro);
             }
           } else {
-            // マクロ引数列の先頭位置を探索
-            // (が出るまでの間の他のトークンを考慮してない、バグってる
-            auto start_pos = std::ranges::find_if(it, fin, [](const auto& pptoken) {
-              return pptoken.token == u8"(";
+            // マクロ引数列の先頭位置（開きかっこ）を探索
+            auto start_pos = std::ranges::find_if_not(std::next(it), fin, [](const auto& pptoken) {
+              return pptoken.category <= pp_token_category::block_comment;
             });
 
-            // マクロ呼び出しではなかった
+            // 終わってしまったらそこで終わり
             if (start_pos == fin) return { true, false };
+
+            // マクロ呼び出しではなかった
+            if (deref(start_pos).token != u8"(") {
+              it = start_pos;
+              continue;
+            }
 
             // 開きかっこの次へ移動
             ++start_pos;
