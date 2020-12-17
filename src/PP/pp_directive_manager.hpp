@@ -1350,13 +1350,13 @@ namespace kusabira::PP {
     * @brief 関数マクロの引数内のマクロを展開する
     * @param reporter エラー出力先
     * @param list 引数1つのプリプロセッシングトークン列
-    * @param outer_macro 外側のマクロ名
+    * @details マクロの引数内ではそのマクロと同じものが現れていても構わない、再帰的展開されず、再スキャン時は展開対象にならないので無限再帰に陥ることは無い
     * @details ここでは置換後の再スキャンとさらなるマクロ展開を行わない
     * @return 成功？
     */
     template<typename Reporter>
-    fn macro_replacement(Reporter& reporter, std::pmr::list<pp_token>& list, std::u8string_view outer_macro) const -> bool {
-      std::pmr::unordered_set<std::u8string_view> memo = { {outer_macro}, 1, &kusabira::def_mr };
+    fn macro_replacement(Reporter& reporter, std::pmr::list<pp_token>& list) const -> bool {
+      std::pmr::unordered_set<std::u8string_view> memo{ &kusabira::def_mr };
       const auto [success, ignore] = macro_replacement_impl<false>(reporter, list, memo);
       return success;
     }
@@ -1432,7 +1432,8 @@ namespace kusabira::PP {
       if constexpr (MacroExpandOff) {
         result = macro({});
       } else {
-        result = macro({}, [&, this](auto &list) { return this->macro_replacement(reporter, list, macro_name.token); });
+        // オブジェクトマクロのこっちって何？
+        result = macro({}, [&, this](auto &list) { return this->macro_replacement(reporter, list); });
       }
 
       if (result) {
@@ -1496,7 +1497,7 @@ namespace kusabira::PP {
       if constexpr (MacroExpandOff) {
         result = macro(args);
       } else {
-        result = macro(args, [&, this](auto &list) { return this->macro_replacement(reporter, list, macro_name.token); });
+        result = macro(args, [&, this](auto &list) { return this->macro_replacement(reporter, list); });
       }
 
       //置換結果取得
