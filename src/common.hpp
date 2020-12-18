@@ -157,7 +157,10 @@ namespace kusabira::PP {
       other_character,
 
       //可変引数が空の時の__VA_ARGS__と__VA_OPT__の置換先
-      placemarker_token
+      placemarker_token,
+
+      // マクロ展開の必要が無いマクロ名であることをマークする
+      not_macro_name_identifier
     };
 
     /**

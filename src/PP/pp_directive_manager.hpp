@@ -1258,7 +1258,14 @@ namespace kusabira::PP {
       while (it != fin) {
         // 識別子以外は無視
         // 外側マクロを無視
-        if (deref(it).category != pp_token_category::identifier or outer_macro.contains(deref(it).token)) {
+        if (deref(it).category != pp_token_category::identifier) {
+          ++it;
+          continue;
+        } else if (outer_macro.contains(deref(it).token)) {
+          // メモにあったマクロのトークン種別を変更してマークしておく
+          // 更に外側で再スキャンされたときにも展開を防止するため
+          // 最終的にはパーサ側で元に戻す
+          deref(it).category = pp_token_category::not_macro_name_identifier;
           ++it;
           continue;
         }
@@ -1275,8 +1282,8 @@ namespace kusabira::PP {
           auto close_pos = std::next(it);
 
           if (not is_funcmacro) {
-            // オブジェクトマクロ置換
             if constexpr (not Rescanning) {
+              // オブジェクトマクロ置換（再スキャンしない）
               std::tie(success, std::ignore, result, std::ignore) = this->objmacro<true>(reporter, *it);
             } else {
               // オブジェクトマクロ置換（再スキャンはこの中で再帰的に行われる）
@@ -1327,6 +1334,7 @@ namespace kusabira::PP {
           it = close_pos;
 
           // リストのスキャンが完了していなければ、戻ってきたリストの先頭からスキャンし関数マクロ名を探す（それより前のマクロは置換済み）
+          // スキャンが未完（別のマクロの呼び出しが途中で終わってた）で、そこまでの間に同じマクロの呼び出しがある場合、おかしくなりそう・・・
           if (Rescanning and not scan_complete) {
             it = std::begin(result);
           }
@@ -1436,6 +1444,11 @@ namespace kusabira::PP {
         result = macro({}, [&, this](auto &list) { return this->macro_replacement(reporter, list); });
       }
 
+      if constexpr (MacroExpandOff) {
+        // さらなる展開をしないときはこれで終わり
+        if (result) return { true, true, std::pmr::list<pp_token>{std::move(*result)} };
+      }
+
       if (result) {
         //現在のマクロ名をメモ
         outer_macro.emplace(macro_name.token);
@@ -1498,6 +1511,11 @@ namespace kusabira::PP {
         result = macro(args);
       } else {
         result = macro(args, [&, this](auto &list) { return this->macro_replacement(reporter, list); });
+      }
+
+      if constexpr (MacroExpandOff) {
+        // さらなる展開をしないときはこれで終わり
+        if (result) return { true, true, std::pmr::list<pp_token>{std::move(*result)} };
       }
 
       //置換結果取得

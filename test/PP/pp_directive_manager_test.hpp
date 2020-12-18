@@ -2429,6 +2429,19 @@ namespace kusabira_test::preprocessor {
 
       // オブジェクトマクロ登録
       CHECK_UNARY(pp.define(*reporter, { pp_token_category::identifier, u8"g2", 8, pos }, rep_list));
+
+      pos = ll.emplace_after(pos, 10, 10);
+      (*pos).line = u8"#define z z[0]";
+
+      // 置換リスト
+      rep_list.clear();
+      rep_list.emplace_back(pp_token_category::identifier, u8"z", 10, pos);
+      rep_list.emplace_back(pp_token_category::op_or_punc, u8"[", 11, pos);
+      rep_list.emplace_back(pp_token_category::pp_number, u8"0", 12, pos);
+      rep_list.emplace_back(pp_token_category::op_or_punc, u8"]", 13, pos);
+
+      // オブジェクトマクロ登録
+      CHECK_UNARY(pp.define(*reporter, { pp_token_category::identifier, u8"z", 8, pos }, rep_list));
     }
 
     // 実行
@@ -2797,7 +2810,7 @@ namespace kusabira_test::preprocessor {
         CHECK_UNARY(complete);
 
         CHECK_EQ(result.size(), 4);
-        CHECK_EQ(result, std::pmr::list<pp_token>{pp_token{ pp_token_category::identifier, u8"t" }, pp_token{ pp_token_category::op_or_punc, u8"(" }, pp_token{ pp_token_category::pp_number, u8"0" }, pp_token{ pp_token_category::op_or_punc, u8")" }});
+        CHECK_EQ(result, std::pmr::list<pp_token>{pp_token{ pp_token_category::not_macro_name_identifier, u8"t" }, pp_token{ pp_token_category::op_or_punc, u8"(" }, pp_token{ pp_token_category::pp_number, u8"0" }, pp_token{ pp_token_category::op_or_punc, u8")" }});
       }
 
       // マクロ展開後にマクロ呼び出しが現れる2
@@ -2823,8 +2836,49 @@ namespace kusabira_test::preprocessor {
         CHECK_UNARY(complete);
 
         CHECK_EQ(result.size(), 8);
-        CHECK_EQ(result, std::pmr::list<pp_token>{pp_token{ pp_token_category::identifier, u8"fn" }, pp_token{ pp_token_category::op_or_punc, u8"(" }, pp_token{ pp_token_category::pp_number, u8"2" }, pp_token{ pp_token_category::op_or_punc, u8"*" }, pp_token{ pp_token_category::op_or_punc, u8"(" }, pp_token{ pp_token_category::pp_number, u8"0" }, pp_token{ pp_token_category::op_or_punc, u8")" }, pp_token{ pp_token_category::op_or_punc, u8")" }});
+        CHECK_EQ(result, std::pmr::list<pp_token>{pp_token{ pp_token_category::not_macro_name_identifier, u8"fn" }, pp_token{ pp_token_category::op_or_punc, u8"(" }, pp_token{ pp_token_category::pp_number, u8"2" }, pp_token{ pp_token_category::op_or_punc, u8"*" }, pp_token{ pp_token_category::op_or_punc, u8"(" }, pp_token{ pp_token_category::pp_number, u8"0" }, pp_token{ pp_token_category::op_or_punc, u8")" }, pp_token{ pp_token_category::op_or_punc, u8")" }});
       }
+
+      // マクロ展開後にマクロ呼び出しが現れる3
+      pos = ll.emplace_after(pos, 32, 32);
+      (*pos).line = u8"z";
+
+      {
+        // 実引数1つのリストと実引数全体のリスト
+        std::pmr::list<pp_token> token_list{ &kusabira::def_mr };
+        std::pmr::vector<std::pmr::list<pp_token>> args{ &kusabira::def_mr };
+        args.emplace_back(std::exchange(token_list, std::pmr::list<pp_token>{&kusabira::def_mr}));
+
+        const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, { pp_token_category::identifier, u8"z", 0, pos }, args);
+
+        REQUIRE_UNARY(success);
+        CHECK_UNARY(complete);
+
+        CHECK_EQ(result.size(), 4);
+        CHECK_EQ(result, std::pmr::list<pp_token>{pp_token{ pp_token_category::not_macro_name_identifier, u8"z" }, pp_token{ pp_token_category::op_or_punc, u8"[" }, pp_token{ pp_token_category::pp_number, u8"0" }, pp_token{ pp_token_category::op_or_punc, u8"]" }});
+      }
+
+      // 引数に再帰しうるマクロがある
+      // マクロ登録時に再帰しうる識別子をマークする処理を追加する必要がある
+      /*pos = ll.emplace_after(pos, 32, 32);
+      (*pos).line = u8"fn(z)";
+
+      {
+        // 実引数1つのリストと実引数全体のリスト
+        std::pmr::list<pp_token> token_list{ &kusabira::def_mr };
+        std::pmr::vector<std::pmr::list<pp_token>> args{ &kusabira::def_mr };
+        token_list.emplace_back(pp_token_category::identifier, u8"z", 3, pos);
+        args.emplace_back(std::exchange(token_list, std::pmr::list<pp_token>{&kusabira::def_mr}));
+
+        const auto [success, complete, result, memo] = pp.funcmacro<false>(*reporter, { pp_token_category::identifier, u8"fn", 0, pos }, args);
+
+        REQUIRE_UNARY(success);
+        CHECK_UNARY(complete);
+
+        CHECK_EQ(result.size(), 10);
+        CHECK_EQ(result, std::pmr::list<pp_token>{pp_token{ pp_token_category::not_macro_name_identifier, u8"fn" }, pp_token{ pp_token_category::op_or_punc, u8"(" }, pp_token{ pp_token_category::pp_number, u8"2" }, pp_token{ pp_token_category::op_or_punc, u8"*" }, pp_token{ pp_token_category::op_or_punc, u8"(" }, pp_token{ pp_token_category::not_macro_name_identifier, u8"z" }, pp_token{ pp_token_category::op_or_punc, u8"[" }, pp_token{ pp_token_category::pp_number, u8"0" }, pp_token{ pp_token_category::op_or_punc, u8"]" }, pp_token{ pp_token_category::op_or_punc, u8")" }});
+
+      }*/
     }
   }
 

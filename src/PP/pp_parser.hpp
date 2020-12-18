@@ -697,10 +697,22 @@ namespace kusabira::PP {
                 macro_result_list = std::move(*comp_result);
               }
 
-              // マクロの結果リストからホワイトスペースを取り除く
-              std::erase_if(macro_result_list, [](const auto &pptoken) {
-                return pptoken.category == pp_token_category::whitespaces;
-              });
+              // マクロの結果リストからホワイトスペースを取り除くとともに、スルー対象マクロのトークン種別を元に戻す
+              for (auto itr = begin(macro_result_list); itr != end(macro_result_list); ++itr) {
+                auto& pptoken = *itr;
+
+                if (pptoken.category == pp_token_category::not_macro_name_identifier) {
+                  pptoken.category = pp_token_category::identifier;
+                } else if (pptoken.category == pp_token_category::whitespaces) {
+                  auto erase_pos = itr;
+                  --itr;  // 削除の前に一つ前に戻しておく（ループ時インクリメントの対応のため）
+                  macro_result_list.erase(erase_pos);
+                }
+              }
+
+              //std::erase_if(macro_result_list, [](const auto &pptoken) {
+              //  return pptoken.category == pp_token_category::whitespaces;
+              //});
 
               //置換後リストを末尾にspliceする
               pptoken_list.splice(std::end(pptoken_list), std::move(macro_result_list));
@@ -711,6 +723,10 @@ namespace kusabira::PP {
           pptoken_list.emplace_back(std::move(*it));
           break;
         }
+        case pp_token_category::not_macro_name_identifier:
+          // 通常の識別子として扱う
+          pptoken_list.emplace_back(std::move(*it));
+          break;
         case pp_token_category::line_comment:  [[fallthrough]];
         case pp_token_category::block_comment: [[fallthrough]];
         case pp_token_category::whitespaces:
