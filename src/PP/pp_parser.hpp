@@ -375,6 +375,9 @@ namespace kusabira::PP {
     fn replacement_list(iterator &it, sentinel end) -> kusabira::expected<pptoken_list_t, pp_err_info>{
       pptoken_list_t list{std::pmr::polymorphic_allocator<pp_token>(&kusabira::def_mr)};
 
+      // マクロ定義と置換リストの間のホワイトスペースを飛ばす
+      it = skip_whitespaces_except_newline(std::move(it), end);
+
       return this->pp_tokens<true>(it, end, list).map([&list](auto &&) -> pptoken_list_t {
         return list;
       });
@@ -662,7 +665,7 @@ namespace kusabira::PP {
 
               if (not is_funcmacro) {
                 //オブジェクトマクロ置換
-                std::tie(success, complete, macro_result_list, memo) = m_preprocessor.objmacro<true>(*m_reporter, macro_name);
+                std::tie(success, complete, macro_result_list, memo) = m_preprocessor.objmacro<false>(*m_reporter, macro_name);
               } else {
                 //マクロ名の次へ進める
                 ++it;
@@ -698,16 +701,21 @@ namespace kusabira::PP {
               }
 
               // マクロの結果リストからホワイトスペースを取り除くとともに、スルー対象マクロのトークン種別を元に戻す
-              for (auto itr = begin(macro_result_list); itr != end(macro_result_list); ++itr) {
-                auto& pptoken = *itr;
+              {
+                auto itr = begin(macro_result_list);
+                auto list_end = end(macro_result_list);
 
-                if (pptoken.category == pp_token_category::not_macro_name_identifier) {
-                  pptoken.category = pp_token_category::identifier;
-                } else if (pptoken.category == pp_token_category::whitespaces) {
-                  auto erase_pos = itr;
-                  --itr;  // 削除の前に一つ前に戻しておく（ループ時インクリメントの対応のため）
-                  macro_result_list.erase(erase_pos);
-                  // この後pptokenを参照しない！
+                while (itr != list_end) {
+                  auto& pptoken = *itr;
+
+                  if (pptoken.category == pp_token_category::not_macro_name_identifier) {
+                    pptoken.category = pp_token_category::identifier;
+                  } else if (pptoken.category == pp_token_category::whitespaces) {
+                    itr = macro_result_list.erase(itr); // この後pptokenを参照しない！
+                    continue;
+                  }
+
+                  ++itr;
                 }
               }
 

@@ -182,8 +182,12 @@ namespace kusabira::PP {
         assert(pp_token_category::identifier <= lhs.cat and pp_token_category::identifier <= rhs);
 
         switch (lhs.cat) {
+        case pp_token_category::not_macro_name_identifier:
+          // 結合不可ならエラーになるのでここで元に戻してしまう
+          lhs.cat = pp_token_category::identifier;
+          [[fallthrough]];
         case pp_token_category::identifier:
-          if (rhs == pp_token_category::identifier) {
+          if (rhs == pp_token_category::identifier or rhs == pp_token_category::not_macro_name_identifier) {
             //識別子と識別子 -> 識別子
             return true;
           }
@@ -414,12 +418,13 @@ namespace kusabira::PP {
         }
         //左辺にあるとき
         if (lhs.category == pp_token_category::placemarker_token) {
+          // 右辺のトークンで上書き
           lhs = std::move(rhs);
           return true;
         }
 
         //構成文字列の連結
-        auto&& tmp_str = lhs.token.to_string();
+        auto&& tmp_str = lhs.token.to_string(); // ムーブしないのは、後で使用されうるため
         tmp_str.append(rhs.token);
         lhs.token = std::move(tmp_str);
 

@@ -525,7 +525,7 @@ namespace pp_parsing_test
     }
   }
 
-  TEST_CASE("macro test" * doctest::skip(true)) {
+  TEST_CASE("macro test" * doctest::skip(false)) {
     using kusabira::PP::pp_parse_status;
     using kusabira::PP::pp_token;
     using kusabira::PP::pp_token_category;
