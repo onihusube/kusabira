@@ -2860,7 +2860,7 @@ namespace kusabira_test::preprocessor {
 
       // 引数に再帰しうるマクロがある
       // マクロ登録時に再帰しうる識別子をマークする処理を追加する必要がある
-      /*pos = ll.emplace_after(pos, 32, 32);
+      pos = ll.emplace_after(pos, 32, 32);
       (*pos).line = u8"fn(z)";
 
       {
@@ -2875,10 +2875,10 @@ namespace kusabira_test::preprocessor {
         REQUIRE_UNARY(success);
         CHECK_UNARY(complete);
 
-        CHECK_EQ(result.size(), 10);
-        CHECK_EQ(result, std::pmr::list<pp_token>{pp_token{ pp_token_category::not_macro_name_identifier, u8"fn" }, pp_token{ pp_token_category::op_or_punc, u8"(" }, pp_token{ pp_token_category::pp_number, u8"2" }, pp_token{ pp_token_category::op_or_punc, u8"*" }, pp_token{ pp_token_category::op_or_punc, u8"(" }, pp_token{ pp_token_category::not_macro_name_identifier, u8"z" }, pp_token{ pp_token_category::op_or_punc, u8"[" }, pp_token{ pp_token_category::pp_number, u8"0" }, pp_token{ pp_token_category::op_or_punc, u8"]" }, pp_token{ pp_token_category::op_or_punc, u8")" }});
+        CHECK_EQ(result.size(), 11);
+        CHECK_EQ(result, std::pmr::list<pp_token>{pp_token{ pp_token_category::not_macro_name_identifier, u8"fn" }, pp_token{ pp_token_category::op_or_punc, u8"(" }, pp_token{ pp_token_category::pp_number, u8"2" }, pp_token{ pp_token_category::op_or_punc, u8"*" }, pp_token{ pp_token_category::op_or_punc, u8"(" }, pp_token{ pp_token_category::not_macro_name_identifier, u8"z" }, pp_token{ pp_token_category::op_or_punc, u8"[" }, pp_token{ pp_token_category::pp_number, u8"0" }, pp_token{ pp_token_category::op_or_punc, u8"]" }, pp_token{ pp_token_category::op_or_punc, u8")" }, pp_token{ pp_token_category::op_or_punc, u8")" }});
 
-      }*/
+      }
     }
   }
 

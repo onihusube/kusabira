@@ -707,12 +707,9 @@ namespace kusabira::PP {
                   auto erase_pos = itr;
                   --itr;  // 削除の前に一つ前に戻しておく（ループ時インクリメントの対応のため）
                   macro_result_list.erase(erase_pos);
+                  // この後pptokenを参照しない！
                 }
               }
-
-              //std::erase_if(macro_result_list, [](const auto &pptoken) {
-              //  return pptoken.category == pp_token_category::whitespaces;
-              //});
 
               //置換後リストを末尾にspliceする
               pptoken_list.splice(std::end(pptoken_list), std::move(macro_result_list));

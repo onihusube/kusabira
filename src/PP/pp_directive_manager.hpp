@@ -304,6 +304,7 @@ namespace kusabira::PP {
     /**
     * @brief 置換リスト上の仮引数を見つけて、仮引数の番号との対応を取っておく
     * @tparam Is_VA 可変長マクロか否か
+    * @param name マクロ名
     * @param start 開始インデックス
     * @param end_index 終了インデックス
     * @param is_recursive 再帰中か否か（つまり、VA_OPTの中のトークンを処理している最中か否か）
@@ -311,7 +312,7 @@ namespace kusabira::PP {
     * @details VA_OPT内部のトークン列を処理する時に再帰呼び出しを行う
     */
     template<bool Is_VA>
-    void make_id_to_param_pair(std::size_t start, std::size_t end_index, bool is_recursive = false) {
+    void make_id_to_param_pair(std::u8string_view name, std::size_t start, std::size_t end_index, bool is_recursive = false) {
       using namespace std::string_view_literals;
 
       //仮引数名に対応する実引数リスト上の位置を求めるやつ
@@ -448,6 +449,11 @@ namespace kusabira::PP {
               break;
           }
           continue;
+        } else {
+          // マクロ名と同じ識別子はマクロ展開の対象とならないようにマークしておく
+          if (deref(it).token == name) {
+            deref(it).category = pp_token_category::not_macro_name_identifier;
+          }
         }
 
         if constexpr (Is_VA) {
@@ -472,12 +478,6 @@ namespace kusabira::PP {
               m_replist_err = std::make_pair(pp_parse_context::Define_VAOPTRecursive, std::move(*it));
               break;
             }
-            //__VA_OPT__の前に#は来てはならない
-            //if (apper_sharp_op == true) {
-            //  //エラー
-            //  m_replist_err = std::make_pair(pp_parse_context::Define_InvalidSharp, std::move(*it));
-            //  break;
-            //}
 
             //__VA_OPT__を見つけておく
             after_vaopt = &std::get<5>(m_correspond.emplace_back(index, 0, false, true, apper_sharp_op, false, apper_sharp2_op, false));
@@ -489,7 +489,7 @@ namespace kusabira::PP {
             std::size_t recursive_N = std::distance(start_pos, ++close_paren) + 1;
 
             //__VA_OPT__(...)のカッコ内だけを再帰処理、開きかっこと閉じかっこは見なくていいのでインデックス操作で飛ばす
-            make_id_to_param_pair<true>(index + 2, index + recursive_N, true);
+            make_id_to_param_pair<true>(name, index + 2, index + recursive_N, true);
 
             //エラーチェック
             if (m_replist_err != std::nullopt) break;
@@ -861,16 +861,27 @@ namespace kusabira::PP {
       }
     }
 
+    /**
+    * @brief オブジェクトマクロの置換リスト中で再帰している（自分自身の）マクロ呼び出しをマークする（呼び出されないようにする）
+    * @param name マクロ名
+    */
+    void recursion_macro_marking(std::u8string_view name) {
+      std::ranges::for_each(m_tokens, [name](auto& pptoken) {
+        if (pptoken.token == name) pptoken.category = pp_token_category::not_macro_name_identifier;
+      });
+    }
+
   public:
 
     /**
     * @brief 関数マクロの構築
+    * @param name マクロ名
     * @param params 仮引数列
     * @param replist 置換リスト
     * @param is_va 可変引数マクロであるか否か
     */
     template <typename T = std::pmr::vector<std::u8string_view>, typename U = std::pmr::list<pp_token>>
-    unified_macro(T &&params, U &&replist, bool is_va)
+    unified_macro(std::u8string_view name, T &&params, U &&replist, bool is_va)
       : m_params{ std::forward<T>(params), &kusabira::def_mr }
       , m_tokens{ std::forward<U>(replist), &kusabira::def_mr }
       , m_is_va{is_va}
@@ -878,18 +889,19 @@ namespace kusabira::PP {
       , m_correspond{ &kusabira::def_mr }
     {
       if (is_va) {
-        this->make_id_to_param_pair<true>(0, m_tokens.size());
+        this->make_id_to_param_pair<true>(name, 0, m_tokens.size());
       } else {
-        this->make_id_to_param_pair<false>(0, m_tokens.size());
+        this->make_id_to_param_pair<false>(name, 0, m_tokens.size());
       }
     }
 
     /**
     * @brief オブジェクトマクロの構築
+    * @param name マクロ名
     * @param replist 置換リスト
     */
     template <typename U = std::pmr::list<pp_token>>
-    unified_macro(U &&replist)
+    unified_macro(std::u8string_view name, U &&replist)
       : m_params{ &kusabira::def_mr }
       , m_tokens{ std::forward<U>(replist), &kusabira::def_mr }
       , m_is_va{false}
@@ -897,6 +909,7 @@ namespace kusabira::PP {
       , m_correspond{ &kusabira::def_mr }
     {
       this->objmacro_token_concat();
+      this->recursion_macro_marking(name);
     }
 
     unified_macro(unified_macro&&) = default;
@@ -1038,10 +1051,11 @@ namespace kusabira::PP {
 
       bool redefinition_err = false;
       const std::pair<pp_parse_context, pp_token>* replist_err = nullptr;
+      const auto name_str = macro_name.token.to_view();
 
       if constexpr (std::is_same_v<ParamList, std::nullptr_t>) {
         //オブジェクトマクロの登録
-        const auto [pos, is_registered] = m_funcmacros.try_emplace(macro_name.token.to_view(), std::forward<ReplacementList>(tokenlist));
+        const auto [pos, is_registered] = m_funcmacros.try_emplace(name_str, name_str, std::forward<ReplacementList>(tokenlist));
 
         if (not is_registered) {
           if ((*pos).second.is_identical({}, tokenlist)) return true;
@@ -1056,7 +1070,7 @@ namespace kusabira::PP {
       } else {
         static_assert([] { return false; }() || std::is_same_v<std::remove_cvref_t<ParamList>, std::pmr::vector<std::u8string_view>>, "ParamList must be std::pmr::vector<std::u8string_view>.");
         //関数マクロの登録
-        const auto [pos, is_registered] = m_funcmacros.try_emplace(macro_name.token.to_view(), std::forward<ParamList>(params), std::forward<ReplacementList>(tokenlist), is_va);
+        const auto [pos, is_registered] = m_funcmacros.try_emplace(name_str, name_str, std::forward<ParamList>(params), std::forward<ReplacementList>(tokenlist), is_va);
 
         if (not is_registered) {
           if ((*pos).second.is_identical(params, tokenlist)) return true;
