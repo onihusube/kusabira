@@ -24,7 +24,8 @@ files = ['src/common.hpp', 'src/PP/file_reader.hpp', 'src/PP/pp_tokenizer.hpp', 
          'test/vocabulary/whimsy_str_view_test.hpp', 'test/PP/pp_paser_test.hpp',
          'src/PP/pp_directive_manager.hpp', 'src/report_output.hpp', 'test/common_test.hpp',
          'test/report_output_test.hpp', 'test/PP/pp_directive_manager_test.hpp',
-         'src/vocabulary/scope.hpp', 'test/vocabulary/scope_test.hpp', 'src/vocabulary/concat.hpp', 'test/vocabulary/concat_test.hpp']
+         'src/vocabulary/scope.hpp', 'test/vocabulary/scope_test.hpp', 'src/vocabulary/concat.hpp', 'test/vocabulary/concat_test.hpp',
+         'src/PP/unified_macro.hpp']
 
 include_dir = include_directories('src', 'subprojects/doctest', 'subprojects/tlexpected/include')
 
