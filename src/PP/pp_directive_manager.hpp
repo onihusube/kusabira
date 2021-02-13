@@ -1452,9 +1452,9 @@ namespace kusabira::PP {
 
       //第一弾マクロ展開
       if constexpr (MacroExpandOff) {
+        // オブジェクトマクロのこっちって何？
         result = macro({});
       } else {
-        // オブジェクトマクロのこっちって何？
         result = macro({}, [&, this](auto &list) { return this->macro_replacement(reporter, list); });
       }
 

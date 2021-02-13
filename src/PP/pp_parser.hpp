@@ -995,7 +995,7 @@ namespace kusabira::PP {
       } while (not arg_list);
 
       // 関数マクロ置換
-      auto [success, complete, funcmacro_result] = m_preprocessor.funcmacro<true>(*m_reporter, macro_name, *arg_list, outer_macro);
+      auto [success, complete, funcmacro_result] = m_preprocessor.funcmacro<false>(*m_reporter, macro_name, *arg_list, outer_macro);
 
       if (not success) {
         // なんか途中でエラー、expectedを変換してそのまま返す
