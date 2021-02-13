@@ -695,6 +695,8 @@ namespace kusabira::PP {
                 return kusabira::error(pp_err_info{ std::move(macro_name), pp_parse_context::ControlLine });
               }
               if (not complete) {
+                // マクロ呼び出し全体の”次”のトークンへ
+                ++it;
                 //マクロ展開を継続
                 auto comp_result = this->further_macro_replacement(std::move(macro_result_list), it, it_end, memo);
                 macro_result_list = std::move(*comp_result);
@@ -902,10 +904,13 @@ namespace kusabira::PP {
         return kusabira::error(*std::move(err));
       }
 
-      //閉じかっこで終わってる筈なのでファイル終端に達するはずはない
+      // 閉じかっこで終わってる筈なのでファイル終端に達するはずはない
       if (it == end) {
         return kusabira::error(pp_err_info{pptoken_t{pp_token_category::empty}, pp_parse_context::UnexpectedEOF});
       }
+
+      // 事後条件（閉じかっこで終わる）
+      assert(deref(it).token == u8")");
 
       return kusabira::ok(std::move(args));
     }
@@ -924,6 +929,9 @@ namespace kusabira::PP {
     fn further_macro_replacement(pptoken_list_t&& list, Iterator& it, Sentinel se, std::pmr::unordered_set<std::u8string_view>& outer_macro) -> kusabira::expected<pptoken_list_t, pp_err_info> {
       // 未処理トークン列のイテレータだけは参照を保持しておいてもらう
       using concat_ref = kusabira::vocabulary::concat<std::ranges::iterator_t<pptoken_list_t>&, std::ranges::sentinel_t<pptoken_list_t>, Iterator &, Sentinel>;
+
+      // 事前条件
+      assert(0 < size(list));
 
       // 処理済みPPトークンリスト
       pptoken_list_t complete_list{&kusabira::def_mr};
@@ -958,8 +966,14 @@ namespace kusabira::PP {
         // ムーブしたいがこれがマクロ呼び出しされているかはここではわからず、ループする可能性があるのでコピー
         macro_name = *pos;
 
-        // リストの残りの関数マクロ呼び出しトークン列と未処理のPPトークン列を連結し、引数リストを構成する
-        arg_list = this->funcmacro_args(concat_ref(++pos, list.end(), it, se));
+        // マクロ名の次に進める
+        if (++pos; pos == list.end()) {
+          // 終端に到達しているとき（リストの要素数が1のとき）、結合の必要はない
+          arg_list = this->funcmacro_args(it, se);
+        } else {
+          // リストの残りの関数マクロ呼び出しトークン列と未処理のPPトークン列を連結し、引数リストを構成する
+          arg_list = this->funcmacro_args(concat_ref(pos, list.end(), it, se));
+        }
 
         // 処理済みの位置を更新
         untreated_pos = pos;
