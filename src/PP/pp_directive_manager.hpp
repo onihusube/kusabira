@@ -979,9 +979,9 @@ namespace kusabira::PP {
     fn operator()(const std::pmr::vector<std::pmr::list<pp_token>>& args) const -> macro_result_t {
       //可変引数マクロと処理を分ける
       if (m_is_va) {
-        return this->va_macro_impl(args, [](auto&&) { return true; });
+        return this->va_macro_impl(args, [](auto&&) constexpr { return true; });
       } else {
-        return this->func_macro_impl(args, [](auto &&) { return true; });
+        return this->func_macro_impl(args, [](auto &&) constexpr { return true; });
       }
     }
 
@@ -1423,7 +1423,7 @@ namespace kusabira::PP {
     * @param macro_name 識別子トークン名
     * @return 置換リストのoptional、無効地なら置換対象ではなかった
     */
-    template<bool MacroExpandOff, typename Reporter>
+    template<bool MacroExpandOff = false, typename Reporter>
     fn objmacro(Reporter& reporter, const pp_token& macro_name) const -> std::tuple<bool, bool, std::pmr::list<pp_token>, std::pmr::unordered_set<std::u8string_view>> {
       std::pmr::unordered_set<std::u8string_view> memo{&kusabira::def_mr};
       auto&& tuple = this->objmacro<MacroExpandOff>(reporter, macro_name, memo);
@@ -1432,11 +1432,11 @@ namespace kusabira::PP {
 
     /**
     * @brief マクロによる置換リストを取得する
-    * @tparam MacroExpandOff さらにマクロ展開を行うか否か
+    * @tparam MacroExpandOff さらにマクロ展開（展開結果の再スキャン）を行うか否か
     * @param macro_name 識別子トークン名
     * @return 置換リストのoptional、無効地なら置換対象ではなかった
     */
-    template<bool MacroExpandOff, typename Reporter>
+    template<bool MacroExpandOff = false, typename Reporter>
     fn objmacro(Reporter& reporter, const pp_token& macro_name, std::pmr::unordered_set<std::u8string_view>& outer_macro) const -> std::tuple<bool, bool, std::pmr::list<pp_token>> {
       
       //事前定義マクロを処理（この結果には再スキャンの対象となるものは含まれていないはず）
@@ -1450,14 +1450,9 @@ namespace kusabira::PP {
       // ここでmemory_resourceを適切に設定しておかないと、アロケータが正しく伝搬しない
       unified_macro::macro_result_t result{tl::in_place, &kusabira::def_mr};
 
-      //第一弾マクロ展開
-      if constexpr (MacroExpandOff) {
-        // オブジェクトマクロのこっちって何？
-        result = macro({});
-      } else {
-        result = macro({}, [&, this](auto &list) { return this->macro_replacement(reporter, list); });
-      }
-
+      // 第一弾マクロ展開（オブジェクトマクロでは引数内マクロ置換は常に不要）
+      result = macro({});
+      
       if constexpr (MacroExpandOff) {
         // さらなる展開をしないときはこれで終わり
         if (result) return { true, true, std::pmr::list<pp_token>{std::move(*result)} };
@@ -1488,12 +1483,12 @@ namespace kusabira::PP {
 
     /**
     * @brief 関数マクロによる置換リストを取得する
-    * @tparam MacroExpandOff さらにマクロ展開を行うか否か
+    * @tparam MacroExpandOff さらにマクロ展開（引数内マクロの再帰展開と展開結果の再スキャン）を行うか否か
     * @param macro_name マクロ名
     * @param args 関数マクロの実引数トークン列
     * @return {エラーの有無, スキャン完了したか, 置換リスト}
     */
-    template<bool MacroExpandOff, typename Reporter>
+    template<bool MacroExpandOff = false, typename Reporter>
     fn funcmacro(Reporter& reporter, const pp_token& macro_name, const std::pmr::vector<std::pmr::list<pp_token>>& args) const -> std::tuple<bool, bool, std::pmr::list<pp_token>, std::pmr::unordered_set<std::u8string_view>> {
       std::pmr::unordered_set<std::u8string_view> memo{&kusabira::def_mr};
       auto&& tuple = this->funcmacro<MacroExpandOff>(reporter, macro_name, args, memo);
@@ -1501,12 +1496,12 @@ namespace kusabira::PP {
     }
     /**
     * @brief 関数マクロによる置換リストを取得する
-    * @tparam MacroExpandOff さらにマクロ展開を行うか否か
+    * @tparam MacroExpandOff さらにマクロ展開（引数内マクロの再帰展開と展開結果の再スキャン）を行うか否か
     * @param macro_name マクロ名
     * @param args 関数マクロの実引数トークン列
     * @return {エラーの有無, スキャン完了したか, 置換リスト}
     */
-    template<bool MacroExpandOff, typename Reporter>
+    template<bool MacroExpandOff = false, typename Reporter>
     fn funcmacro(Reporter& reporter, const pp_token& macro_name, const std::pmr::vector<std::pmr::list<pp_token>>& args, std::pmr::unordered_set<std::u8string_view>& outer_macro) const -> std::tuple<bool, bool, std::pmr::list<pp_token>> {
       
       //マクロを取り出す（存在は予め調べてあるものとする）
