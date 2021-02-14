@@ -665,7 +665,7 @@ namespace kusabira::PP {
 
               if (not is_funcmacro) {
                 //オブジェクトマクロ置換
-                std::tie(success, complete, macro_result_list, memo) = m_preprocessor.objmacro<false>(*m_reporter, macro_name);
+                std::tie(success, complete, macro_result_list, memo) = m_preprocessor.expand_objmacro(*m_reporter, macro_name);
               } else {
                 //マクロ名の次へ進める
                 ++it;
@@ -687,7 +687,7 @@ namespace kusabira::PP {
                   }
                 }
                 //関数マクロ置換
-                std::tie(success, complete, macro_result_list, memo) = m_preprocessor.funcmacro<false>(*m_reporter, macro_name, *arg_list);
+                std::tie(success, complete, macro_result_list, memo) = m_preprocessor.expand_funcmacro(*m_reporter, macro_name, *arg_list);
               }
               if (not success) {
                 //マクロ実行時のエラーだが、報告済
@@ -995,7 +995,7 @@ namespace kusabira::PP {
       } while (not arg_list);
 
       // 関数マクロ置換
-      auto [success, complete, funcmacro_result] = m_preprocessor.funcmacro<false>(*m_reporter, macro_name, *arg_list, outer_macro);
+      auto [success, complete, funcmacro_result] = m_preprocessor.expand_funcmacro(*m_reporter, macro_name, *arg_list, outer_macro);
 
       if (not success) {
         // なんか途中でエラー、expectedを変換してそのまま返す
