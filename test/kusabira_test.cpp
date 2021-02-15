@@ -13,3 +13,4 @@
 #include "PP/pp_directive_manager_test.hpp"
 #include "test/vocabulary/scope_test.hpp"
 #include "test/vocabulary/concat_test.hpp"
+#include "test/PP/unified_macro_test.hpp"

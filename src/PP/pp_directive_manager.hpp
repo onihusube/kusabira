@@ -8,7 +8,7 @@
 
 #include "../common.hpp"
 #include "../report_output.hpp"
-#include "unified_macro.hpp"
+#include "macro_manager.hpp"
 
 namespace kusabira::PP::inline free_func{
   
