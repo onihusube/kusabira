@@ -215,62 +215,6 @@ namespace kusabira_test::preprocessor {
     }
   }
 
-  TEST_CASE("error test") {
-
-    //論理行保持コンテナ
-    std::pmr::forward_list<logical_line> ll{};
-    //トークン列
-    std::vector<pp_token> tokens{};
-    tokens.reserve(20);
-    //エラー出力先
-    auto reporter = kusabira::report::reporter_factory<report::test_out>::create();
-    //プリプロセッサ
-    kusabira::PP::pp_directive_manager pp{"/kusabira/test_error_directive.hpp"};
-
-    auto pos = ll.before_begin();
-
-    {
-      //トークン列の構成
-      pos = ll.emplace_after(pos, 1, 1);
-      (*pos).line = u8"#error test error directive!";
-      tokens.emplace_back(pp_token_category::identifier, u8"error", 1, pos);
-      tokens.emplace_back(pp_token_category::identifier, u8"test", 7, pos);
-      tokens.emplace_back(pp_token_category::identifier, u8"error", 12, pos);
-      tokens.emplace_back(pp_token_category::identifier, u8"directive", 18, pos);
-      tokens.emplace_back(pp_token_category::op_or_punc, u8"!", 27, pos);
-      tokens.emplace_back(pp_token_category::newline, u8"", 28, pos);
-
-      auto it = std::begin(tokens);
-      pp.error(*reporter, it, std::end(tokens));
-
-      auto expect_text = u8"test_error_directive.hpp:1:1: error: test error directive!\n"sv;
-      auto&& str = report::test_out::extract_string();
-
-      CHECK_UNARY(expect_text == str);
-    }
-
-    tokens.clear();
-    {
-      //トークン列の構成
-      pos = ll.emplace_after(pos, 137879, 137879);
-      (*pos).line = u8"#             error       test   error  directive !";
-      tokens.emplace_back(pp_token_category::identifier, u8"error", 14, pos);
-      tokens.emplace_back(pp_token_category::identifier, u8"test", 26, pos);
-      tokens.emplace_back(pp_token_category::identifier, u8"error", 33, pos);
-      tokens.emplace_back(pp_token_category::identifier, u8"directive", 40, pos);
-      tokens.emplace_back(pp_token_category::op_or_punc, u8"!", 50, pos);
-      tokens.emplace_back(pp_token_category::newline, u8"", 51, pos);
-
-      auto it = std::begin(tokens);
-      pp.error(*reporter, it, std::end(tokens));
-
-      auto expect_text = u8"test_error_directive.hpp:137879:14: error: test   error  directive !\n"sv;
-      auto&& str = report::test_out::extract_string();
-
-      CHECK_UNARY(expect_text == str);
-    }
-  }
-
   TEST_CASE("object like macro test") {
 
     //論理行保持コンテナ
