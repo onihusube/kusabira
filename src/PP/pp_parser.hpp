@@ -262,8 +262,9 @@ namespace kusabira::PP {
       } else if (tokenstr == u8"line") {
         pptoken_list_t line_token_list{&kusabira::def_mr};
 
-        //lineの次のトークンからプリプロセッシングトークンを構成する
+        // #lineの次のトークンからプリプロセッシングトークンを構成する
         ++it;
+
         return this->pp_tokens<false>(it, end, line_token_list).and_then([&, this](auto&&) -> parse_status {
           if (auto is_err = m_preprocessor.line(*m_reporter, line_token_list); is_err) {
             return this->newline(it, end);
@@ -273,9 +274,20 @@ namespace kusabira::PP {
         });
       } else if (tokenstr == u8"error") {
         // #errorディレクティブの実行
-        m_preprocessor.error(*m_reporter, it, end);
-        //コンパイルエラー
-        return kusabira::error(pp_err_info{ std::move(*it),  pp_parse_context::ControlLine_Error });
+
+        auto err_token = std::ranges::iter_move(it);
+        pptoken_list_t err_token_list{&kusabira::def_mr};
+
+        // #errorの次のトークンからプリプロセッシングトークンを構成する
+        ++it;
+        
+        return this->pp_tokens<false>(it, end, err_token_list).and_then([&, this](auto&&) -> parse_status {
+          // #errorを処理
+          this->m_preprocessor.error(*m_reporter, err_token_list, err_token);
+          // コンパイルエラーを起こす
+          return kusabira::error(pp_err_info{ std::move(err_token),  pp_parse_context::ControlLine_Error });
+        });
+
       } else if (tokenstr == u8"pragma") {
         // #pragmaディレクティブの実行
         m_preprocessor.pragma(*m_reporter, it, end);
