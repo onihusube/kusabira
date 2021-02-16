@@ -105,6 +105,78 @@ namespace unified_macro_test {
       // 1
       CHECK_UNARY(macro.validate_argnum(args) == false);
     }
+
+    // 可変長マクロ1
+    {
+      // #define test(...)
+
+      // 置換リスト
+      std::pmr::list<pp_token> rep_list{ &kusabira::def_mr };
+
+      // 仮引数
+      std::pmr::vector<std::u8string_view> params{ &kusabira::def_mr };
+      params.emplace_back(u8"..."sv);
+
+      // 関数マクロ登録
+      unified_macro macro{ u8"test"sv, params, rep_list, true };
+
+      CHECK_UNARY(macro.is_function());
+      REQUIRE_UNARY(macro.is_ready() == std::nullopt);
+
+      std::pmr::list<pp_token> token_list{ &kusabira::def_mr };
+      std::pmr::vector<std::pmr::list<pp_token>> args{ &kusabira::def_mr };
+
+      // 0
+      CHECK_UNARY(macro.validate_argnum(args));
+
+      args.emplace_back(token_list);
+
+      // 1、空のトークン
+      CHECK_UNARY(macro.validate_argnum(args));
+
+      args.pop_back();
+      token_list.emplace_back(pp_token_category::identifier, u8"i");
+      args.emplace_back(std::exchange(token_list, std::pmr::list<pp_token>{&kusabira::def_mr}));
+
+      // 1
+      CHECK_UNARY(macro.validate_argnum(args));
+
+      args.emplace_back(token_list);
+
+      // 1 + 空のトークン
+      CHECK_UNARY(macro.validate_argnum(args));
+    }
+
+    {
+      // #define test(a, ...)
+
+      // 置換リスト
+      std::pmr::list<pp_token> rep_list{ &kusabira::def_mr };
+
+      // 仮引数
+      std::pmr::vector<std::u8string_view> params{ &kusabira::def_mr };
+      params.emplace_back(u8"a"sv);
+      params.emplace_back(u8"..."sv);
+
+      // 関数マクロ登録
+      unified_macro macro{ u8"test"sv, params, rep_list, true };
+
+      CHECK_UNARY(macro.is_function());
+      REQUIRE_UNARY(macro.is_ready() == std::nullopt);
+
+      std::pmr::list<pp_token> token_list{ &kusabira::def_mr };
+      std::pmr::vector<std::pmr::list<pp_token>> args{ &kusabira::def_mr };
+
+      // 0
+      CHECK_UNARY(macro.validate_argnum(args) == false);
+
+      token_list.emplace_back(pp_token_category::identifier, u8"i");
+      args.emplace_back(std::exchange(token_list, std::pmr::list<pp_token>{&kusabira::def_mr}));
+
+      // 1
+      CHECK_UNARY(macro.validate_argnum(args));
+
+    }
   }
 
 }

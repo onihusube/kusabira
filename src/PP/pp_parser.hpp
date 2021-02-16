@@ -265,7 +265,7 @@ namespace kusabira::PP {
         // #lineの次のトークンからプリプロセッシングトークンを構成する
         ++it;
 
-        return this->pp_tokens<false>(it, end, line_token_list).and_then([&, this](auto&&) -> parse_status {
+        return this->pp_tokens<true, true>(it, end, line_token_list).and_then([&, this](auto&&) -> parse_status {
           if (auto is_err = m_preprocessor.line(*m_reporter, line_token_list); is_err) {
             return this->newline(it, end);
           } else {
@@ -281,7 +281,7 @@ namespace kusabira::PP {
         // #errorの次のトークンからプリプロセッシングトークンを構成する
         ++it;
         
-        return this->pp_tokens<false>(it, end, err_token_list).and_then([&, this](auto&&) -> parse_status {
+        return this->pp_tokens<true, false>(it, end, err_token_list).and_then([&, this](auto&&) -> parse_status {
           // #errorを処理
           this->m_preprocessor.error(*m_reporter, err_token_list, err_token);
           // コンパイルエラーを起こす
@@ -390,7 +390,7 @@ namespace kusabira::PP {
       // マクロ定義と置換リストの間のホワイトスペースを飛ばす
       it = skip_whitespaces_except_newline(std::move(it), end);
 
-      return this->pp_tokens<true>(it, end, list).map([&list](auto &&) -> pptoken_list_t {
+      return this->pp_tokens<false, false>(it, end, list).map([&list](auto &&) -> pptoken_list_t {
         return list;
       });
     }
@@ -598,18 +598,19 @@ namespace kusabira::PP {
 
     fn text_line(iterator& it, sentinel end) -> parse_status {
       //1行分プリプロセッシングトークン列読み出し
-      return this->pp_tokens<false>(it, end, this->m_pptoken_list);
+      return this->pp_tokens<true, true>(it, end, this->m_pptoken_list);
     }
 
     /**
     * @brief プリプロセッシングトークン列を構成する
-    * @tparam MacroExpandOff マクロの実引数パース時や#define時の置換リストパース中か否か、マクロ展開を実行せず、ホワイトスペースを残す
+    * @tparam MacroExpand マクロの実引数パース時や#define時の置換リストパース中か否か、マクロ展開を実行せず、ホワイトスペースを残す
+    * @tparam SkipWhiteSpace trueでホワイトスペースを残さない
     * @param it 現在の先頭トークン
     * @param end トークン列の終端
     * @param list 結果を格納するリスト
     * @return {結果となるプリプロセッシングトークンリスト | エラー情報}
     */
-    template<bool MacroExpandOff>
+    template<bool MacroExpand = true, bool SkipWhiteSpace = true>
     fn pp_tokens(iterator& it, sentinel end, pptoken_list_t& list) -> parse_status {
       using namespace std::string_view_literals;
 
@@ -622,7 +623,7 @@ namespace kusabira::PP {
         assert(pp_token_category::Unaccepted < lextoken_category);
 
         //プリプロセッシングトークン1つを作成する、終了後イテレータは未処理のトークンを指している
-        if (auto result = this->construct_next_pptoken<MacroExpandOff>(it, end); result) {
+        if (auto result = this->construct_next_pptoken<!MacroExpand>(it, end); result) {
           list.splice(list.end(), std::move(*result));
         } else {
           //エラーが起きてる
