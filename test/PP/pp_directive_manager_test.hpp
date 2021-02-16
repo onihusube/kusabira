@@ -2276,7 +2276,7 @@ namespace kusabira_test::preprocessor {
       std::pmr::vector<std::u8string_view> params{&kusabira::def_mr};
       params.emplace_back(u8"a"sv);
 
-      CHECK_UNARY(pp.define(*reporter, {pp_token_category::identifier, u8"t", 8, pos}, rep_list, params, true));
+      CHECK_UNARY(pp.define(*reporter, {pp_token_category::identifier, u8"t", 8, pos}, rep_list, params, false));
 
       pos = ll.emplace_after(pos, 2, 2);
       (*pos).line = u8"#define F1(a1, a2) a1 a2";
@@ -2292,7 +2292,7 @@ namespace kusabira_test::preprocessor {
       params.emplace_back(u8"a1"sv);
       params.emplace_back(u8"a2"sv);
 
-      CHECK_UNARY(pp.define(*reporter, {pp_token_category::identifier, u8"F1", 8, pos}, rep_list, params, true));
+      CHECK_UNARY(pp.define(*reporter, {pp_token_category::identifier, u8"F1", 8, pos}, rep_list, params, false));
 
       pos = ll.emplace_after(pos, 3, 3);
       (*pos).line = u8"#define F2(a1, a2) #a1 # a2";
@@ -2306,7 +2306,7 @@ namespace kusabira_test::preprocessor {
       rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 23, pos);
       rep_list.emplace_back(pp_token_category::identifier, u8"a2", 24, pos);
 
-      CHECK_UNARY(pp.define(*reporter, {pp_token_category::identifier, u8"F2", 8, pos}, rep_list, params, true));
+      CHECK_UNARY(pp.define(*reporter, {pp_token_category::identifier, u8"F2", 8, pos}, rep_list, params, false));
 
       pos = ll.emplace_after(pos, 4, 4);
       (*pos).line = u8"#define F3(a1, a2) a1 ## a2";
@@ -2319,7 +2319,7 @@ namespace kusabira_test::preprocessor {
       rep_list.emplace_back(pp_token_category::whitespaces, u8" ", 22, pos);
       rep_list.emplace_back(pp_token_category::identifier, u8"a2", 23, pos);
 
-      CHECK_UNARY(pp.define(*reporter, {pp_token_category::identifier, u8"F3", 8, pos}, rep_list, params, true));
+      CHECK_UNARY(pp.define(*reporter, {pp_token_category::identifier, u8"F3", 8, pos}, rep_list, params, false));
 
       pos = ll.emplace_after(pos, 5, 5);
       (*pos).line = u8"#define F4(...) __VA_ARGS__";
@@ -2592,9 +2592,6 @@ namespace kusabira_test::preprocessor {
         args.emplace_back(std::exchange(token_list, std::pmr::list<pp_token>{&kusabira::def_mr}));
 
         const auto [success, complete, result, memo] = pp.expand_funcmacro(*reporter, { pp_token_category::identifier, u8"F4", 0, pos }, args);
-
-        // 引数バリデーションバグってるらしい、こう呼び出すと実行時エラー
-        //const auto [success, complete, result, memo] = pp.expand_funcmacro(*reporter, { pp_token_category::identifier, u8"F1", 0, pos }, args);
 
         REQUIRE_UNARY(success);
         CHECK_UNARY(complete);

@@ -20,12 +20,9 @@ namespace unified_macro_test {
     //エラー出力先
     auto reporter = kusabira::report::reporter_factory<kusabira_test::report::test_out>::create();
 
-    auto pos = ll.before_begin();
-
     // 普通の関数マクロのテスト
     {
-      pos = ll.emplace_after(pos, 0, 0);
-      (*pos).line = u8"#define test(a, b)";
+      //(*pos).line = u8"#define test(a, b)";
 
       // 置換リスト
       std::pmr::list<pp_token> rep_list{&kusabira::def_mr};
@@ -63,6 +60,49 @@ namespace unified_macro_test {
       args.emplace_back(std::exchange(token_list, std::pmr::list<pp_token>{&kusabira::def_mr}));
 
       // 3
+      CHECK_UNARY(macro.validate_argnum(args) == false);
+
+      // 2+空のトークン
+      args.pop_back();
+      args.emplace_back(token_list);
+
+      CHECK_UNARY(macro.validate_argnum(args) == false);
+    }
+
+
+    // 引き数なしマクロ
+    {
+      // #define test() ...;
+
+      // 置換リスト
+      std::pmr::list<pp_token> rep_list{ &kusabira::def_mr };
+
+      // 仮引数
+      std::pmr::vector<std::u8string_view> params{ &kusabira::def_mr };
+
+      // 関数マクロ登録
+      unified_macro macro{ u8"test"sv, params, rep_list, false };
+
+      CHECK_UNARY(macro.is_function());
+      REQUIRE_UNARY(macro.is_ready() == std::nullopt);
+
+      std::pmr::list<pp_token> token_list{ &kusabira::def_mr };
+      std::pmr::vector<std::pmr::list<pp_token>> args{ &kusabira::def_mr };
+
+      // 0
+      CHECK_UNARY(macro.validate_argnum(args));
+
+
+      args.emplace_back(token_list);
+
+      // 1、空のトークン
+      CHECK_UNARY(macro.validate_argnum(args));
+
+      args.pop_back();
+      token_list.emplace_back(pp_token_category::identifier, u8"i");
+      args.emplace_back(std::exchange(token_list, std::pmr::list<pp_token>{&kusabira::def_mr}));
+
+      // 1
       CHECK_UNARY(macro.validate_argnum(args) == false);
     }
   }
