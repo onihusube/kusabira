@@ -35,22 +35,18 @@ namespace kusabira_test::cpp {
       pp_token err_token{pp_token_category::identifier, u8"error", 1, pos};
 
       tokens.emplace_back(pp_token_category::identifier, u8"test", 7, pos);
+      tokens.emplace_back(pp_token_category::whitespaces, u8" ", 11, pos);
       tokens.emplace_back(pp_token_category::identifier, u8"error", 12, pos);
+      tokens.emplace_back(pp_token_category::whitespaces, u8" ", 17, pos);
       tokens.emplace_back(pp_token_category::identifier, u8"directive", 18, pos);
       tokens.emplace_back(pp_token_category::op_or_punc, u8"!", 27, pos);
-      tokens.emplace_back(pp_token_category::newline, u8"", 28, pos);
+      tokens.emplace_back(pp_token_category::newline, u8"", 29, pos);
 
       // #error実行
       pp.error(*reporter, tokens, err_token);
 
-      //test_error_directive.hpp:1:1: error: test error directive !
-      //test_error_directive.hpp:1:1: error: test error directive ! 
-      //test_error_directive.hpp:1:1: error: test error directive !  
-
-      auto expect_text = u8"test_error_directive.hpp:1:1: error: test error directive !\n"sv;
+      auto expect_text = u8"test_error_directive.hpp:1:1: error: test error directive!\n"sv;
       auto str = report::test_out::extract_string();
-
-      std::cout << reinterpret_cast<const char*>(str.data()) << std::endl;
 
       CHECK_UNARY(expect_text == str);
     }
@@ -59,19 +55,19 @@ namespace kusabira_test::cpp {
     {
       //トークン列の構成
       pos = ll.emplace_after(pos, 137879, 137879);
-      (*pos).line = u8"#             error       test   error  directive !";
-      tokens.emplace_back(pp_token_category::identifier, u8"error", 14, pos);
-      tokens.emplace_back(pp_token_category::identifier, u8"test", 26, pos);
-      tokens.emplace_back(pp_token_category::identifier, u8"error", 33, pos);
-      tokens.emplace_back(pp_token_category::identifier, u8"directive", 40, pos);
-      tokens.emplace_back(pp_token_category::op_or_punc, u8"!", 50, pos);
-      tokens.emplace_back(pp_token_category::newline, u8"", 51, pos);
+      (*pos).line = u8"#error";
 
-      auto it = std::begin(tokens);
-      pp.error(*reporter, it, std::end(tokens));
+      pp_token err_token{pp_token_category::identifier, u8"error", 1, pos};
+      
+      tokens.emplace_back(pp_token_category::newline, u8"", 6, pos);
 
-      auto expect_text = u8"test_error_directive.hpp:137879:14: error: test   error  directive !\n"sv;
+      // #error実行
+      pp.error(*reporter, tokens, err_token);
+
+      auto expect_text = u8"test_error_directive.hpp:137879:1: error: \n"sv;
       auto&& str = report::test_out::extract_string();
+
+      std::cout << reinterpret_cast<const char*>(str.data()) << std::endl;
 
       CHECK_UNARY(expect_text == str);
     }

@@ -264,26 +264,16 @@ namespace kusabira::PP {
 
     template<typename Reporter, std::ranges::sized_range PPTokenList>
     void error(Reporter& reporter, PPTokenList&& pptokens, const PP::pp_token& err_context) const {
-      if (not empty(pptokens)) {
-        // マクロ置換済みトークンを文字列化して連結する
-        std::pmr::u8string err_message{&kusabira::def_mr};
-        // 予約、トークン数*5(文字)
-        err_message.reserve(size(pptokens) * 5);
+      // マクロ置換済みトークンを文字列化して連結する
+      std::pmr::u8string err_message{&kusabira::def_mr};
+      // 予約、トークン数*5(文字)
+      err_message.reserve(size(pptokens) * 5);
 
-        for (auto& pptoken : pptokens) {
-          err_message.append(pptoken.token.to_view());
-          err_message.append(u8" ");  // トークンの区切りをスペースで補う
-        }
-        // 最後のトークンと末尾改行で2つくっついてるスペースを無視する
-        // 外側できちんとスペースを残してトークン構成するようにしようね・・・
-        err_message.pop_back();
-        err_message.pop_back();
-
-        reporter.print_report(err_message, m_filename, err_context);
-      } else {
-        // 出力するものがない・・・
-        reporter.print_report({}, m_filename, err_context);
+      for (auto& pptoken : pptokens) {
+        err_message.append(pptoken.token.to_view());
       }
+
+      reporter.print_report(err_message, m_filename, err_context);
     }
 
     /**
