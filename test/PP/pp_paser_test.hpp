@@ -4,8 +4,9 @@
 #include "PP/pp_automaton.hpp"
 #include "PP/pp_tokenizer.hpp"
 #include "PP/pp_parser.hpp"
+#include "../report_output_test.hpp"
 
-namespace pp_paser_test {
+namespace kusabira_test::pp_paser_test {
 
   TEST_CASE("make error test") {
 
@@ -791,5 +792,150 @@ namespace pp_parsing_test
       ++it;
     }
   }
+
+  // 文字列から読み込むソースファイルリーダ
+  class string_reader {
+
+    std::vector<std::u8string_view> src_lines{};
+    std::size_t index = 0;
+
+  public:
+
+    string_reader(const std::filesystem::path &)
+    {}
+
+    template<std::convertible_to<std::u8string_view>... Ts>
+    void setlines(Ts&&... args) {
+      auto inserter = [this](std::u8string_view str) {
+        src_lines.emplace_back(str);
+      };
+
+      (void)std::initializer_list<int>{(inserter(args), 0)...};
+    }
+
+    auto readline() -> std::optional<kusabira::PP::logical_line> {
+      if (size(src_lines) <= index) return std::nullopt;
+    
+      kusabira::PP::logical_line line{index, index};
+      line.line = src_lines[index];
+      ++index;
+
+      return line;
+    }
+  };
+
+  static_assert(kusabira::PP::concepts::src_reader<string_reader>);
+
+  // テスト用トークナイザ、ファイル読み込み部分だけ入れ替え
+  using test_tokenizer = kusabira::PP::tokenizer<string_reader, kusabira::PP::pp_tokenizer_sm>;
+  // トークナイザだけ入れ替えたCPPパーサ
+  using test_paser = kusabira::PP::ll_paser<test_tokenizer, kusabira::report::reporter_factory<kusabira_test::report::test_out>>;
+
+
+  TEST_CASE("error test") {
+    using kusabira::PP::pp_parse_context;
+    using kusabira::PP::pp_parse_status;
+    using kusabira::PP::pp_token;
+    using kusabira::PP::pp_token_category;
+    using namespace std::literals;
+
+    // 溜まっているログを消す
+    [[maybe_unused]] auto trash = kusabira_test::report::test_out::extract_string();
+
+    // 単純な例
+    {
+      // 仮想ソースファイル生成
+      string_reader str_reader{"test/error_directive.cpp"};
+      str_reader.setlines(u8"# error simple error"sv);
+
+      test_paser parser{test_tokenizer{std::move(str_reader)}, "test/error_directive.cpp"};
+
+      auto status = parser.start();
+
+      // エラーで終わる
+      REQUIRE_UNARY(bool(status) == false);
+      auto &err_info = status.error();
+      CHECK_EQ(err_info.context, pp_parse_context::ControlLine_Error);
+      CHECK_EQ(err_info.token, pp_token{pp_token_category::identifier, u8"error"sv});
+
+      auto expect_text = u8"error_directive.cpp:0:2: error: simple error\n"sv;
+      auto str = kusabira_test::report::test_out::extract_string();
+
+      CHECK_UNARY(expect_text == str);
+    }
+
+    // 本文がない
+    {
+      // 仮想ソースファイル生成
+      string_reader str_reader{"test/error_directive.cpp"};
+      str_reader.setlines(u8"#  /* comment block */  error"sv);
+
+      test_paser parser{test_tokenizer{std::move(str_reader)}, "test/error_directive.cpp"};
+
+      auto status = parser.start();
+
+      // エラーで終わる
+      REQUIRE_UNARY(bool(status) == false);
+      auto &err_info = status.error();
+      CHECK_EQ(err_info.context, pp_parse_context::ControlLine_Error);
+      CHECK_EQ(err_info.token, pp_token{pp_token_category::identifier, u8"error"sv});
+
+      auto expect_text = u8"error_directive.cpp:0:24: error: \n"sv;
+      auto str = kusabira_test::report::test_out::extract_string();
+
+      CHECK_UNARY(expect_text == str);
+    }
+
+    // マクロ展開例1
+    {
+      // 仮想ソースファイル生成
+      string_reader str_reader{"test/error_directive.cpp"};
+      str_reader.setlines(
+          u8"#define A macro"sv,
+          u8"#define B expand"sv,
+          u8"#define C test"sv,
+          u8"#error A B C "sv);
+
+      test_paser parser{test_tokenizer{std::move(str_reader)}, "test/error_directive.cpp"};
+
+      auto status = parser.start();
+
+      // エラーで終わる
+      REQUIRE_UNARY(bool(status) == false);
+      auto &err_info = status.error();
+      CHECK_EQ(err_info.context, pp_parse_context::ControlLine_Error);
+      CHECK_EQ(err_info.token, pp_token{pp_token_category::identifier, u8"error"sv});
+
+      auto expect_text = u8"error_directive.cpp:3:1: error: macro expand test \n"sv;
+      auto str = kusabira_test::report::test_out::extract_string();
+
+      CHECK_UNARY(expect_text == str);
+    }
+
+    // マクロ展開例2
+    {
+      // 仮想ソースファイル生成
+      string_reader str_reader{"test/error_directive.cpp"};
+      str_reader.setlines(
+          u8"#define add(a, b, c) a + b + c;"sv,
+          u8"#error /*block comment*/ add(1, 2, 3)"sv);
+
+      test_paser parser{test_tokenizer{std::move(str_reader)}, "test/error_directive.cpp"};
+
+      auto status = parser.start();
+
+      // エラーで終わる
+      REQUIRE_UNARY(bool(status) == false);
+      auto &err_info = status.error();
+      CHECK_EQ(err_info.context, pp_parse_context::ControlLine_Error);
+      CHECK_EQ(err_info.token, pp_token{pp_token_category::identifier, u8"error"sv});
+
+      auto expect_text = u8"error_directive.cpp:1:1: error: 1+2+3;\n"sv;
+      auto str = kusabira_test::report::test_out::extract_string();
+
+      CHECK_UNARY(expect_text == str);
+    }
+  }
+
 
 } // namespace pp_parsing_test

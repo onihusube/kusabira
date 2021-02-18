@@ -278,9 +278,10 @@ namespace kusabira::PP {
         auto err_token = std::ranges::iter_move(it);
         pptoken_list_t err_token_list{&kusabira::def_mr};
 
-        // #errorの次のトークンからプリプロセッシングトークンを構成する
+        // #errorの次の非空白トークンからプリプロセッシングトークンを構成する
         ++it;
-        
+        it = skip_whitespaces_except_newline(std::move(it), end);
+
         return this->pp_tokens<true, true>(it, end, err_token_list).and_then([&, this](auto&&) -> parse_status {
           // #errorを処理
           this->m_preprocessor.error(*m_reporter, err_token_list, err_token);

@@ -14,14 +14,14 @@ namespace kusabira::PP::concepts {
 
   /**
   * @brief ソースファイルを読みこみ一行づつ出力するクラスを表すコンセプト
-  * @details 型Tの非const左辺値frとfr.readline()の結果を示すオブジェクトoptについて、次の条件を満たす場合に限って、型Tはfile_readerのモデルである
+  * @details 型Tの非const左辺値frとfr.readline()の結果を示すオブジェクトoptについて、次の条件を満たす場合に限って、型Tはsrc_readerのモデルである
   * @details bool(opt) == true ならば、*optは入力ファイルの論理1行を表すオブジェクトであり、論理1行分の文字列を所有している
   * @details bool(opt) == false ならば、入力ファイルを全て読み終わっている（ファイル終端に到達している）
   */
   template<typename T>
-  concept file_reader =
+  concept src_reader =
     std::move_constructible<T> and
-    std::constructible_from<T, const fs::path&, std::pmr::memory_resource*> and
+    std::constructible_from<T, const fs::path&> and
     requires(T& fr) {
       {fr.readline()} -> std::same_as<std::optional<kusabira::PP::logical_line>>; // 等しさを保持することを要求しない
     };
@@ -50,17 +50,17 @@ namespace kusabira::PP::inline tokenizer_v2 {
 
   /**
   * @brief ソースファイルからプリプロセッシングトークンを抽出する
-  * @tparam FileReader ファイル読み込みを実装した型
+  * @tparam SrcReader ソースコードを行毎に読み込む処理を実装した型
   * @tparam Automaton 入力トークンを識別するオートマトンの型
   */
-  template <concepts::file_reader FileReader, concepts::tokenize_fsm Automaton>
+  template <concepts::src_reader SrcReader, concepts::tokenize_fsm Automaton>
   class tokenizer
   {
     using line_iterator = std::pmr::forward_list<logical_line>::const_iterator;
     using char_iterator = std::pmr::u8string::const_iterator;
 
     //ファイルリーダー
-    FileReader m_fr;
+    SrcReader m_fr;
     //トークナイズのためのオートマトン
     Automaton m_accepter{};
     //行バッファ
@@ -102,7 +102,17 @@ namespace kusabira::PP::inline tokenizer_v2 {
   public:
 
     tokenizer(fs::path srcpath) 
-      : m_fr{std::move(srcpath), &kusabira::def_mr}
+      : m_fr{std::move(srcpath)}
+      , m_lines{ &kusabira::def_mr }
+      , m_line_pos{m_lines.before_begin()}
+    {
+      //とりあえず1行読んでおく
+      m_is_terminate = this->readline();
+    }
+
+    // テスト用
+    tokenizer(SrcReader&& reader) 
+      : m_fr{std::move(reader)}
       , m_lines{ &kusabira::def_mr }
       , m_line_pos{m_lines.before_begin()}
     {

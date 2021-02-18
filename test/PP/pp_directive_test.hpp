@@ -67,7 +67,7 @@ namespace kusabira_test::cpp {
       auto expect_text = u8"test_error_directive.hpp:137879:1: error: \n"sv;
       auto&& str = report::test_out::extract_string();
 
-      std::cout << reinterpret_cast<const char*>(str.data()) << std::endl;
+      //std::cout << reinterpret_cast<const char*>(str.data()) << std::endl;
 
       CHECK_UNARY(expect_text == str);
     }
