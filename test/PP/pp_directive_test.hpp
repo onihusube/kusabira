@@ -30,7 +30,7 @@ namespace kusabira_test::cpp {
     {
       //トークン列の構成
       pos = ll.emplace_after(pos, 1, 1);
-      (*pos).line = u8"#error test error directive!\n";
+      (*pos).line = u8"#error test error directive!";
 
       pp_token err_token{pp_token_category::identifier, u8"error", 1, pos};
       pp_token message_token{pp_token_category::identifier, u8"test", 7, pos};
@@ -40,12 +40,6 @@ namespace kusabira_test::cpp {
 
       auto expect_text = u8"test_error_directive.hpp:1:1: error: test error directive!\n"sv;
       auto str = report::test_out::extract_string();
-/*
-test_error_directive.hpp:1:1: error: test error directive!
-
-
-*/
-      std::cout << reinterpret_cast<const char *>(str.data()) << std::endl;
 
       CHECK_UNARY(expect_text == str);
     }
@@ -54,7 +48,7 @@ test_error_directive.hpp:1:1: error: test error directive!
     {
       //トークン列の構成
       pos = ll.emplace_after(pos, 137879, 137879);
-      (*pos).line = u8"#error\n";
+      (*pos).line = u8"#error";
 
       pp_token err_token{pp_token_category::identifier, u8"error", 1, pos};
       pp_token message_token{pp_token_category::newline, u8"", 6, pos};
@@ -64,8 +58,6 @@ test_error_directive.hpp:1:1: error: test error directive!
 
       auto expect_text = u8"test_error_directive.hpp:137879:1: error: \n"sv;
       auto&& str = report::test_out::extract_string();
-
-      std::cout << reinterpret_cast<const char*>(str.data()) << std::endl;
 
       CHECK_UNARY(expect_text == str);
     }

@@ -260,7 +260,7 @@ namespace kusabira::PP {
         //出力するものがない・・・
         reporter.print_report({}, m_filename, *it);
       }
-    }*/
+    }
 
     template<typename Reporter, std::ranges::sized_range PPTokenList>
     void error(Reporter& reporter, PPTokenList&& pptokens, const PP::pp_token& err_context) const {
@@ -274,7 +274,7 @@ namespace kusabira::PP {
       }
 
       reporter.print_report(err_message, m_filename, err_context);
-    }
+    }*/
 
     template<typename Reporter>
     void error(Reporter& reporter, const PP::pp_token& err_context, const PP::pp_token& err_message) const {
@@ -290,10 +290,9 @@ namespace kusabira::PP {
 
         // その行の文字列中の#errorディレクティブメッセージ部分の開始位置と長さ
         auto* start_pos = line_str.data() + col;
-        std::size_t length = (line_str.data() + line_str.length()) - start_pos;
+        std::size_t length = (std::addressof(line_str.back()) - start_pos) + 1; // \0を考慮した長さにするために+1する
 
-        // 1つ多い分と末尾改行の分を引く
-        reporter.print_report({start_pos, length - 2}, m_filename, err_context);
+        reporter.print_report({start_pos, length}, m_filename, err_context);
       } else {
         //出力するものがない・・・
         reporter.print_report({}, m_filename, err_context);

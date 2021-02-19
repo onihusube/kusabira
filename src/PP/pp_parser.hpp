@@ -145,7 +145,7 @@ namespace kusabira::PP {
       auto se = std::ranges::end(m_tokenizer);
 
       //空のファイル判定
-      if (it == se) return {};
+      if (it == se) return pp_parse_status::EndOfFile;
       if (auto kind = (*it).category; kind == pp_token_category::whitespaces or kind == pp_token_category::block_comment) {
         //空に等しいファイルだった
         SKIP_WHITESPACE(it, se);
@@ -276,18 +276,18 @@ namespace kusabira::PP {
         // #errorディレクティブの実行
 
         auto err_token = std::ranges::iter_move(it);
-        pptoken_list_t err_token_list{&kusabira::def_mr};
 
-        // #errorの次の非空白トークンからプリプロセッシングトークンを構成する
+        // #errorの次の非空白トークンからメッセージ文字列として扱う
         ++it;
-        it = skip_whitespaces_except_newline(std::move(it), end);
-
-        return this->pp_tokens<true, true>(it, end, err_token_list).and_then([&, this](auto&&) -> parse_status {
-          // #errorを処理
-          this->m_preprocessor.error(*m_reporter, err_token_list, err_token);
-          // コンパイルエラーを起こす
-          return kusabira::error(pp_err_info{ std::move(err_token),  pp_parse_context::ControlLine_Error });
+        it = std::ranges::find_if_not(std::move(it), end, [](const auto& token) {
+          return token.category == pp_token_category::whitespaces;
         });
+        
+        // #errorを処理
+        this->m_preprocessor.error(*m_reporter, err_token, deref(it));
+
+        // コンパイルエラーを起こす
+        return kusabira::error(pp_err_info{ std::move(err_token),  pp_parse_context::ControlLine_Error });
 
       } else if (tokenstr == u8"pragma") {
         // #pragmaディレクティブの実行

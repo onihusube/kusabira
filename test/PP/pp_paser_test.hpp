@@ -797,7 +797,7 @@ namespace pp_parsing_test
   class string_reader {
 
     std::vector<std::u8string_view> src_lines{};
-    std::size_t index = 0;  // 行は1から始まるのでバグ、要修正
+    std::size_t index = 0;
 
   public:
 
@@ -816,7 +816,8 @@ namespace pp_parsing_test
     auto readline() -> std::optional<kusabira::PP::logical_line> {
       if (size(src_lines) <= index) return std::nullopt;
     
-      kusabira::PP::logical_line line{index, index};
+      auto linenum = index + 1;
+      kusabira::PP::logical_line line{ linenum, linenum };
       line.line = src_lines[index];
       ++index;
 
@@ -858,7 +859,7 @@ namespace pp_parsing_test
       CHECK_EQ(err_info.context, pp_parse_context::ControlLine_Error);
       CHECK_EQ(err_info.token, pp_token{pp_token_category::identifier, u8"error"sv});
 
-      auto expect_text = u8"error_directive.cpp:0:2: error: simple error\n"sv;
+      auto expect_text = u8"error_directive.cpp:1:2: error: simple error\n"sv;
       auto str = kusabira_test::report::test_out::extract_string();
 
       CHECK_UNARY(expect_text == str);
@@ -880,7 +881,7 @@ namespace pp_parsing_test
       CHECK_EQ(err_info.context, pp_parse_context::ControlLine_Error);
       CHECK_EQ(err_info.token, pp_token{pp_token_category::identifier, u8"error"sv});
 
-      auto expect_text = u8"error_directive.cpp:0:24: error: \n"sv;
+      auto expect_text = u8"error_directive.cpp:1:24: error: \n"sv;
       auto str = kusabira_test::report::test_out::extract_string();
 
       CHECK_UNARY(expect_text == str);
@@ -906,13 +907,13 @@ namespace pp_parsing_test
       CHECK_EQ(err_info.context, pp_parse_context::ControlLine_Error);
       CHECK_EQ(err_info.token, pp_token{pp_token_category::identifier, u8"error"sv});
 
-      auto expect_text = u8"error_directive.cpp:3:1: error: macro expand test \n"sv;
+      auto expect_text = u8"error_directive.cpp:4:1: error: A B C \n"sv;
       auto str = kusabira_test::report::test_out::extract_string();
 
       CHECK_UNARY(expect_text == str);
     }
 
-    // マクロ展開例2
+    // コメントがある例
     {
       // 仮想ソースファイル生成
       string_reader str_reader{"test/error_directive.cpp"};
@@ -930,7 +931,7 @@ namespace pp_parsing_test
       CHECK_EQ(err_info.context, pp_parse_context::ControlLine_Error);
       CHECK_EQ(err_info.token, pp_token{pp_token_category::identifier, u8"error"sv});
 
-      auto expect_text = u8"error_directive.cpp:1:1: error: 1+2+3;\n"sv;
+      auto expect_text = u8"error_directive.cpp:2:1: error: /*block comment*/ add(1, 2, 3)\n"sv;
       auto str = kusabira_test::report::test_out::extract_string();
 
       CHECK_UNARY(expect_text == str);

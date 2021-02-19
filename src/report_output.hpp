@@ -69,8 +69,11 @@ namespace kusabira::report {
     struct stdoutput {
 
       static void output_u8string(const std::u8string_view str) {
-        auto punned_str = reinterpret_cast<const char*>(str.data());
-        std::cout << punned_str;
+
+        for (auto u8char : str) {
+          auto c = std::bit_cast<char>(u8char);
+          std::cout << c;
+        }
       }
 
       template<typename... Args>
