@@ -30,23 +30,22 @@ namespace kusabira_test::cpp {
     {
       //トークン列の構成
       pos = ll.emplace_after(pos, 1, 1);
-      (*pos).line = u8"#error test error directive!";
+      (*pos).line = u8"#error test error directive!\n";
 
       pp_token err_token{pp_token_category::identifier, u8"error", 1, pos};
-
-      tokens.emplace_back(pp_token_category::identifier, u8"test", 7, pos);
-      tokens.emplace_back(pp_token_category::whitespaces, u8" ", 11, pos);
-      tokens.emplace_back(pp_token_category::identifier, u8"error", 12, pos);
-      tokens.emplace_back(pp_token_category::whitespaces, u8" ", 17, pos);
-      tokens.emplace_back(pp_token_category::identifier, u8"directive", 18, pos);
-      tokens.emplace_back(pp_token_category::op_or_punc, u8"!", 27, pos);
-      tokens.emplace_back(pp_token_category::newline, u8"", 29, pos);
+      pp_token message_token{pp_token_category::identifier, u8"test", 7, pos};
 
       // #error実行
-      pp.error(*reporter, tokens, err_token);
+      pp.error(*reporter, err_token, message_token);
 
       auto expect_text = u8"test_error_directive.hpp:1:1: error: test error directive!\n"sv;
       auto str = report::test_out::extract_string();
+/*
+test_error_directive.hpp:1:1: error: test error directive!
+
+
+*/
+      std::cout << reinterpret_cast<const char *>(str.data()) << std::endl;
 
       CHECK_UNARY(expect_text == str);
     }
@@ -55,19 +54,18 @@ namespace kusabira_test::cpp {
     {
       //トークン列の構成
       pos = ll.emplace_after(pos, 137879, 137879);
-      (*pos).line = u8"#error";
+      (*pos).line = u8"#error\n";
 
       pp_token err_token{pp_token_category::identifier, u8"error", 1, pos};
-      
-      tokens.emplace_back(pp_token_category::newline, u8"", 6, pos);
+      pp_token message_token{pp_token_category::newline, u8"", 6, pos};
 
       // #error実行
-      pp.error(*reporter, tokens, err_token);
+      pp.error(*reporter, err_token, message_token);
 
       auto expect_text = u8"test_error_directive.hpp:137879:1: error: \n"sv;
       auto&& str = report::test_out::extract_string();
 
-      //std::cout << reinterpret_cast<const char*>(str.data()) << std::endl;
+      std::cout << reinterpret_cast<const char*>(str.data()) << std::endl;
 
       CHECK_UNARY(expect_text == str);
     }

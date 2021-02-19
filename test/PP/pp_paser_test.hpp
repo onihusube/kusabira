@@ -797,7 +797,7 @@ namespace pp_parsing_test
   class string_reader {
 
     std::vector<std::u8string_view> src_lines{};
-    std::size_t index = 0;
+    std::size_t index = 0;  // 行は1から始まるのでバグ、要修正
 
   public:
 

@@ -234,7 +234,7 @@ namespace kusabira::PP {
     * @param it プリプロセッシングトークン列の先頭イテレータ
     * @param end プリプロセッシングトークン列の終端イテレータ
     */
-    template<typename Reporter, std::input_iterator TokensIterator, std::sentinel_for<TokensIterator> TokensSentinel>
+    /*template<typename Reporter, std::input_iterator TokensIterator, std::sentinel_for<TokensIterator> TokensSentinel>
     void error(Reporter& reporter, TokensIterator& it, TokensSentinel end) const {
       assert(it != end);
       assert((*it).token == u8"error");
@@ -260,7 +260,7 @@ namespace kusabira::PP {
         //出力するものがない・・・
         reporter.print_report({}, m_filename, *it);
       }
-    }
+    }*/
 
     template<typename Reporter, std::ranges::sized_range PPTokenList>
     void error(Reporter& reporter, PPTokenList&& pptokens, const PP::pp_token& err_context) const {
@@ -274,6 +274,30 @@ namespace kusabira::PP {
       }
 
       reporter.print_report(err_message, m_filename, err_context);
+    }
+
+    template<typename Reporter>
+    void error(Reporter& reporter, const PP::pp_token& err_context, const PP::pp_token& err_message) const {
+
+      const auto &line_str = err_message.get_line_string();
+
+      if (err_message.category != pp_token_category::newline) {
+        // 行は1から、列は0から・・・
+        const auto [row, col] = err_message.get_phline_pos();
+
+        // 行内での位置よりも文字列が短いということはあり得ない（読み込み部分がおかしい）
+        assert(col < line_str.length());
+
+        // その行の文字列中の#errorディレクティブメッセージ部分の開始位置と長さ
+        auto* start_pos = line_str.data() + col;
+        std::size_t length = (line_str.data() + line_str.length()) - start_pos;
+
+        // 1つ多い分と末尾改行の分を引く
+        reporter.print_report({start_pos, length - 2}, m_filename, err_context);
+      } else {
+        //出力するものがない・・・
+        reporter.print_report({}, m_filename, err_context);
+      }
     }
 
     /**
