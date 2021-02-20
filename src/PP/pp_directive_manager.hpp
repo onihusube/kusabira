@@ -231,51 +231,9 @@ namespace kusabira::PP {
     /**
     * @brief #errorディレクティブを実行する
     * @param reporter レポート出力オブジェクトへの参照
-    * @param it プリプロセッシングトークン列の先頭イテレータ
-    * @param end プリプロセッシングトークン列の終端イテレータ
+    * @param err_context #errorディレクティブの位置（errorのトークン）
+    * @param err_message #errorディレクティブのメッセージ部分のトークン
     */
-    /*template<typename Reporter, std::input_iterator TokensIterator, std::sentinel_for<TokensIterator> TokensSentinel>
-    void error(Reporter& reporter, TokensIterator& it, TokensSentinel end) const {
-      assert(it != end);
-      assert((*it).token == u8"error");
-
-      auto err_token = std::move(*it);
-      const auto &line_str = err_token.get_line_string();
-
-      //#errorの次のホワイトスペースでないトークン以降を出力
-      this->skip_whitespace(it, end);
-
-      if ((*it).category != pp_token_category::newline) {
-        //行は1から、列は0から・・・
-        const auto [row, col] = (*it).get_phline_pos();
-
-        assert(col < line_str.length());
-
-        //その行の文字列中の#errorディレクティブメッセージの開始位置と長さ
-        auto start_pos = line_str.data() + col;
-        std::size_t length = (line_str.data() + line_str.length()) - start_pos;
-
-        reporter.print_report({ start_pos, length }, m_filename, err_token);
-      } else {
-        //出力するものがない・・・
-        reporter.print_report({}, m_filename, *it);
-      }
-    }
-
-    template<typename Reporter, std::ranges::sized_range PPTokenList>
-    void error(Reporter& reporter, PPTokenList&& pptokens, const PP::pp_token& err_context) const {
-      // マクロ置換済みトークンを文字列化して連結する
-      std::pmr::u8string err_message{&kusabira::def_mr};
-      // 予約、トークン数*5(文字)
-      err_message.reserve(size(pptokens) * 5);
-
-      for (auto& pptoken : pptokens) {
-        err_message.append(pptoken.token.to_view());
-      }
-
-      reporter.print_report(err_message, m_filename, err_context);
-    }*/
-
     template<typename Reporter>
     void error(Reporter& reporter, const PP::pp_token& err_context, const PP::pp_token& err_message) const {
 
@@ -302,18 +260,13 @@ namespace kusabira::PP {
     /**
     * @brief #pragmaディレクティブを実行する
     * @param reporter レポート出力オブジェクトへの参照
-    * @param it プリプロセッシングトークン列の先頭イテレータ
-    * @param end プリプロセッシングトークン列の終端イテレータ
+    * @param pptoken_list #pragmaに続くプリプロセッシングトークンのリスト（マクロ展開を行う必要はないらしい？）
+    * @return エラーが発生した場合はその位置のトークン、恙なく完了した場合は無効値
     */
-    template<typename Reporter, typename TokensIterator, typename TokensSentinel>
-    void pragma(Reporter&, TokensIterator& it, TokensSentinel end) const {
-      assert(it != end);
-
-      //改行まで飛ばす
-      //あらゆるpragmaを無視、仮実装
-      do {
-        ++it;
-      } while (it != end and (*it).category != pp_token_category::newline);
+    template<typename Reporter, std::ranges::range PPTokens>
+    auto pragma(Reporter&, [[maybe_unused]] PPTokens&& pptoken_list) const -> std::optional<pp_token> {
+      // ひとまず、全スルー
+      return std::nullopt;
     }
 
     /**

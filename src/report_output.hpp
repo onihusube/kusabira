@@ -51,6 +51,7 @@ namespace kusabira::PP {
     ControlLine_Line_Num,       // #lineディレクティブの行数指定が符号なし整数値として読み取れない
     ControlLine_Line_ManyToken, // #lineディレクティブの後ろに不要なトークンが付いてる（警告）
     ControlLine_Error,          // #errorディレクティブによる終了
+    ControlLine_Pragma,         // #pragmaディレクティブ中のエラー
 
     EndifLine_Mistake,  // #endifがくるべき所に別のものが来ている
     EndifLine_Invalid,  // #endif ~ 改行までの間に不正なトークンが現れている

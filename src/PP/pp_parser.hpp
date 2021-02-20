@@ -45,15 +45,15 @@ namespace kusabira::PP {
     pp_parse_context context;
   };
 
-  using parse_status = kusabira::expected<pp_parse_status, pp_err_info>;
+  using parse_result = kusabira::expected<pp_parse_status, pp_err_info>;
 
   /**
   * @brief パース中のエラーオブジェクトを作成する
   * @return エラー状態のparse_status
   */
   template<typename TokenIterator>
-  ifn make_error(TokenIterator& it, pp_parse_context context) -> parse_status {
-    return parse_status{tl::unexpect, pp_err_info{std::move(*it), context}};
+  ifn make_error(TokenIterator& it, pp_parse_context context) -> parse_result {
+    return parse_result{tl::unexpect, pp_err_info{std::move(*it), context}};
   }
 
 
@@ -140,7 +140,7 @@ namespace kusabira::PP {
       return m_pptoken_list;
     }
 
-    fn start() -> parse_status {
+    fn start() -> parse_result {
       auto it = std::ranges::begin(m_tokenizer);
       auto se = std::ranges::end(m_tokenizer);
 
@@ -165,15 +165,15 @@ namespace kusabira::PP {
       return this->group(it, se);
     }
 
-    fn module_file([[maybe_unused]] iterator& it, [[maybe_unused]] sentinel end) -> parse_status {
+    fn module_file([[maybe_unused]] iterator& it, [[maybe_unused]] sentinel end) -> parse_result {
       //未実装
       assert(false);
       //モジュール宣言とかを生成する
       return {pp_parse_status::Complete};
     }
 
-    fn group(iterator& it, sentinel end) -> parse_status {
-      parse_status status{ pp_parse_status::Complete };
+    fn group(iterator& it, sentinel end) -> parse_result {
+      parse_result status{ pp_parse_status::Complete };
 
       //ここでEOFチェックする意味ある？？？
       while (it != end and status == pp_parse_status::Complete) {
@@ -183,7 +183,7 @@ namespace kusabira::PP {
       return status;
     }
 
-    fn group_part(iterator& it, sentinel end) -> parse_status {
+    fn group_part(iterator& it, sentinel end) -> parse_result {
       using namespace std::string_view_literals;
 
       //ホワイトスペース列を読み飛ばす
@@ -238,7 +238,7 @@ namespace kusabira::PP {
       return this->text_line(it, end);
     }
 
-    fn control_line(iterator& it, sentinel end) -> parse_status {
+    fn control_line(iterator& it, sentinel end) -> parse_result {
       // 事前条件
       assert((*it).category == pp_token_category::identifier);
       assert(it != end);
@@ -265,7 +265,7 @@ namespace kusabira::PP {
         // #lineの次のトークンからプリプロセッシングトークンを構成する
         ++it;
 
-        return this->pp_tokens<true, false>(it, end, line_token_list).and_then([&, this](auto&&) -> parse_status {
+        return this->pp_tokens<true, false>(it, end, line_token_list).and_then([&, this](auto&&) -> parse_result {
           if (auto is_err = m_preprocessor.line(*m_reporter, line_token_list); is_err) {
             return this->newline(it, end);
           } else {
@@ -291,7 +291,19 @@ namespace kusabira::PP {
 
       } else if (tokenstr == u8"pragma") {
         // #pragmaディレクティブの実行
-        m_preprocessor.pragma(*m_reporter, it, end);
+
+        pptoken_list_t pragma_token_list{ &kusabira::def_mr };
+
+        return this->pp_tokens<false, true>(it, end, pragma_token_list).and_then([&, this](auto&&) -> parse_result {
+          auto opt = m_preprocessor.pragma(*m_reporter, pragma_token_list);
+          if (not opt) {
+            return kusabira::ok(pp_parse_status::Complete);
+          } else {
+            // pragmaディレクティブ中のエラーはその実行を担っているところで出力するのが適切でありそう
+            // ここで返すべき（処理すべき）は#pragmaの位置の報告？
+            return kusabira::error(pp_err_info{ std::move(*opt),  pp_parse_context::ControlLine_Pragma });
+          }
+        });
       } else {
         // 知らないトークンだったら多分こっち
         return this->conditionally_supported_directive(it, end);
@@ -300,7 +312,7 @@ namespace kusabira::PP {
       return this->newline(it, end);
     }
 
-    fn control_line_define(iterator &it, sentinel end) -> parse_status {
+    fn control_line_define(iterator &it, sentinel end) -> parse_result {
       using namespace std::string_view_literals;
       //ホワイトスペース列を読み飛ばす
       SKIP_WHITESPACE(it, end);
@@ -322,7 +334,7 @@ namespace kusabira::PP {
       //オブジェクト形式マクロの登録
       if (deref(it).category == pp_token_category::whitespaces) {
         //置換リストの取得
-        return this->replacement_list(it, end).and_then([&, this](auto&& replacement_token_list) -> parse_status {
+        return this->replacement_list(it, end).and_then([&, this](auto&& replacement_token_list) -> parse_result {
           //マクロの登録
           if (m_preprocessor.define(*m_reporter, macroname, std::move(replacement_token_list)) == false)
             return kusabira::error(pp_err_info{ std::move(macroname), pp_parse_context::ControlLine });
@@ -340,7 +352,7 @@ namespace kusabira::PP {
       //関数マクロの登録
       if (deref(it).category == pp_token_category::op_or_punc and deref(it).token == u8"("sv) {
         //引数リストの取得
-        return this->identifier_list(it, end).and_then([&, this](auto&& value) -> parse_status {
+        return this->identifier_list(it, end).and_then([&, this](auto&& value) -> parse_result {
           auto& [arg_status, arglist] = value;
           bool is_va = false;
 
@@ -370,7 +382,7 @@ namespace kusabira::PP {
           }
 
           //置換リストの取得
-          return this->replacement_list(it, end).and_then([&, this](auto&& replacement_token_list) -> parse_status {
+          return this->replacement_list(it, end).and_then([&, this](auto&& replacement_token_list) -> parse_result {
             //マクロの登録
             if (m_preprocessor.define(*m_reporter, macroname, std::move(replacement_token_list), arglist, is_va) == false)
               return kusabira::error(pp_err_info{ std::move(macroname), pp_parse_context::ControlLine });
@@ -470,13 +482,13 @@ namespace kusabira::PP {
       }
     }
 
-    fn conditionally_supported_directive([[maybe_unused]] iterator& it, [[maybe_unused]] sentinel end) -> parse_status {
+    fn conditionally_supported_directive([[maybe_unused]] iterator& it, [[maybe_unused]] sentinel end) -> parse_result {
       //未実装
       assert(false);
       return {};
     }
 
-    fn if_section(iterator& it, sentinel end) -> parse_status {
+    fn if_section(iterator& it, sentinel end) -> parse_result {
       using namespace std::string_view_literals;
 
       //ifを処理
@@ -505,7 +517,7 @@ namespace kusabira::PP {
       }
     }
 
-    fn if_group(iterator& it, sentinel end) -> parse_status {
+    fn if_group(iterator& it, sentinel end) -> parse_result {
       if (auto token = (*it).token.to_view(); size(token) == 3) {
         //#if
 
@@ -542,8 +554,8 @@ namespace kusabira::PP {
       return this->group(it, end);
     }
 
-    fn elif_groups(iterator& it, sentinel end) -> parse_status {
-      parse_status status{ pp_parse_status::Complete };
+    fn elif_groups(iterator& it, sentinel end) -> parse_result {
+      parse_result status{ pp_parse_status::Complete };
 
       while (it != end and status == pp_parse_status::Complete) {
         status = elif_group(it, end);
@@ -552,7 +564,7 @@ namespace kusabira::PP {
       return status;
     }
 
-    fn elif_group(iterator& it, sentinel end) -> parse_status {
+    fn elif_group(iterator& it, sentinel end) -> parse_result {
       //#elifを処理
 
       //定数式を処理
@@ -563,7 +575,7 @@ namespace kusabira::PP {
       return this->group(it, end);
     }
 
-    fn else_group(iterator& it, sentinel end) -> parse_status {
+    fn else_group(iterator& it, sentinel end) -> parse_result {
       //#elseを処理
       
       //ホワイトスペース列を読み飛ばす
@@ -577,7 +589,7 @@ namespace kusabira::PP {
       return this->group(it, end);
     }
 
-    fn endif_line(iterator& it, sentinel end) -> parse_status {
+    fn endif_line(iterator& it, sentinel end) -> parse_result {
       //#endifを処理
       if (auto token = (*it).token.to_view(); token == u8"endif") {
 
@@ -597,7 +609,7 @@ namespace kusabira::PP {
       return make_error(it, pp_parse_context::EndifLine_Mistake);
     }
 
-    fn text_line(iterator& it, sentinel end) -> parse_status {
+    fn text_line(iterator& it, sentinel end) -> parse_result {
       //1行分プリプロセッシングトークン列読み出し
       return this->pp_tokens<true, false>(it, end, this->m_pptoken_list);
     }
@@ -612,7 +624,7 @@ namespace kusabira::PP {
     * @return {結果となるプリプロセッシングトークンリスト | エラー情報}
     */
     template<bool ShouldMacroExpand, bool ShouldLeaveWhiteSpace>
-    fn pp_tokens(iterator& it, sentinel end, pptoken_list_t& list) -> parse_status {
+    fn pp_tokens(iterator& it, sentinel end, pptoken_list_t& list) -> parse_result {
       using namespace std::string_view_literals;
 
       //現在の字句トークンのカテゴリ
@@ -628,9 +640,9 @@ namespace kusabira::PP {
           list.splice(list.end(), std::move(*result));
         } else {
           //エラーが起きてる
-          return std::move(result).and_then([](auto &&) -> parse_status {
+          return std::move(result).and_then([](auto &&) -> parse_result {
             //expectedを変換するためのものであって、実際にここが実行されることはない
-            return parse_status{};
+            return parse_result{};
           });
         }
 
@@ -1042,7 +1054,7 @@ namespace kusabira::PP {
     * @param end トークン列の終端
     * @return 1行分正常終了したことを表すステータス
     */
-    fn newline(iterator& it, sentinel end) -> parse_status {
+    fn newline(iterator& it, sentinel end) -> parse_result {
       // ホワイトスペース飛ばし
       it = skip_whitespaces_except_newline(std::move(it), end);
 
