@@ -13,6 +13,7 @@
 #include "pp_automaton.hpp"
 #include "pp_tokenizer.hpp"
 #include "pp_directive_manager.hpp"
+#include "pp_constexpr.hpp"
 #include "vocabulary/scope.hpp"
 #include "vocabulary/concat.hpp"
 
@@ -492,8 +493,8 @@ namespace kusabira::PP {
       using namespace std::string_view_literals;
 
       //ifを処理
+      // ここで、elseのセクションをどうすべきなのかのbool値が必要
       auto status = this->if_group(it, end);
-
 
       //#を読んだ上でここに来ているかをチェックするもの
       auto chack_status = [&status]() noexcept -> bool { return status == pp_parse_status::FollowingSharpToken; };
@@ -518,13 +519,48 @@ namespace kusabira::PP {
     }
 
     fn if_group(iterator& it, sentinel end) -> parse_result {
-      if (auto token = (*it).token.to_view(); size(token) == 3) {
-        //#if
+      const auto if_token = std::ranges::iter_move(it);
 
-        //ホワイトスペース列を読み飛ばす
-        SKIP_WHITESPACE(it, end);
+      // 事前条件
+      assert(if_token.token.to_view().starts_with(u8"if"));
 
-        //定数式の処理
+      if (auto token = if_token.token.to_view(); size(token) == 3) {
+        // #ifを処理
+
+        // ホワイトスペース列を読み飛ばす
+        it = skip_whitespaces_except_newline(std::move(it), end);
+
+        // 定数式の処理
+        pptoken_list_t constexpr_token_list{ &kusabira::def_mr };
+
+        // 定数式を構成するトークンをマクロ展開などを完了させて取得
+        auto completed = this->pp_tokens<true, false>(it, end, constexpr_token_list);
+
+        if (not completed) {
+          return kusabira::error(std::move(completed).error());
+        }
+
+        // トークンが何もないということはない
+        if (empty(constexpr_token_list)) {
+          return kusabira::error(pp_err_info{ std::ranges::iter_move(it), pp_parse_context::IfGroup_Invalid });
+        }
+
+        pp_constexpr<std::remove_cvref_t<decltype(*m_reporter)>> constant_expr{ .reporter = *m_reporter, .filename = m_filename};
+
+        auto condition = constant_expr(constexpr_token_list);
+
+        if (not condition) {
+          return kusabira::error(pp_err_info{ std::ranges::iter_move(it), pp_parse_context::IfGroup_Invalid });
+        }
+
+        // itはnew-lineの次にある
+        if (*condition) {
+          // trueブロックを有効として処理
+          return this->group(it, end);
+        } else {
+          // trueブロックを読み飛ばし
+          return this->group_false(it, end);
+        }
 
       } else if (token == u8"ifdef" or token == u8"ifndef") {
         //#ifdef #ifndef
@@ -552,6 +588,37 @@ namespace kusabira::PP {
       }
 
       return this->group(it, end);
+    }
+
+    fn group_false(iterator& it, sentinel end) -> parse_result {
+      
+      while (true) {
+        it = skip_whitespaces_except_newline(std::move(it), end);
+        
+        // プリプロセッシングディレクティブの場合、#if*, #else, #elifの出現を考慮する
+        if (deref(it).category == pp_token_category::op_or_punc) {
+          it = skip_whitespaces_except_newline(std::move(it), end);
+          
+          const auto& id_token = *it;
+          if (id_token.category == pp_token_category::identifier) {
+            // 入れ子の#if*ディレクティブ、再帰処理によって適切にスキップ
+            if (id_token.token.to_view().starts_with(u8"if")) {
+              return this->if_section(it, end);
+            }
+
+            // #else系ディレクティブ、戻る
+            if (id_token.token == u8"else" or id_token.token == u8"elif") {
+              return kusabira::ok(pp_parse_status::FollowingSharpToken);
+            }
+          }
+        }
+
+        // 行末までひたすら飛ばす
+        it = std::ranges::find_if(std::move(it), end, [](const auto& token) {
+          return token.category == pp_token_category::newline;
+        });
+        ++it;
+      }
     }
 
     fn elif_groups(iterator& it, sentinel end) -> parse_result {
