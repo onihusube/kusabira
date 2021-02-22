@@ -492,18 +492,19 @@ namespace kusabira::PP {
     fn if_section(iterator& it, sentinel end) -> parse_result {
       using namespace std::string_view_literals;
 
-      //ifを処理
-      // ここで、elseのセクションをどうすべきなのかのbool値が必要
-      auto status = this->if_group(it, end);
+      // #if*を処理
+      // [パース結果、ifの条件式の結果のbool値]
+      auto [status, condition] = this->if_group(it, end);
 
       //#を読んだ上でここに来ているかをチェックするもの
       auto chack_status = [&status]() noexcept -> bool { return status == pp_parse_status::FollowingSharpToken; };
 
       //正常にここに戻った場合はすでに#を読んでいるはず
-      if (chack_status() and (*it).token == u8"elif"sv) {
+      while (chack_status() and (*it).token == u8"elif"sv) {
         //#elif
         status = this->elif_groups(it, end);
       }
+
       if (chack_status() and (*it).token == u8"else"sv) {
         //#else
         status = this->else_group(it, end);
@@ -518,11 +519,14 @@ namespace kusabira::PP {
       }
     }
 
-    fn if_group(iterator& it, sentinel end) -> parse_result {
+    fn if_group(iterator& it, sentinel end) -> std::pair<parse_result, bool> {
       const auto if_token = std::ranges::iter_move(it);
 
       // 事前条件
       assert(if_token.token.to_view().starts_with(u8"if"));
+
+      // if の条件部の判定結果
+      bool branch_condition = false;
 
       if (auto token = if_token.token.to_view(); size(token) == 3) {
         // #ifを処理
@@ -537,78 +541,77 @@ namespace kusabira::PP {
         auto completed = this->pp_tokens<true, false>(it, end, constexpr_token_list);
 
         if (not completed) {
-          return kusabira::error(std::move(completed).error());
+          return {kusabira::error(std::move(completed).error()), false};
         }
 
         // トークンが何もないということはない
         if (empty(constexpr_token_list)) {
-          return kusabira::error(pp_err_info{ std::ranges::iter_move(it), pp_parse_context::IfGroup_Invalid });
+          return {kusabira::error(pp_err_info{ std::ranges::iter_move(it), pp_parse_context::IfGroup_Invalid }), false};
         }
 
         pp_constexpr<std::remove_cvref_t<decltype(*m_reporter)>> constant_expr{ .reporter = *m_reporter, .filename = m_filename};
 
-        auto condition = constant_expr(constexpr_token_list);
+        auto condition_opt = constant_expr(constexpr_token_list);
 
-        if (not condition) {
-          return kusabira::error(pp_err_info{ std::ranges::iter_move(it), pp_parse_context::IfGroup_Invalid });
+        if (not condition_opt) {
+          return {kusabira::error(pp_err_info{ std::ranges::iter_move(it), pp_parse_context::IfGroup_Invalid }), false};
         }
 
-        // itはnew-lineの次にある
-        if (*condition) {
-          // trueブロックを有効として処理
-          return this->group(it, end);
-        } else {
-          // trueブロックを読み飛ばし
-          return this->group_false(it, end);
-        }
-
+        branch_condition = *condition_opt;
       } else if (token == u8"ifdef" or token == u8"ifndef") {
         //#ifdef #ifndef
 
-        //ホワイトスペース列を読み飛ばす
-        SKIP_WHITESPACE(it, end);
+        // ホワイトスペース列を読み飛ばし終端チェック
+        it = skip_whitespaces_except_newline(std::move(it), end);
+        if (it == end) {
+          return {make_error(it, pp_parse_context::UnexpectedEOF), false};
+        }
 
-        if (auto kind = (*it).category; kind != pp_token_category::identifier) {
+        if (deref(it).category != pp_token_category::identifier) {
           //識別子以外が出てきたらエラー
-          return make_error(it, pp_parse_context::IfGroup_Invalid);
+          return {make_error(it, pp_parse_context::IfGroup_Invalid), false};
         }
         //識別子を#define名としてチェックする
 
+        // 行末まで読み、後続のgroupを処理
+        [[maybe_unused]] auto result = this->newline(it, end);
       } else {
         // #ifから始まるがifdefでもifndefでもない何か
-        return make_error(it, pp_parse_context::IfGroup_Mistake);
+        return {make_error(it, pp_parse_context::IfGroup_Mistake), false};
       }
 
-      //ホワイトスペース列を読み飛ばす
-      SKIP_WHITESPACE(it, end);
-
-      if (auto kind = (*it).category; kind != pp_token_category::newline) {
-        //改行文字以外が出てきたらエラー
-        return make_error(it, pp_parse_context::IfGroup_Invalid);
+      // itはnew-lineの次にある
+      if (branch_condition) {
+        // trueブロックを有効として処理
+        return {this->group(it, end), true};
+      } else {
+        // trueブロックを読み飛ばし
+        return this->group_false(it, end);
       }
-
-      return this->group(it, end);
     }
 
-    fn group_false(iterator& it, sentinel end) -> parse_result {
+    fn group_false(iterator& it, sentinel end) -> std::pair<parse_result, bool> {
       
-      while (true) {
+      while (it != end) {
         it = skip_whitespaces_except_newline(std::move(it), end);
         
-        // プリプロセッシングディレクティブの場合、#if*, #else, #elifの出現を考慮する
-        if (deref(it).category == pp_token_category::op_or_punc) {
+        // プリプロセッシングディレクティブの場合、#if*, #else, #elif, #endifの出現を考慮する
+        if (deref(it).category == pp_token_category::op_or_punc and
+            deref(it).token == u8"#")
+        {
+          ++it;
           it = skip_whitespaces_except_newline(std::move(it), end);
-          
+
           const auto& id_token = *it;
           if (id_token.category == pp_token_category::identifier) {
             // 入れ子の#if*ディレクティブ、再帰処理によって適切にスキップ
             if (id_token.token.to_view().starts_with(u8"if")) {
-              return this->if_section(it, end);
+              return this->if_section_false(it, end);
             }
 
-            // #else系ディレクティブ、戻る
-            if (id_token.token == u8"else" or id_token.token == u8"elif") {
-              return kusabira::ok(pp_parse_status::FollowingSharpToken);
+            // #else系ディレクティブか#endif、戻る
+            if (id_token.token == u8"else" or id_token.token == u8"elif" or id_token.token == u8"endif") {
+              return {kusabira::ok(pp_parse_status::FollowingSharpToken), false};
             }
           }
         }
@@ -619,6 +622,56 @@ namespace kusabira::PP {
         });
         ++it;
       }
+
+      return {kusabira::error(pp_err_info{pptoken_t{pp_token_category::empty}, pp_parse_context::UnexpectedEOF}), false};
+    }
+
+    fn if_section_false(iterator& it, sentinel end) -> std::pair<parse_result, bool>  {
+
+      // 事前条件
+      assert(deref(it).token.to_view().starts_with(u8"if"));
+
+      // 行末まで飛ばす
+      it = std::ranges::find_if(std::move(it), end, [](const auto &token) {
+        return token.category == pp_token_category::newline;
+      });
+      ++it;
+
+      parse_result completed{};
+      bool ignore;
+
+      // 対応する#else, #elif, #endifが出るまで飛ばす
+      std::tie(completed, ignore) = this->group_false(it, end);
+
+      // #を読んでから来ている、はず
+      while (completed and deref(it).token == u8"elif") {
+        // #elifブロック
+        // 行末まで飛ばす
+        it = std::ranges::find_if(std::move(it), end, [](const auto &token) {
+          return token.category == pp_token_category::newline;
+        });
+        ++it;
+
+        std::tie(completed, ignore) = this->group_false(it, end);
+      }
+      if (completed and deref(it).token == u8"else") {
+        // #else
+        // 行末まで飛ばす
+        it = std::ranges::find_if(std::move(it), end, [](const auto &token) {
+          return token.category == pp_token_category::newline;
+        });
+        ++it;
+
+        std::tie(completed, ignore) = this->group_false(it, end);
+      }
+
+      // EOFエラーは起こり得る
+      if (not completed) {
+        return {std::move(completed), false};
+      }
+
+      // #endifでのエラーはコンパイルエラー
+      return {this->endif_line(it, end), false};
     }
 
     fn elif_groups(iterator& it, sentinel end) -> parse_result {
@@ -657,23 +710,13 @@ namespace kusabira::PP {
     }
 
     fn endif_line(iterator& it, sentinel end) -> parse_result {
-      //#endifを処理
-      if (auto token = (*it).token.to_view(); token == u8"endif") {
-
-        //ホワイトスペース列を読み飛ばす
-        SKIP_WHITESPACE(it, end);
-
-        //改行が現れなければならない
-        if (it != end and (*it).category == pp_token_category::newline) {
-          //正常終了
-          return this->newline(it, end);
-        } else {
-          //他のトークンが出てきた
-          return make_error(it, pp_parse_context::EndifLine_Invalid);
-        }
+      // #endifを処理
+      if (auto token = deref(it).token.to_view(); token == u8"endif") {
+        ++it;
+        return this->newline(it, end);
       }
-      //endifじゃない
-      return make_error(it, pp_parse_context::EndifLine_Mistake);
+      // endifじゃない
+      return kusabira::error(pp_err_info{std::ranges::iter_move(it), pp_parse_context::EndifLine_Mistake});
     }
 
     fn text_line(iterator& it, sentinel end) -> parse_result {

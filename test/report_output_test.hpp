@@ -23,7 +23,11 @@ namespace kusabira_test::report
     static void output_u8string(const std::u8string_view str) {
       
       for (auto u8char : str) {
+        #ifdef __cpp_lib_bit_cast
         auto c = std::bit_cast<char>(u8char);
+        #else
+        auto c = *reinterpret_cast<char *>(&u8char);
+        #endif
         stream << c;
       }
     }
