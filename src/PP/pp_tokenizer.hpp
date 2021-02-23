@@ -224,6 +224,10 @@ namespace kusabira::PP::inline tokenizer_v2 {
       fn operator==(std::default_sentinel_t) const noexcept -> bool {
         return m_parent == nullptr or m_parent->m_elem == std::nullopt;
       }
+
+      /*ffn iter_move(tokenizer_iterator& self) -> value_type {
+        return *std::move(m_parent->m_elem);
+      }*/
     };
 
   public:

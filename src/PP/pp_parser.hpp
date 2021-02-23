@@ -192,47 +192,40 @@ namespace kusabira::PP {
         SKIP_WHITESPACE(it, end);
       }
 
-      if (auto& token = *it; token.category == pp_token_category::op_or_punc) {
-        //先頭#から始まればプリプロセッシングディレクティブ
-        if (token.token == u8"#") {
-          //ホワイトスペース列を読み飛ばす
-          SKIP_WHITESPACE(it, end);
+      //先頭#から始まればプリプロセッシングディレクティブ
+      if (auto& token = *it; token.category == pp_token_category::op_or_punc and
+                             token.token == u8"#")
+      {
+        //ホワイトスペース列を読み飛ばす
+        SKIP_WHITESPACE(it, end);
 
-          //なにかしらの識別子が来てるはず
-          if (auto& next_token = *it; next_token.category != pp_token_category::identifier) {
-            if (next_token.category == pp_token_category::newline) {
-              //空のプリプロセッシングディレクティブ
-              return this->newline(it, end);
-            }
-            //エラーでは？？
-            return make_error(it, pp_parse_context::GroupPart);
+        //なにかしらの識別子が来てるはず
+        if (auto& next_token = *it; next_token.category != pp_token_category::identifier) {
+          if (next_token.category == pp_token_category::newline) {
+            //空のプリプロセッシングディレクティブ
+            return this->newline(it, end);
           }
-
-          // #elif等の出現を調べるもの
-          auto check_elif_etc = [](auto token) -> bool {
-            return token == u8"elif" or token == u8"else" or token == u8"endif";
-          };
-
-          // #に続く識別子、何かしらのプリプロセッシングディレクティブ
-          if ((*it).token.to_view().starts_with(u8"if")) {
-            // if-sectionへ
-            return this->if_section(it, end);
-          } else if (check_elif_etc((*it).token) == true) {
-            // if-sectionの内部でif-group読取中のelif等の出現、group読取の終了
-            return kusabira::ok(pp_parse_status::FollowingSharpToken);
-          } else {
-            // control-lineへ
-            return this->control_line(it, end);
-          }
+          //エラーでは？？
+          return make_error(it, pp_parse_context::GroupPart);
         }
-      }
 
-      if ((*it).category == pp_token_category::identifier) {
-        if ((*it).token == u8"import"sv or (*it).token == u8"export"sv) {
-            // モジュールのインポート宣言
-            // pp-importに直接行ってもいい気がする
-            return this->control_line(it, end);
+        // #に続く識別子、何かしらのプリプロセッシングディレクティブ
+        if (std::u8string_view id_token = deref(it).token; id_token == u8"if" or id_token == u8"ifdef" or id_token == u8"ifndef") {
+          // if-sectionへ
+          return this->if_section(it, end);
+        } else if (id_token == u8"elif" or id_token == u8"else" or id_token == u8"endif") {
+          // if-sectionの内部でif-group読取中のelif等の出現、group読取の終了
+          return kusabira::ok(pp_parse_status::FollowingSharpToken);
+        } else {
+          // control-lineへ
+          return this->control_line(it, end);
         }
+      } else if (token.category == pp_token_category::identifier and 
+                 (token.token == u8"import"sv or token.token == u8"export"sv) )
+      {
+        // モジュールのインポート宣言
+        // pp-importに直接行ってもいい気がする
+        return this->control_line(it, end);
       }
 
       // text-lineへ
@@ -500,7 +493,7 @@ namespace kusabira::PP {
       auto chack_status = [&status]() noexcept -> bool { return status == pp_parse_status::FollowingSharpToken; };
 
       //正常にここに戻った場合はすでに#を読んでいるはず
-      while (chack_status() and (*it).token == u8"elif"sv) {
+      if (chack_status() and (*it).token == u8"elif"sv) {
         //#elif
         status = this->elif_groups(it, end);
       }
@@ -605,12 +598,17 @@ namespace kusabira::PP {
           const auto& id_token = *it;
           if (id_token.category == pp_token_category::identifier) {
             // 入れ子の#if*ディレクティブ、再帰処理によって適切にスキップ
-            if (id_token.token.to_view().starts_with(u8"if")) {
-              return this->if_section_false(it, end);
+            if (id_token.token == u8"if" or id_token.token == u8"ifdef" or id_token.token == u8"ifndef") {
+              auto [completed, ignore] = this->if_section_false(it, end);
+              if (not completed) {
+                // おそらくEOFエラー
+                return { std::move(completed), false };
+              }
+              // 残りの部分を処理
+              continue;
             }
-
             // #else系ディレクティブか#endif、戻る
-            if (id_token.token == u8"else" or id_token.token == u8"elif" or id_token.token == u8"endif") {
+            else if (id_token.token == u8"else" or id_token.token == u8"elif" or id_token.token == u8"endif") {
               return {kusabira::ok(pp_parse_status::FollowingSharpToken), false};
             }
           }
@@ -670,8 +668,9 @@ namespace kusabira::PP {
         return {std::move(completed), false};
       }
 
-      // #endifでのエラーはコンパイルエラー
-      return {this->endif_line(it, end), false};
+      // ここでのエラーは無視！
+      [[maybe_unused]] auto discard = this->endif_line(it, end);
+      return { pp_parse_status::Complete, false};
     }
 
     fn elif_groups(iterator& it, sentinel end) -> parse_result {

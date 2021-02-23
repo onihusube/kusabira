@@ -168,6 +168,8 @@ namespace kusabira::vocabulary {
       }
     }
 
+    operator strview_t() && = delete;
+
     /**
     * @brief 文字列を所有しているか（viewなのかどうか）を取得
     * @return trueなら文字列を保持している、falseならviewである
