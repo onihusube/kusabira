@@ -531,6 +531,31 @@ namespace kusabira::PP {
         pptoken_list_t constexpr_token_list{ &kusabira::def_mr };
 
         // 定数式を構成するトークンをマクロ展開などを完了させて取得
+        // defindと__has_cpp_attributeと__has_­includeの呼び出しを除けば、整数定数式とならなければならない
+        // ここでのマクロ展開は、関数マクロの呼び出しが改行を超えることはない
+        //   マクロ展開前に#ifを完了するnew-lineが現れることが構文定義で制約されているため
+        //
+        // 1. defined式を除く識別子のマクロ展開を完了
+        //     - マクロ展開の結果definedが生成されたか、defined式の書式が定義に沿わない場合、未定義動作
+        // 2. defindと__has_cpp_attributeと__has_­includeを処理
+        //     - マクロ展開も含めてこの処理順は未規定（のはず？
+        // 3. 残った識別子のうち、true/falseを除くものを整数0に置換する
+        //     - 代替トークンはこの対象とならない
+        // 4. そのトークン列を通常の定数式として処理
+        //     - 符号付整数はintmax_t、符号なし整数はuintmax_tであるかのように扱われる
+        //     - 文字リテラルは整数値に変換される
+        //
+        // bool値はintegral promotionによって整数値として扱われる
+
+        // まず、改行までトークンをそのまま読み出す
+        /*for (; deref(it).category != pp_token_category::newline ; ++it) {
+          // definedを処理しておく
+          if (deref(it).token == u8"defined") {
+            
+          }
+          auto& pptoken = constexpr_token_list.emplace_back(std::ranges::iter_move(it));
+        }*/
+
         auto completed = this->pp_tokens<true, false>(it, end, constexpr_token_list);
 
         if (not completed) {
