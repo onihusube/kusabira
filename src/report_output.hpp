@@ -33,6 +33,8 @@ namespace kusabira::PP {
     IfSection,       // #ifセクションの途中で読み取り終了してしまった？
     IfGroup_Mistake, // #ifから始まるifdef,ifndefではない間違ったトークン
     IfGroup_Invalid, // 1つの定数式・識別子の前後、改行までの間に不正なトークンが現れている
+    PPConstexpr_Invalid, // #ifの条件式に不正なトークンがある
+    PPConstexpr_MissingCloseParent, // #ifの条件式に不正なトークンがある
     ControlLine,
     Define_No_Identifier,       // #defineの後に識別子が現れなかった
     Define_ParamlistBreak,      // 関数マクロの仮引数リストパース中に改行した
@@ -156,7 +158,9 @@ namespace kusabira::report {
       {PP::pp_parse_context::ControlLine_Undef, u8"Specify the macro name."},
       {PP::pp_parse_context::ControlLine_Line_Num , u8"The number specified for the #LINE directive is incorrect. Please specify a number in the range of std::size_t."},
       {PP::pp_parse_context::ControlLine_Line_ManyToken, u8"There is an unnecessary token after the #line directive."},
-      {PP::pp_parse_context::Newline_NotAppear, u8"An unexpected token appears before a line break."}
+      {PP::pp_parse_context::Newline_NotAppear, u8"An unexpected token appears before a line break."},
+      {PP::pp_parse_context::PPConstexpr_MissingCloseParent, u8"Could not find the corresponding closing parenthesis ')'."},
+      {PP::pp_parse_context::PPConstexpr_Invalid, u8"This token cannot be processed by a constant expression during preprocessing."}
     };
 
 //Windowsのみ、コンソール出力のために少し調整を行う
@@ -251,7 +255,7 @@ namespace kusabira::report {
     * @param token エラー発生時の字句トークン
     * @param context エラー発生箇所の文脈
     */
-    void pp_err_report(const fs::path &filename, PP::pp_token token, PP::pp_parse_context context, report_category cat = report_category::error) const {
+    void pp_err_report(const fs::path &filename, const PP::pp_token& token, PP::pp_parse_context context, report_category cat = report_category::error) const {
 
       //エラーメッセージ本文出力
       this->print_report(this->pp_context_to_message(context), filename, token, cat);
@@ -289,7 +293,9 @@ namespace kusabira::report {
       {PP::pp_parse_context::Funcmacro_ReplacementFail, u8"マクロ展開時、実引数に含まれているマクロの置換に失敗しました。"},
       {PP::pp_parse_context::ControlLine_Line_Num , u8"#lineディレクティブに指定された数値が不正です。std::size_tの範囲内の数値を指定してください。"},
       {PP::pp_parse_context::ControlLine_Line_ManyToken , u8"#lineディレクティブの後に不要なトークンがあります。"},
-      {PP::pp_parse_context::Newline_NotAppear, u8"改行の前に予期しないトークンが現れています。"}
+      {PP::pp_parse_context::Newline_NotAppear, u8"改行の前に予期しないトークンが現れています。"},
+      {PP::pp_parse_context::PPConstexpr_MissingCloseParent, u8"対応する閉じ括弧')'が見つかりませんでした。"},
+      {PP::pp_parse_context::PPConstexpr_Invalid, u8"プリプロセス時の定数式ではこのトークンは処理できません。"}
     };
 
     fn pp_context_to_message_impl(PP::pp_parse_context context) const -> std::u8string_view override {
