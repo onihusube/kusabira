@@ -5,6 +5,7 @@
 #include <functional>
 #include <utility>
 #include <variant>
+#include <cctype>
 
 #include "../common.hpp"
 #include "../report_output.hpp"
@@ -31,8 +32,25 @@ namespace kusabira::PP::inline free_func {
     // 抜けたら整数値のはず・・・
 
     // 2 or 8 or 10 or 16進数判定
+    std::uint8_t base = 10;
+
+    if (number_str.starts_with(u8"0b") or number_str.starts_with(u8"0B")) {
+      base = 2;
+    } else if (number_str.starts_with(u8"0x") or number_str.starts_with(u8"0X")) {
+      base = 16;
+    } else if (number_str.starts_with(u8"0")) {
+      base = 8;
+    }
 
     // リテラル判定、ユーザー定義リテラルはエラー
+    // u U
+    // l L
+    // ll LL
+    // z Z
+    // ul ull uz lu llu
+    // uが入ってたら符号なし、それ以外は符号付
+    bool is_unsigned = true;
+
 
     // 'を取り除く
 
@@ -118,7 +136,7 @@ namespace kusabira::PP {
         if (it == last) {
           this->err_report(*before_it, pp_parse_context::PPConstexpr_MissingCloseParent);
           return kusabira::error(false);
-        } else if (not deref(it).token == u8")") {
+        } else if (deref(it).token != u8")") {
           this->err_report(*it, pp_parse_context::PPConstexpr_MissingCloseParent);
           return kusabira::error(false);
         }
