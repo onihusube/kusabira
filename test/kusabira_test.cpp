@@ -15,3 +15,4 @@
 #include "test/vocabulary/concat_test.hpp"
 #include "test/PP/unified_macro_test.hpp"
 #include "test/PP/pp_directive_test.hpp"
+#include "test/PP/pp_constexpr_test.hpp"

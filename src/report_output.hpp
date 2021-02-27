@@ -35,6 +35,11 @@ namespace kusabira::PP {
     IfGroup_Invalid, // 1つの定数式・識別子の前後、改行までの間に不正なトークンが現れている
     PPConstexpr_Invalid, // #ifの条件式に不正なトークンがある
     PPConstexpr_MissingCloseParent, // #ifの条件式に不正なトークンがある
+    PPConstexpr_FloatingPointNumber, // #ifの条件式で浮動小数点数がある
+    PPConstexpr_UDL,                  // #ifの条件式でユーザー定義リテラルがある
+    PPConstexpr_OutOfRange,           // #ifの条件式の整数定数が表現しきれないほど大きい
+    PPConstexpr_InvalidArgument,      // #ifの条件式の整数リテラルの書式がおかしい（8進リテラルに89があるとか）
+
     ControlLine,
     Define_No_Identifier,       // #defineの後に識別子が現れなかった
     Define_ParamlistBreak,      // 関数マクロの仮引数リストパース中に改行した

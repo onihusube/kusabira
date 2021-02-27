@@ -40,6 +40,14 @@ namespace kusabira {
   using expected = tl::expected<T, E>;
 
   inline std::pmr::monotonic_buffer_resource def_mr{1024ul};
+
+  template<typename... Fs>
+  struct overloaded : Fs... {
+    using Fs::operator()...;
+  };
+
+  template<typename... Fs>
+  overloaded(Fs&&...) -> overloaded<Fs...>;
 }
 
 namespace kusabira {

@@ -12,14 +12,16 @@
 
 namespace kusabira::PP::inline free_func {
 
-  fn decode_integral_ppnumber(std::u8string_view number_strview, int sign) -> std::pair<std::variant<std::intmax_t, std::uintmax_t, bool>, std::uint8_t> {
+  fn decode_integral_ppnumber(std::u8string_view number_strview, int sign) -> std::variant<std::intmax_t, std::uintmax_t, pp_parse_context> {
     // 事前条件
     assert(sign == -1 or sign == 1);
+
+    using enum pp_parse_context;
 
     constexpr auto npos = std::u8string_view::npos;
     constexpr std::uint8_t signed_integral = 0;
     constexpr std::uint8_t unsigned_integral = 1;
-    constexpr std::uint8_t floating_point = 2;
+    constexpr std::uint8_t parse_err = 2;
 
     std::pmr::string numstr{ &kusabira::def_mr };
     numstr.reserve(number_strview.length());
@@ -35,12 +37,12 @@ namespace kusabira::PP::inline free_func {
     // 浮動小数点数判定
     // 16進浮動小数点数には絶対にpが表れる
     if (auto p = std::ranges::find_if(numstr, [](char c) { return c == '.' or c == 'p';}); p != numstr.end()) {
-      return std::make_pair(std::variant<std::intmax_t, std::uintmax_t, bool>{std::in_place_index<floating_point>, false}, floating_point);
+      return std::variant<std::intmax_t, std::uintmax_t, pp_parse_context>{ std::in_place_index<parse_err>, PPConstexpr_FloatingPointNumber };
     }
     // 小数点の現れないタイプの10進浮動小数点数
     // 1E-1とか2e+2とか3E-4flみたいな、絶対にeが表れる
     if (auto e = std::ranges::find_if(numstr, [](char c) { return c == 'e';}); e != numstr.end()) {
-      return std::make_pair(std::variant<std::intmax_t, std::uintmax_t, bool>{std::in_place_index<floating_point>, false}, floating_point);
+      return std::variant<std::intmax_t, std::uintmax_t, pp_parse_context>{ std::in_place_index<parse_err>, PPConstexpr_FloatingPointNumber };
     }
 
     // 抜けたら整数値のはず・・・
@@ -65,9 +67,9 @@ namespace kusabira::PP::inline free_func {
     const char* end_pos = true_end;
 
     if (base == 16) {
-      end_pos = std::ranges::find_if(start_pos, true_end, [](unsigned char ch) -> bool { return std::isxdigit(ch); });
+      end_pos = std::ranges::find_if_not(start_pos, true_end, [](unsigned char ch) -> bool { return std::isxdigit(ch); });
     } else {
-      end_pos = std::ranges::find_if(start_pos, true_end, [](unsigned char ch) -> bool { return std::isdigit(ch); });
+      end_pos = std::ranges::find_if_not(start_pos, true_end, [](unsigned char ch) -> bool { return std::isdigit(ch); });
     }
 
     // リテラル判定、ユーザー定義リテラルはエラー
@@ -82,6 +84,7 @@ namespace kusabira::PP::inline free_func {
     std::string_view suffix{end_pos, true_end};
 
     // 数値頭の+-記号は分けて読まれている
+    // 頭に-が付いてたら常に符号付整数
     if (0 <= sign) {
       // -付きのリテラルは想定しなくていい（数値リテラルの値は正であると仮定する）
       switch (size(suffix)) {
@@ -118,9 +121,8 @@ namespace kusabira::PP::inline free_func {
       
       // エラー報告
       // 10進数字列にabcdefが含まれいた場合もここに来る
-      return std::make_pair(std::variant<std::intmax_t, std::uintmax_t, bool>{std::in_place_index<floating_point>, false}, floating_point);
+      return std::variant<std::intmax_t, std::uintmax_t, pp_parse_context>{ std::in_place_index<parse_err>, PPConstexpr_UDL };
     }
-    // 頭に-が付いてたら常に符号付整数
 
   convert_part:
 
@@ -132,12 +134,12 @@ namespace kusabira::PP::inline free_func {
       if (ec == std::errc::result_out_of_range) {
         // 指定された値が大きすぎる
         // 拡張整数型ですら表現できない場合コンパイルエラーとなる
-        return std::make_pair(std::variant<std::intmax_t, std::uintmax_t, bool>{std::in_place_index<floating_point>, false}, floating_point);
+        return std::variant<std::intmax_t, std::uintmax_t, pp_parse_context>{ std::in_place_index<parse_err>, PPConstexpr_OutOfRange };
       }
       if (ec == std::errc::invalid_argument) {
         // 入力がおかしい
         // 8進リテラルに8,9が出て来たときとか
-        return std::make_pair(std::variant<std::intmax_t, std::uintmax_t, bool>{std::in_place_index<floating_point>, false}, floating_point);
+        return std::variant<std::intmax_t, std::uintmax_t, pp_parse_context>{ std::in_place_index<parse_err>, PPConstexpr_InvalidArgument };
       }
 
       // 他のエラーは想定されないはず・・・
@@ -146,7 +148,7 @@ namespace kusabira::PP::inline free_func {
       // 符号適用
       num *= sign;
 
-      return std::make_pair(std::variant<std::intmax_t, std::uintmax_t, bool>{std::in_place_index<signed_integral>, num}, signed_integral);
+      return std::variant<std::intmax_t, std::uintmax_t, pp_parse_context>{ std::in_place_index<signed_integral>, num };
     } else {
       std::uintmax_t num;
       auto [ptr, ec] = std::from_chars(start_pos, end_pos, num, base);
@@ -154,18 +156,18 @@ namespace kusabira::PP::inline free_func {
       if (ec == std::errc::result_out_of_range) {
         // 指定された値が大きすぎる
         // 拡張整数型ですら表現できない場合コンパイルエラーとなる
-        return std::make_pair(std::variant<std::intmax_t, std::uintmax_t, bool>{std::in_place_index<floating_point>, false}, floating_point);
+        return std::variant<std::intmax_t, std::uintmax_t, pp_parse_context>{ std::in_place_index<parse_err>, PPConstexpr_OutOfRange };
       }
       if (ec == std::errc::invalid_argument) {
         // 入力がおかしい
         // 8進リテラルに8,9が出て来たときとか
-        return std::make_pair(std::variant<std::intmax_t, std::uintmax_t, bool>{std::in_place_index<floating_point>, false}, floating_point);
+        return std::variant<std::intmax_t, std::uintmax_t, pp_parse_context>{ std::in_place_index<parse_err>, PPConstexpr_InvalidArgument };
       }
 
       // 他のエラーは想定されないはず・・・
       assert(ec == std::errc{});
 
-      return std::make_pair(std::variant<std::intmax_t, std::uintmax_t, bool>{std::in_place_index<unsigned_integral>, num}, unsigned_integral);
+      return std::variant<std::intmax_t, std::uintmax_t, pp_parse_context>{ std::in_place_index<unsigned_integral>, num };
     }
   }
 
