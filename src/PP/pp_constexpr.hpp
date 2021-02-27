@@ -12,30 +12,34 @@
 
 namespace kusabira::PP::inline free_func {
 
-  fn decode_integral_ppnumber(std::u8string_view number_strview) -> std::pair<std::variant<std::intmax_t, std::uintmax_t, bool>, std::uint8_t> {
+  fn decode_integral_ppnumber(std::u8string_view number_strview, int sign) -> std::pair<std::variant<std::intmax_t, std::uintmax_t, bool>, std::uint8_t> {
+    // 事前条件
+    assert(sign == -1 or sign == 1);
+
     constexpr auto npos = std::u8string_view::npos;
     constexpr std::uint8_t signed_integral = 0;
     constexpr std::uint8_t unsigned_integral = 1;
     constexpr std::uint8_t floating_point = 2;
 
-    std::pmr::u8string numstr{ &kusabira::def_mr };
+    std::pmr::string numstr{ &kusabira::def_mr };
     numstr.reserve(number_strview.length());
 
     // 桁区切り'を取り除くとともに、大文字を小文字化しておく
-    for (auto inner_range : number_strview | std::views::split(u8'\'')) {
-      for (char8_t c : inner_range | std::views::transform([](unsigned char ch) -> char8_t { return std::tolower(ch); })) {
-        numstr.push_back(c);
-      }
+    // char8_t(UTF-8)をchar(ASCII)として処理する
+    for (char c : number_strview | std::views::filter([](char8_t ch) { return ch != u8'\''; })
+                                 | std::views::transform([](unsigned char ch) -> char { return std::tolower(ch); }))
+    {
+      numstr.push_back(c);
     }
 
     // 浮動小数点数判定
     // 16進浮動小数点数には絶対にpが表れる
-    if (auto p = std::ranges::find_if(numstr, [](char8_t c) { return c == u8'.' or c == u8'p';}); p != numstr.end()) {
+    if (auto p = std::ranges::find_if(numstr, [](char c) { return c == '.' or c == 'p';}); p != numstr.end()) {
       return std::make_pair(std::variant<std::intmax_t, std::uintmax_t, bool>{std::in_place_index<floating_point>, false}, floating_point);
     }
     // 小数点の現れないタイプの10進浮動小数点数
     // 1E-1とか2e+2とか3E-4flみたいな、絶対にeが表れる
-    if (auto e = std::ranges::find_if(numstr, [](char8_t c) { return c == u8'e';}); e != numstr.end()) {
+    if (auto e = std::ranges::find_if(numstr, [](char c) { return c == 'e';}); e != numstr.end()) {
       return std::make_pair(std::variant<std::intmax_t, std::uintmax_t, bool>{std::in_place_index<floating_point>, false}, floating_point);
     }
 
@@ -43,22 +47,22 @@ namespace kusabira::PP::inline free_func {
 
     // 2 or 8 or 10 or 16進数判定
     std::uint8_t base = 10;
-    const char8_t *start_pos = std::ranges::data(numstr);
+    const char *start_pos = std::ranges::data(numstr);
 
-    if (numstr.starts_with(u8"0b")) {
+    if (numstr.starts_with("0b")) {
       base = 2;
       start_pos += 2;
-    } else if (numstr.starts_with(u8"0x")) {
+    } else if (numstr.starts_with("0x")) {
       base = 16;
       start_pos += 2;
-    } else if (numstr.starts_with(u8"0")) {
+    } else if (numstr.starts_with("0")) {
       base = 8;
       start_pos += 1;
     }
 
     // リテラル部を除いた数値の終端を求める
-    char8_t const * const true_end = std::addressof(numstr.back()) + 1;
-    const char8_t *end_pos = true_end;
+    char const * const true_end = std::addressof(numstr.back()) + 1;
+    const char* end_pos = true_end;
 
     if (base == 16) {
       end_pos = std::ranges::find_if(start_pos, true_end, [](unsigned char ch) -> bool { return std::isxdigit(ch); });
@@ -72,26 +76,99 @@ namespace kusabira::PP::inline free_func {
     // ll LL
     // z Z
     // 大文字は考慮しなくてよく、u以外は他とくっつかない
-    // 候補は  u l ll z ul ull uz lu llu zu
-    // uが入ってたら符号なし、それ以外は符号付
+    // 候補は  u l z ul uz lu zu ll ull llu
+    // uが入ってれば符号なし、z, l, llは符号付
     bool is_signed = true;
-    std::u8string_view suffix{end_pos, true_end};
+    std::string_view suffix{end_pos, true_end};
 
-    // 空だったら符号付整数
-    if (not empty(suffix)) {
-
+    // 数値頭の+-記号は分けて読まれている
+    if (0 <= sign) {
+      // -付きのリテラルは想定しなくていい（数値リテラルの値は正であると仮定する）
+      switch (size(suffix)) {
+      case 0: goto convert_part;
+      case 1:
+        if (suffix == "u") {
+          is_signed = false;
+          goto convert_part;
+        } else if (suffix == "l" or suffix == "z") {
+          goto convert_part;
+        }
+        // エラー
+        break;
+      case 2:
+        if (suffix == "ul" or suffix == "uz" or suffix == "lu" or suffix == "zu") {
+          is_signed = false;
+          goto convert_part;
+        } else if (suffix == "ll") {
+          goto convert_part;
+        }
+        // エラー
+        break;
+      case 3:
+        if (suffix == "ull" or suffix == "llu") {
+          is_signed = false;
+          goto convert_part;
+        }
+        // エラー
+        break;
+      default:
+        // エラー
+        break;
+      }
+      
+      // エラー報告
+      // 10進数字列にabcdefが含まれいた場合もここに来る
+      return std::make_pair(std::variant<std::intmax_t, std::uintmax_t, bool>{std::in_place_index<floating_point>, false}, floating_point);
     }
+    // 頭に-が付いてたら常に符号付整数
+
+  convert_part:
 
     // from_charsに叩き込む
-
     if (is_signed) {
       std::intmax_t num;
+      auto [ptr, ec] = std::from_chars(start_pos, end_pos, num, base);
+
+      if (ec == std::errc::result_out_of_range) {
+        // 指定された値が大きすぎる
+        // 拡張整数型ですら表現できない場合コンパイルエラーとなる
+        return std::make_pair(std::variant<std::intmax_t, std::uintmax_t, bool>{std::in_place_index<floating_point>, false}, floating_point);
+      }
+      if (ec == std::errc::invalid_argument) {
+        // 入力がおかしい
+        // 8進リテラルに8,9が出て来たときとか
+        return std::make_pair(std::variant<std::intmax_t, std::uintmax_t, bool>{std::in_place_index<floating_point>, false}, floating_point);
+      }
+
+      // 他のエラーは想定されないはず・・・
+      assert(ec == std::errc{});
+
+      // 符号適用
+      num *= sign;
+
+      return std::make_pair(std::variant<std::intmax_t, std::uintmax_t, bool>{std::in_place_index<signed_integral>, num}, signed_integral);
     } else {
       std::uintmax_t num;
-    }
+      auto [ptr, ec] = std::from_chars(start_pos, end_pos, num, base);
 
-    // おわり
+      if (ec == std::errc::result_out_of_range) {
+        // 指定された値が大きすぎる
+        // 拡張整数型ですら表現できない場合コンパイルエラーとなる
+        return std::make_pair(std::variant<std::intmax_t, std::uintmax_t, bool>{std::in_place_index<floating_point>, false}, floating_point);
+      }
+      if (ec == std::errc::invalid_argument) {
+        // 入力がおかしい
+        // 8進リテラルに8,9が出て来たときとか
+        return std::make_pair(std::variant<std::intmax_t, std::uintmax_t, bool>{std::in_place_index<floating_point>, false}, floating_point);
+      }
+
+      // 他のエラーは想定されないはず・・・
+      assert(ec == std::errc{});
+
+      return std::make_pair(std::variant<std::intmax_t, std::uintmax_t, bool>{std::in_place_index<unsigned_integral>, num}, unsigned_integral);
+    }
   }
+
 }
 
 namespace kusabira::PP {
