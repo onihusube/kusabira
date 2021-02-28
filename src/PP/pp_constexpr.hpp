@@ -17,7 +17,6 @@ namespace kusabira::PP::inline free_func{
   fn decode_integral_ppnumber(std::u8string_view input_str, int sign) -> integer_result {
     // 事前条件
     assert(sign == -1 or sign == 1);
-    assert(input_str.length() <= std::numeric_limits<std::uintmax_t>::digits);
 
     using enum pp_parse_context;
 
@@ -25,11 +24,15 @@ namespace kusabira::PP::inline free_func{
     constexpr std::uint8_t signed_integral = 0;
     constexpr std::uint8_t unsigned_integral = 1;
     constexpr std::uint8_t parse_err = 2;
+    // 想定される最大の桁数（2進リテラルの桁数）+ マイナス符号変換用の先頭部分 + 想定されるリテラルサフィックスの最大長（ullの3文字）
+    constexpr auto max_digit = std::numeric_limits<std::uintmax_t>::digits + 1 + 3;
 
     // 前処理用バッファ
-    char numstr[std::numeric_limits<std::uintmax_t>::digits]{};
-    // 数字文字列の長さ
-    std::uint16_t num_length = 0;
+    char numstr[max_digit]{};
+    // 数字文字列の長さ（あとから必要に応じて頭に-を入れるために先頭を予約しておく）
+    std::uint16_t num_length = 1;
+
+    // lLとかLlみたいなサフィックスをはじく必要がある（ToDo
 
     // 桁区切り'を取り除くとともに、大文字を小文字化しておく
     // char8_t(UTF-8)をchar(Ascii)として処理する
@@ -40,28 +43,26 @@ namespace kusabira::PP::inline free_func{
       ++num_length;
     }
 
+    // これが起きたらUDLが長いとしてエラーにする（ToDo
+    assert(num_length <= max_digit);
+
     // 前処理後数字列の終端
     char const* const numstr_end = numstr + num_length;
     // 参照しておく
-    std::string_view numstr_view{ numstr,  numstr_end };
+    std::string_view numstr_view{ numstr + 1,  numstr_end };
 
     // 浮動小数点数判定
     // 16進浮動小数点数には絶対にpが表れる
     if (auto p = std::ranges::find_if(numstr_view, [](char c) { return c == '.' or c == 'p'; }); p != numstr_view.end()) {
       return integer_result{ std::in_place_index<parse_err>, PPConstexpr_FloatingPointNumber };
     }
-    // 小数点の現れないタイプの10進浮動小数点数
-    // 1E-1とか2e+2とか3E-4flみたいな、絶対にeが表れる
-    if (auto e = std::ranges::find_if(numstr_view, [](char c) { return c == 'e'; }); e != numstr_view.end()) {
-      return integer_result{ std::in_place_index<parse_err>, PPConstexpr_FloatingPointNumber };
-    }
 
-    // 抜けたら整数値のはず・・・
+    // まだ1E-1とか2e2みたいな指数表記浮動小数点数が含まれてる可能性がある
 
     // 基数
     std::uint8_t base = 10;
     // 数字本体の開始位置
-    const char *start_pos = std::ranges::data(numstr);
+    char* start_pos = numstr + 1;
 
     // 2 or 8 or 10 or 16進数判定
     if (numstr_view.starts_with("0b")) {
@@ -73,7 +74,19 @@ namespace kusabira::PP::inline free_func{
     } else if (numstr_view.starts_with("0")) {
       base = 8;
       start_pos += 1;
+    } else {
+      // 10進リテラルの時
+
+      // 小数点の現れないタイプの10進浮動小数点数
+      // 1E-1とか2e+2とか3E-4flみたいな、絶対にeが表れる
+      // 16進浮動小数点数リテラルではこれはpになる、それ以外の基数の浮動小数点数リテラルはない
+      // 整数リテラルとしても浮動小数点数リテラルとしてもill-formedなものはトークナイザではじかれるか、ユーザー定義リテラルとして扱われエラーになる（はず
+      if (auto e = std::ranges::find_if(numstr_view, [](char c) { return c == 'e'; }); e != numstr_view.end()) {
+        return integer_result{ std::in_place_index<parse_err>, PPConstexpr_FloatingPointNumber };
+      }
     }
+
+    // 以降、入力は整数値を表しているはず！
 
     // リテラル部を除いた数値の終端を求める
     const char* end_pos = numstr_end;
@@ -82,6 +95,12 @@ namespace kusabira::PP::inline free_func{
       end_pos = std::ranges::find_if_not(start_pos, numstr_end, [](unsigned char ch) -> bool { return std::isxdigit(ch); });
     } else {
       end_pos = std::ranges::find_if_not(start_pos, numstr_end, [](unsigned char ch) -> bool { return std::isdigit(ch); });
+    }
+
+    // 入力が負なら-符号を入れておく
+    if (sign < 0) {
+      --start_pos;
+      *start_pos = '-';
     }
 
     // リテラル判定、ユーザー定義リテラルはエラー
@@ -96,6 +115,7 @@ namespace kusabira::PP::inline free_func{
     
     // 数値頭の+-記号は分けて読まれている
     // 頭に-が付いてたら常に符号付整数
+    // -符号がついてるのに符号なしが指定されたらエラー？
     if (0 <= sign) {
       // -付きのリテラルは想定しなくていい（数値リテラルの値は正であると仮定する）
       
@@ -167,7 +187,7 @@ namespace kusabira::PP::inline free_func{
       assert(ec == std::errc{});
 
       // 符号適用
-      num *= sign;
+      //num *= sign;
 
       return integer_result{ std::in_place_index<signed_integral>, num };
     } else {
