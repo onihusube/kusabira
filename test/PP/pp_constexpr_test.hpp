@@ -48,7 +48,7 @@ namespace kusabira_test::constexpr_test::integral_constant_test {
       // 64bit符号付整数最小値
       auto result = decode_integral_ppnumber(u8"9'223'372'036'854'775'808", -1);
       std::visit(overloaded{
-        [](std::intmax_t num) { CHECK_UNARY(num == 9'223'372'036'854'775'808); },
+        [](std::intmax_t num) { CHECK_UNARY(num == -9'223'372'036'854'775'808); },
         []([[maybe_unused]] auto context) { CHECK_UNARY(false); } }, result);
     }
 
@@ -291,50 +291,94 @@ namespace kusabira_test::constexpr_test::integral_constant_test {
     using kusabira::PP::free_func::decode_integral_ppnumber;
     using kusabira::overloaded;
     using kusabira::PP::pp_parse_context;
-    using enum kusabira::PP::pp_parse_context;
+    //using enum kusabira::PP::pp_parse_context;
 
     // 浮動小数点数リテラル
     {
       auto result = decode_integral_ppnumber(u8"1.0", 1);
       std::visit(overloaded{
-        [](pp_parse_context err) { CHECK_UNARY(err == PPConstexpr_FloatingPointNumber); },
-        []([[maybe_unused]] auto context) { CHECK_UNARY(false); } }, result);
+                     [](pp_parse_context err) { CHECK_EQ(err, pp_parse_context::PPConstexpr_FloatingPointNumber); },
+                     []([[maybe_unused]] auto context) { CHECK_UNARY(false); }},
+                 result);
     }
     {
       auto result = decode_integral_ppnumber(u8"1.0fl", 1);
       std::visit(overloaded{
-        [](pp_parse_context err) { CHECK_UNARY(err == PPConstexpr_FloatingPointNumber); },
-        []([[maybe_unused]] auto context) { CHECK_UNARY(false); } }, result);
+                     [](pp_parse_context err) { CHECK_EQ(err, pp_parse_context::PPConstexpr_FloatingPointNumber); },
+                     []([[maybe_unused]] auto context) { CHECK_UNARY(false); }},
+                 result);
     }
     {
       auto result = decode_integral_ppnumber(u8"0.00001010101", 1);
       std::visit(overloaded{
-        [](pp_parse_context err) { CHECK_UNARY(err == PPConstexpr_FloatingPointNumber); },
-        []([[maybe_unused]] auto context) { CHECK_UNARY(false); } }, result);
+                     [](pp_parse_context err) { CHECK_EQ(err, pp_parse_context::PPConstexpr_FloatingPointNumber); },
+                     []([[maybe_unused]] auto context) { CHECK_UNARY(false); }},
+                 result);
     }
     {
       auto result = decode_integral_ppnumber(u8"0xC.68p+2", 1);
       std::visit(overloaded{
-        [](pp_parse_context err) { CHECK_UNARY(err == PPConstexpr_FloatingPointNumber); },
-        []([[maybe_unused]] auto context) { CHECK_UNARY(false); } }, result);
+                     [](pp_parse_context err) { CHECK_EQ(err, pp_parse_context::PPConstexpr_FloatingPointNumber); },
+                     []([[maybe_unused]] auto context) { CHECK_UNARY(false); }},
+                 result);
     }
     {
       auto result = decode_integral_ppnumber(u8"1E-3", 1);
       std::visit(overloaded{
-        [](pp_parse_context err) { CHECK_UNARY(err == PPConstexpr_FloatingPointNumber); },
-        []([[maybe_unused]] auto context) { CHECK_UNARY(false); } }, result);
+                     [](pp_parse_context err) { CHECK_EQ(err, pp_parse_context::PPConstexpr_FloatingPointNumber); },
+                     []([[maybe_unused]] auto context) { CHECK_UNARY(false); }},
+                 result);
     }
     {
       auto result = decode_integral_ppnumber(u8"234e3", 1);
       std::visit(overloaded{
-        [](pp_parse_context err) { CHECK_UNARY(err == PPConstexpr_FloatingPointNumber); },
-        []([[maybe_unused]] auto context) { CHECK_UNARY(false); } }, result);
+                     [](pp_parse_context err) { CHECK_EQ(err, pp_parse_context::PPConstexpr_FloatingPointNumber); },
+                     []([[maybe_unused]] auto context) { CHECK_UNARY(false); }},
+                 result);
     }
     {
       auto result = decode_integral_ppnumber(u8"3E+4", 1);
       std::visit(overloaded{
-        [](pp_parse_context err) { CHECK_UNARY(err == PPConstexpr_FloatingPointNumber); },
-        []([[maybe_unused]] auto context) { CHECK_UNARY(false); } }, result);
+                     [](pp_parse_context err) { CHECK_EQ(err, pp_parse_context::PPConstexpr_FloatingPointNumber); },
+                     []([[maybe_unused]] auto context) { CHECK_UNARY(false); }},
+                 result);
+    }
+
+    // lL/Llみたいなリテラルサフィックス
+    {
+      auto result = decode_integral_ppnumber(u8"10lL", 1);
+      std::visit(overloaded{
+                     [](pp_parse_context err) { CHECK_EQ(err, pp_parse_context::PPConstexpr_UDL); },
+                     []([[maybe_unused]] auto context) { CHECK_UNARY(false); }},
+                 result);
+    }
+    {
+      auto result = decode_integral_ppnumber(u8"10Ll", 1);
+      std::visit(overloaded{
+                     [](pp_parse_context err) { CHECK_EQ(err, pp_parse_context::PPConstexpr_UDL); },
+                     []([[maybe_unused]] auto context) { CHECK_UNARY(false); }},
+                 result);
+    }
+    {
+      auto result = decode_integral_ppnumber(u8"0xabf759Ll", 1);
+      std::visit(overloaded{
+                     [](pp_parse_context err) { CHECK_EQ(err, pp_parse_context::PPConstexpr_UDL); },
+                     []([[maybe_unused]] auto context) { CHECK_UNARY(false); }},
+                 result);
+    }
+    {
+      auto result = decode_integral_ppnumber(u8"0710lL", 1);
+      std::visit(overloaded{
+                     [](pp_parse_context err) { CHECK_EQ(err, pp_parse_context::PPConstexpr_UDL); },
+                     []([[maybe_unused]] auto context) { CHECK_UNARY(false); }},
+                 result);
+    }
+    {
+      auto result = decode_integral_ppnumber(u8"0b0111Ll", 1);
+      std::visit(overloaded{
+                     [](pp_parse_context err) { CHECK_EQ(err, pp_parse_context::PPConstexpr_UDL); },
+                     []([[maybe_unused]] auto context) { CHECK_UNARY(false); }},
+                 result);
     }
 
     // オーバーフロー
@@ -342,22 +386,25 @@ namespace kusabira_test::constexpr_test::integral_constant_test {
       // 64bit符号なし整数最大値+1
       auto result = decode_integral_ppnumber(u8"18'446'744'073'709'551'616", 1);
       std::visit(overloaded{
-        [](pp_parse_context err) { CHECK_UNARY(err == PPConstexpr_OutOfRange); },
-        []([[maybe_unused]] auto context) { CHECK_UNARY(false); } }, result);
+                     [](pp_parse_context err) { CHECK_EQ(err, pp_parse_context::PPConstexpr_OutOfRange); },
+                     []([[maybe_unused]] auto context) { CHECK_UNARY(false); }},
+                 result);
     }
     {
       // 64bit符号なし整数最大値+1
       auto result = decode_integral_ppnumber(u8"18'446'744'073'709'551'616ull", 1);
       std::visit(overloaded{
-        [](pp_parse_context err) { CHECK_UNARY(err == PPConstexpr_OutOfRange); },
-        []([[maybe_unused]] auto context) { CHECK_UNARY(false); } }, result);
+                     [](pp_parse_context err) { CHECK_EQ(err, pp_parse_context::PPConstexpr_OutOfRange); },
+                     []([[maybe_unused]] auto context) { CHECK_UNARY(false); }},
+                 result);
     }
     {
       // 64bit符号付整数最小値-1
       auto result = decode_integral_ppnumber(u8"9'223'372'036'854'775'809", -1);
       std::visit(overloaded{
-        [](pp_parse_context err) { CHECK_UNARY(err == PPConstexpr_OutOfRange); },
-        []([[maybe_unused]] auto context) { CHECK_UNARY(false); } }, result);
+                     [](pp_parse_context err) { CHECK_EQ(err, pp_parse_context::PPConstexpr_OutOfRange); },
+                     []([[maybe_unused]] auto context) { CHECK_UNARY(false); }},
+                 result);
     }
   }
 

@@ -18,9 +18,9 @@ namespace kusabira::PP::inline free_func{
     // 事前条件
     assert(sign == -1 or sign == 1);
 
-    using enum pp_parse_context;
+    //using enum pp_parse_context;
 
-    constexpr auto npos = std::u8string_view::npos;
+
     constexpr std::uint8_t signed_integral = 0;
     constexpr std::uint8_t unsigned_integral = 1;
     constexpr std::uint8_t parse_err = 2;
@@ -32,7 +32,11 @@ namespace kusabira::PP::inline free_func{
     // 数字文字列の長さ（あとから必要に応じて頭に-を入れるために先頭を予約しておく）
     std::uint16_t num_length = 1;
 
-    // lLとかLlみたいなサフィックスをはじく必要がある（ToDo
+    constexpr auto npos = std::u8string_view::npos;
+    // lLとかLlみたいなサフィックスをはじく
+    if (input_str.rfind(u8"lL") != npos or input_str.rfind(u8"Ll") != npos) {
+      return integer_result{std::in_place_index<parse_err>, pp_parse_context::PPConstexpr_UDL};
+    }
 
     // 桁区切り'を取り除くとともに、大文字を小文字化しておく
     // char8_t(UTF-8)をchar(Ascii)として処理する
@@ -54,7 +58,7 @@ namespace kusabira::PP::inline free_func{
     // 浮動小数点数判定
     // 16進浮動小数点数には絶対にpが表れる
     if (auto p = std::ranges::find_if(numstr_view, [](char c) { return c == '.' or c == 'p'; }); p != numstr_view.end()) {
-      return integer_result{ std::in_place_index<parse_err>, PPConstexpr_FloatingPointNumber };
+      return integer_result{ std::in_place_index<parse_err>, pp_parse_context::PPConstexpr_FloatingPointNumber };
     }
 
     // まだ1E-1とか2e2みたいな指数表記浮動小数点数が含まれてる可能性がある
@@ -82,7 +86,7 @@ namespace kusabira::PP::inline free_func{
       // 16進浮動小数点数リテラルではこれはpになる、それ以外の基数の浮動小数点数リテラルはない
       // 整数リテラルとしても浮動小数点数リテラルとしてもill-formedなものはトークナイザではじかれるか、ユーザー定義リテラルとして扱われエラーになる（はず
       if (auto e = std::ranges::find_if(numstr_view, [](char c) { return c == 'e'; }); e != numstr_view.end()) {
-        return integer_result{ std::in_place_index<parse_err>, PPConstexpr_FloatingPointNumber };
+        return integer_result{std::in_place_index<parse_err>, pp_parse_context::PPConstexpr_FloatingPointNumber};
       }
     }
 
@@ -155,7 +159,7 @@ namespace kusabira::PP::inline free_func{
       
       // エラー報告
       // 10進数字列にabcdefが含まれいた場合もここに来る
-      return integer_result{ std::in_place_index<parse_err>, PPConstexpr_UDL };
+      return integer_result{std::in_place_index<parse_err>, pp_parse_context::PPConstexpr_UDL};
     }
 
   convert_part:
@@ -170,7 +174,7 @@ namespace kusabira::PP::inline free_func{
 
         if (sign < 0) {
           // 拡張整数型ですら表現できない場合コンパイルエラーとなる
-          return integer_result{ std::in_place_index<parse_err>, PPConstexpr_OutOfRange };
+          return integer_result{std::in_place_index<parse_err>, pp_parse_context::PPConstexpr_OutOfRange};
         }
 
         // 数値が正であれば、符号なし整数型として変換を試みる
@@ -180,7 +184,7 @@ namespace kusabira::PP::inline free_func{
       if (ec == std::errc::invalid_argument) {
         // 入力がおかしい
         // 8進リテラルに8,9が出て来たときとか
-        return integer_result{ std::in_place_index<parse_err>, PPConstexpr_InvalidArgument };
+        return integer_result{std::in_place_index<parse_err>, pp_parse_context::PPConstexpr_InvalidArgument};
       }
 
       // 他のエラーは想定されないはず・・・
@@ -197,12 +201,12 @@ namespace kusabira::PP::inline free_func{
       if (ec == std::errc::result_out_of_range) {
         // 指定された値が大きすぎる
         // 拡張整数型ですら表現できない場合コンパイルエラーとなる
-        return integer_result{ std::in_place_index<parse_err>, PPConstexpr_OutOfRange };
+        return integer_result{ std::in_place_index<parse_err>, pp_parse_context::PPConstexpr_OutOfRange };
       }
       if (ec == std::errc::invalid_argument) {
         // 入力がおかしい
         // 8進リテラルに8,9が出て来たときとか
-        return integer_result{ std::in_place_index<parse_err>, PPConstexpr_InvalidArgument };
+        return integer_result{std::in_place_index<parse_err>, pp_parse_context::PPConstexpr_InvalidArgument};
       }
 
       // 他のエラーは想定されないはず・・・
