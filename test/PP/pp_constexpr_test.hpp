@@ -46,9 +46,11 @@ namespace kusabira_test::constexpr_test::integral_constant_test {
     }
     {
       // 64bit符号付整数最小値
+      constexpr auto min64 = std::numeric_limits<std::int64_t>::min();
+
       auto result = decode_integral_ppnumber(u8"9'223'372'036'854'775'808", -1);
       std::visit(overloaded{
-        [](std::intmax_t num) { CHECK_UNARY(num == -9'223'372'036'854'775'808); },
+        [](std::intmax_t num) { CHECK_UNARY(num == min64); },
         []([[maybe_unused]] auto context) { CHECK_UNARY(false); } }, result);
     }
 
@@ -367,6 +369,13 @@ namespace kusabira_test::constexpr_test::integral_constant_test {
                  result);
     }
     {
+      auto result = decode_integral_ppnumber(u8"0xabf759lL", 1);
+      std::visit(overloaded{
+                     [](pp_parse_context err) { CHECK_EQ(err, pp_parse_context::PPConstexpr_UDL); },
+                     []([[maybe_unused]] auto context) { CHECK_UNARY(false); } },
+                     result);
+    }
+    {
       auto result = decode_integral_ppnumber(u8"0710lL", 1);
       std::visit(overloaded{
                      [](pp_parse_context err) { CHECK_EQ(err, pp_parse_context::PPConstexpr_UDL); },
@@ -374,11 +383,25 @@ namespace kusabira_test::constexpr_test::integral_constant_test {
                  result);
     }
     {
+      auto result = decode_integral_ppnumber(u8"0710Ll", 1);
+      std::visit(overloaded{
+                     [](pp_parse_context err) { CHECK_EQ(err, pp_parse_context::PPConstexpr_UDL); },
+                     []([[maybe_unused]] auto context) { CHECK_UNARY(false); } },
+                     result);
+    }
+    {
       auto result = decode_integral_ppnumber(u8"0b0111Ll", 1);
       std::visit(overloaded{
                      [](pp_parse_context err) { CHECK_EQ(err, pp_parse_context::PPConstexpr_UDL); },
                      []([[maybe_unused]] auto context) { CHECK_UNARY(false); }},
                  result);
+    }
+    {
+      auto result = decode_integral_ppnumber(u8"0b0111lL", 1);
+      std::visit(overloaded{
+                     [](pp_parse_context err) { CHECK_EQ(err, pp_parse_context::PPConstexpr_UDL); },
+                     []([[maybe_unused]] auto context) { CHECK_UNARY(false); } },
+                     result);
     }
 
     // オーバーフロー
