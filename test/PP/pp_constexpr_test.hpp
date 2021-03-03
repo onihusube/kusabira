@@ -27,7 +27,7 @@ namespace kusabira_test::constexpr_test::integral_constant_test {
       // 64bit符号なし整数最大値
       auto result = decode_integral_ppnumber(u8"18'446'744'073'709'551'615", 1);
       std::visit(overloaded{
-        [](std::uintmax_t num) { CHECK_UNARY(num == 18'446'744'073'709'551'615); },
+        [](std::uintmax_t num) { CHECK_UNARY(num == 18'446'744'073'709'551'615ull); },
         []([[maybe_unused]] auto context) { CHECK_UNARY(false); } }, result);
     }
     {
@@ -41,8 +41,9 @@ namespace kusabira_test::constexpr_test::integral_constant_test {
       // 64bit符号付整数最大値+1、結果は符号なし整数型で得られる
       auto result = decode_integral_ppnumber(u8"9'223'372'036'854'775'808", 1);
       std::visit(overloaded{
-        [](std::uintmax_t num) { CHECK_UNARY(num == 9'223'372'036'854'775'808); },
-        []([[maybe_unused]] auto context) { CHECK_UNARY(false); } }, result);
+                     [](std::uintmax_t num) { CHECK_UNARY(num == 9'223'372'036'854'775'808ull); },
+                     []([[maybe_unused]] auto context) { CHECK_UNARY(false); }},
+                 result);
     }
     {
       // 64bit符号付整数最小値
@@ -51,6 +52,18 @@ namespace kusabira_test::constexpr_test::integral_constant_test {
       auto result = decode_integral_ppnumber(u8"9'223'372'036'854'775'808", -1);
       std::visit(overloaded{
         [](std::intmax_t num) { CHECK_UNARY(num == min64); },
+        []([[maybe_unused]] auto context) { CHECK_UNARY(false); } }, result);
+    }
+    {
+      auto result = decode_integral_ppnumber(u8"1", 1);
+      std::visit(overloaded{
+        [](std::intmax_t num) { CHECK_UNARY(num == 1); },
+        []([[maybe_unused]] auto context) { CHECK_UNARY(false); } }, result);
+    }
+    {
+      auto result = decode_integral_ppnumber(u8"1", -1);
+      std::visit(overloaded{
+        [](std::intmax_t num) { CHECK_UNARY(num == -1); },
         []([[maybe_unused]] auto context) { CHECK_UNARY(false); } }, result);
     }
 
@@ -67,6 +80,18 @@ namespace kusabira_test::constexpr_test::integral_constant_test {
         [](std::intmax_t num) { CHECK_UNARY(num == -268434108); },
         []([[maybe_unused]] auto context) { CHECK_UNARY(false); } }, result);
     }
+    {
+      auto result = decode_integral_ppnumber(u8"0x0", 1);
+      std::visit(overloaded{
+        [](std::intmax_t num) { CHECK_UNARY(num == 0); },
+        []([[maybe_unused]] auto context) { CHECK_UNARY(false); } }, result);
+    }
+    {
+      auto result = decode_integral_ppnumber(u8"0x0", -1);
+      std::visit(overloaded{
+        [](std::intmax_t num) { CHECK_UNARY(num == 0); },
+        []([[maybe_unused]] auto context) { CHECK_UNARY(false); } }, result);
+    }
 
     // 8進リテラル
     {
@@ -79,6 +104,18 @@ namespace kusabira_test::constexpr_test::integral_constant_test {
       auto result = decode_integral_ppnumber(u8"01234567", -1);
       std::visit(overloaded{
         [](std::intmax_t num) { CHECK_UNARY(num == -342391); },
+        []([[maybe_unused]] auto context) { CHECK_UNARY(false); } }, result);
+    }
+    {
+      auto result = decode_integral_ppnumber(u8"0", 1);
+      std::visit(overloaded{
+        [](std::intmax_t num) { CHECK_UNARY(num == 0); },
+        []([[maybe_unused]] auto context) { CHECK_UNARY(false); } }, result);
+    }
+    {
+      auto result = decode_integral_ppnumber(u8"0", -1);
+      std::visit(overloaded{
+        [](std::intmax_t num) { CHECK_UNARY(num == 0); },
         []([[maybe_unused]] auto context) { CHECK_UNARY(false); } }, result);
     }
 
@@ -398,6 +435,58 @@ namespace kusabira_test::constexpr_test::integral_constant_test {
     }
     {
       auto result = decode_integral_ppnumber(u8"0b0111lL", 1);
+      std::visit(overloaded{
+                     [](pp_parse_context err) { CHECK_EQ(err, pp_parse_context::PPConstexpr_UDL); },
+                     []([[maybe_unused]] auto context) { CHECK_UNARY(false); } },
+                     result);
+    }
+
+    // 10進数のabcdef
+    {
+      auto result = decode_integral_ppnumber(u8"12a", 1);
+      std::visit(overloaded{
+                     [](pp_parse_context err) { CHECK_EQ(err, pp_parse_context::PPConstexpr_UDL); },
+                     []([[maybe_unused]] auto context) { CHECK_UNARY(false); } },
+                     result);
+    }
+    {
+      auto result = decode_integral_ppnumber(u8"12b34", 1);
+      std::visit(overloaded{
+                     [](pp_parse_context err) { CHECK_EQ(err, pp_parse_context::PPConstexpr_UDL); },
+                     []([[maybe_unused]] auto context) { CHECK_UNARY(false); } },
+                     result);
+    }
+    {
+      auto result = decode_integral_ppnumber(u8"12c732398", 1);
+      std::visit(overloaded{
+                     [](pp_parse_context err) { CHECK_EQ(err, pp_parse_context::PPConstexpr_UDL); },
+                     []([[maybe_unused]] auto context) { CHECK_UNARY(false); } },
+                     result);
+    }
+    {
+      auto result = decode_integral_ppnumber(u8"12d", 1);
+      std::visit(overloaded{
+                     [](pp_parse_context err) { CHECK_EQ(err, pp_parse_context::PPConstexpr_UDL); },
+                     []([[maybe_unused]] auto context) { CHECK_UNARY(false); } },
+                     result);
+    }
+    // eが入るとエラーが違う・・・
+    {
+      auto result = decode_integral_ppnumber(u8"12e", 1);
+      std::visit(overloaded{
+                     [](pp_parse_context err) { CHECK_EQ(err, pp_parse_context::PPConstexpr_FloatingPointNumber); },
+                     []([[maybe_unused]] auto context) { CHECK_UNARY(false); }},
+                 result);
+    }
+    {
+      auto result = decode_integral_ppnumber(u8"12defab", 1);
+      std::visit(overloaded{
+                     [](pp_parse_context err) { CHECK_EQ(err, pp_parse_context::PPConstexpr_FloatingPointNumber); },
+                     []([[maybe_unused]] auto context) { CHECK_UNARY(false); }},
+                 result);
+    }
+    {
+      auto result = decode_integral_ppnumber(u8"12f", 1);
       std::visit(overloaded{
                      [](pp_parse_context err) { CHECK_EQ(err, pp_parse_context::PPConstexpr_UDL); },
                      []([[maybe_unused]] auto context) { CHECK_UNARY(false); } },

@@ -77,7 +77,7 @@ namespace kusabira::PP::inline free_func{
       start_pos += 2;
     } else if (numstr_view.starts_with("0")) {
       base = 8;
-      start_pos += 1;
+      //start_pos += 1;
     } else {
       // 10進リテラルの時
 
@@ -167,7 +167,7 @@ namespace kusabira::PP::inline free_func{
     // from_charsに叩き込む
     if (is_signed) {
       std::intmax_t num;
-      auto [ptr, ec] = std::from_chars(start_pos, end_pos, num, base);
+      const auto [_, ec] = std::from_chars(start_pos, end_pos, num, base);
 
       if (ec == std::errc::result_out_of_range) {
         // 指定された値が大きすぎる
@@ -196,7 +196,7 @@ namespace kusabira::PP::inline free_func{
       return integer_result{ std::in_place_index<signed_integral>, num };
     } else {
       std::uintmax_t num;
-      const auto [ptr, ec] = std::from_chars(start_pos, end_pos, num, base);
+      const auto [_, ec] = std::from_chars(start_pos, end_pos, num, base);
 
       if (ec == std::errc::result_out_of_range) {
         // 指定された値が大きすぎる
