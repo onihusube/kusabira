@@ -39,6 +39,8 @@ namespace kusabira::PP {
     PPConstexpr_UDL,                  // #ifの条件式でユーザー定義リテラルがある
     PPConstexpr_OutOfRange,           // #ifの条件式の整数定数が表現しきれないほど大きい
     PPConstexpr_InvalidArgument,      // #ifの条件式の整数リテラルの書式がおかしい（8進リテラルに89があるとか）
+    PPConstexpr_EmptyCharacter,      // #ifの条件式の文字リテラルが空
+    PPConstexpr_MultiCharacter,      // #ifの条件式のマルチキャラクタリテラルを警告
 
     ControlLine,
     Define_No_Identifier,       // #defineの後に識別子が現れなかった
@@ -146,27 +148,28 @@ namespace kusabira::report {
   struct ireporter {
 
     inline static const pp_message_map pp_err_message_en =
-    {
-      {PP::pp_parse_context::Define_No_Identifier, u8"Can't find the macro name in the #define directive."},
-      {PP::pp_parse_context::Define_ParamlistBreak, u8"Line breaks are not allowed in the parameter list of function macro definition."},
-      {PP::pp_parse_context::Define_Duplicate, u8"A macro with the same name has been redefined with a different definition."},
-      {PP::pp_parse_context::Define_Redfined, u8"A different type of macro has been redefined."},
-      {PP::pp_parse_context::Define_Sharp2BothEnd, u8"The ## token must appear inside the replacement list."},
-      {PP::pp_parse_context::Define_InvalidSharp, u8"The # token must appear only before the name of parameter."},
-      {PP::pp_parse_context::Define_InvalidVAARGS, u8"__VA_ARGS__ is referenced even though it is not a variadic arguments macro."},
-      {PP::pp_parse_context::Define_VAOPTRecursive, u8"__VA_OPT__ must not be recursive."},
-      {PP::pp_parse_context::Define_InvalidTokenConcat, u8"Concatenation result by ## is not a valid preprocessing token."},
-      {PP::pp_parse_context::Define_InvalidDirective, u8"Unexpected characters appear in #define directive."},
-      {PP::pp_parse_context::Define_MissingComma, u8"In the parameter sequence of the function macro, other tokens are appearing where commas should appear."},
-      {PP::pp_parse_context::Funcmacro_InsufficientArgs, u8"The number of arguments of the function macro call does not match."},
-      {PP::pp_parse_context::Funcmacro_ReplacementFail, u8"Macro expansion failed to replace the macro contained in the argument."},
-      {PP::pp_parse_context::ControlLine_Undef, u8"Specify the macro name."},
-      {PP::pp_parse_context::ControlLine_Line_Num , u8"The number specified for the #LINE directive is incorrect. Please specify a number in the range of std::size_t."},
-      {PP::pp_parse_context::ControlLine_Line_ManyToken, u8"There is an unnecessary token after the #line directive."},
-      {PP::pp_parse_context::Newline_NotAppear, u8"An unexpected token appears before a line break."},
-      {PP::pp_parse_context::PPConstexpr_MissingCloseParent, u8"Could not find the corresponding closing parenthesis ')'."},
-      {PP::pp_parse_context::PPConstexpr_Invalid, u8"This token cannot be processed by a constant expression during preprocessing."}
-    };
+        {
+            {PP::pp_parse_context::Define_No_Identifier, u8"Can't find the macro name in the #define directive."},
+            {PP::pp_parse_context::Define_ParamlistBreak, u8"Line breaks are not allowed in the parameter list of function macro definition."},
+            {PP::pp_parse_context::Define_Duplicate, u8"A macro with the same name has been redefined with a different definition."},
+            {PP::pp_parse_context::Define_Redfined, u8"A different type of macro has been redefined."},
+            {PP::pp_parse_context::Define_Sharp2BothEnd, u8"The ## token must appear inside the replacement list."},
+            {PP::pp_parse_context::Define_InvalidSharp, u8"The # token must appear only before the name of parameter."},
+            {PP::pp_parse_context::Define_InvalidVAARGS, u8"__VA_ARGS__ is referenced even though it is not a variadic arguments macro."},
+            {PP::pp_parse_context::Define_VAOPTRecursive, u8"__VA_OPT__ must not be recursive."},
+            {PP::pp_parse_context::Define_InvalidTokenConcat, u8"Concatenation result by ## is not a valid preprocessing token."},
+            {PP::pp_parse_context::Define_InvalidDirective, u8"Unexpected characters appear in #define directive."},
+            {PP::pp_parse_context::Define_MissingComma, u8"In the parameter sequence of the function macro, other tokens are appearing where commas should appear."},
+            {PP::pp_parse_context::Funcmacro_InsufficientArgs, u8"The number of arguments of the function macro call does not match."},
+            {PP::pp_parse_context::Funcmacro_ReplacementFail, u8"Macro expansion failed to replace the macro contained in the argument."},
+            {PP::pp_parse_context::ControlLine_Undef, u8"Specify the macro name."},
+            {PP::pp_parse_context::ControlLine_Line_Num, u8"The number specified for the #LINE directive is incorrect. Please specify a number in the range of std::size_t."},
+            {PP::pp_parse_context::ControlLine_Line_ManyToken, u8"There is an unnecessary token after the #line directive."},
+            {PP::pp_parse_context::Newline_NotAppear, u8"An unexpected token appears before a line break."},
+            {PP::pp_parse_context::PPConstexpr_MissingCloseParent, u8"Could not find the corresponding closing parenthesis ')'."},
+            {PP::pp_parse_context::PPConstexpr_Invalid, u8"This token cannot be processed by a constant expression during preprocessing."},
+            {PP::pp_parse_context::PPConstexpr_EmptyCharacter, u8"It is an empty character constant."},
+            {PP::pp_parse_context::PPConstexpr_MultiCharacter, u8"Multicharacter literal use only the last character."}};
 
 //Windowsのみ、コンソール出力のために少し調整を行う
 //コンソールのコードページを変更し、UTF-8を直接出力する
@@ -300,7 +303,9 @@ namespace kusabira::report {
       {PP::pp_parse_context::ControlLine_Line_ManyToken , u8"#lineディレクティブの後に不要なトークンがあります。"},
       {PP::pp_parse_context::Newline_NotAppear, u8"改行の前に予期しないトークンが現れています。"},
       {PP::pp_parse_context::PPConstexpr_MissingCloseParent, u8"対応する閉じ括弧')'が見つかりませんでした。"},
-      {PP::pp_parse_context::PPConstexpr_Invalid, u8"プリプロセス時の定数式ではこのトークンは処理できません。"}
+      {PP::pp_parse_context::PPConstexpr_Invalid, u8"プリプロセス時の定数式ではこのトークンは処理できません。"},
+      {PP::pp_parse_context::PPConstexpr_EmptyCharacter, u8"文字リテラルが空です。"},
+      {PP::pp_parse_context::PPConstexpr_MultiCharacter, u8"マルチキャラクタリテラルは、最後の文字だけが使用されます。"}
     };
 
     fn pp_context_to_message_impl(PP::pp_parse_context context) const -> std::u8string_view override {

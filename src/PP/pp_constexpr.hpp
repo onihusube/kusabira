@@ -14,9 +14,9 @@ namespace kusabira::PP::inline free_func{
 
   using integer_result = std::variant<std::intmax_t, std::uintmax_t, pp_parse_context>;
 
-  fn decode_integral_ppnumber(std::u8string_view input_str, int sign) -> integer_result {
+  fn decode_integral_ppnumber(std::u8string_view input_str) -> integer_result {
     // 事前条件
-    assert(sign == -1 or sign == 1);
+    //assert(sign == -1 or sign == 1);
 
     //using enum pp_parse_context;
 
@@ -25,15 +25,15 @@ namespace kusabira::PP::inline free_func{
     constexpr std::uint8_t unsigned_integral = 1;
     constexpr std::uint8_t parse_err = 2;
     // 想定される最大の桁数（2進リテラルの桁数）+ マイナス符号変換用の先頭部分 + 想定されるリテラルサフィックスの最大長（ullの3文字）
-    constexpr auto max_digit = std::numeric_limits<std::uintmax_t>::digits + 1 + 3;
+    constexpr auto max_digit = std::numeric_limits<std::uintmax_t>::digits + 3;
 
     // 前処理用バッファ
     char numstr[max_digit]{};
-    // 数字文字列の長さ（あとから必要に応じて頭に-を入れるために先頭を予約しておく）
-    std::uint16_t num_length = 1;
+    // 数字文字列の長さ
+    std::uint16_t num_length = 0;
 
     constexpr auto npos = std::u8string_view::npos;
-    // lLとかLlみたいなサフィックスをはじく
+    // lLとかLlみたいなサフィックスをはじく（アルファベット小文字化の前にチェックする必要がある）
     if (input_str.rfind(u8"lL") != npos or input_str.rfind(u8"Ll") != npos) {
       return integer_result{std::in_place_index<parse_err>, pp_parse_context::PPConstexpr_UDL};
     }
@@ -53,7 +53,7 @@ namespace kusabira::PP::inline free_func{
     // 前処理後数字列の終端
     char const* const numstr_end = numstr + num_length;
     // 参照しておく
-    std::string_view numstr_view{ numstr + 1,  numstr_end };
+    std::string_view numstr_view{ numstr,  numstr_end };
 
     // 浮動小数点数判定
     // 16進浮動小数点数には絶対にpが表れる
@@ -66,7 +66,7 @@ namespace kusabira::PP::inline free_func{
     // 基数
     std::uint8_t base = 10;
     // 数字本体の開始位置
-    char* start_pos = numstr + 1;
+    const char* start_pos = numstr;
 
     // 2 or 8 or 10 or 16進数判定
     if (numstr_view.starts_with("0b")) {
@@ -101,12 +101,6 @@ namespace kusabira::PP::inline free_func{
       end_pos = std::ranges::find_if_not(start_pos, numstr_end, [](unsigned char ch) -> bool { return std::isdigit(ch); });
     }
 
-    // 入力が負なら-符号を入れておく
-    if (sign < 0) {
-      --start_pos;
-      *start_pos = '-';
-    }
-
     // リテラル判定、ユーザー定義リテラルはエラー
     // u U
     // l L
@@ -116,51 +110,50 @@ namespace kusabira::PP::inline free_func{
     // 候補は  u l z ul uz lu zu ll ull llu
     // uが入ってれば符号なし、z, l, llは符号付
     bool is_signed = true;
-    
-    // 数値頭の+-記号は分けて読まれている
-    // 頭に-が付いてたら常に符号付整数
-    // -符号がついてるのに符号なしが指定されたらエラー？
-    if (0 <= sign) {
-      // -付きのリテラルは想定しなくていい（数値リテラルの値は正であると仮定する）
-      
-      std::string_view suffix{ end_pos, numstr_end };
+    bool has_signed_suffix = false;
 
-      switch (size(suffix)) {
-      case 0: goto convert_part;
-      case 1:
-        if (suffix == "u") {
-          is_signed = false;
-          goto convert_part;
-        } else if (suffix == "l" or suffix == "z") {
-          goto convert_part;
-        }
-        // エラー
-        break;
-      case 2:
-        if (suffix == "ul" or suffix == "uz" or suffix == "lu" or suffix == "zu") {
-          is_signed = false;
-          goto convert_part;
-        } else if (suffix == "ll") {
-          goto convert_part;
-        }
-        // エラー
-        break;
-      case 3:
-        if (suffix == "ull" or suffix == "llu") {
-          is_signed = false;
-          goto convert_part;
-        }
-        // エラー
-        break;
-      default:
-        // エラー
-        break;
+    // 数値頭の+-記号は分けて読まれている、その適用は後から
+    // -付きのリテラルは想定しなくていい（数値リテラルの値は正であると仮定する）
+
+    std::string_view suffix{ end_pos, numstr_end };
+
+    switch (size(suffix)) {
+    case 0: goto convert_part;
+    case 1:
+      if (suffix == "u") {
+        is_signed = false;
+        goto convert_part;
+      } else if (suffix == "l" or suffix == "z") {
+        has_signed_suffix = true;
+        goto convert_part;
       }
-      
-      // エラー報告
-      // 10進数字列にabcdefが含まれいた場合もここに来る
-      return integer_result{std::in_place_index<parse_err>, pp_parse_context::PPConstexpr_UDL};
+      // エラー
+      break;
+    case 2:
+      if (suffix == "ul" or suffix == "uz" or suffix == "lu" or suffix == "zu") {
+        is_signed = false;
+        goto convert_part;
+      } else if (suffix == "ll") {
+        has_signed_suffix = true;
+        goto convert_part;
+      }
+      // エラー
+      break;
+    case 3:
+      if (suffix == "ull" or suffix == "llu") {
+        is_signed = false;
+        goto convert_part;
+      }
+      // エラー
+      break;
+    default:
+      // エラー
+      break;
     }
+    
+    // エラー報告
+    // 10進数字列にabcdefが含まれいた場合もここに来る
+    return integer_result{std::in_place_index<parse_err>, pp_parse_context::PPConstexpr_UDL};
 
   convert_part:
 
@@ -172,12 +165,12 @@ namespace kusabira::PP::inline free_func{
       if (ec == std::errc::result_out_of_range) {
         // 指定された値が大きすぎる
 
-        if (sign < 0) {
+        if (has_signed_suffix) {
           // 拡張整数型ですら表現できない場合コンパイルエラーとなる
           return integer_result{std::in_place_index<parse_err>, pp_parse_context::PPConstexpr_OutOfRange};
         }
 
-        // 数値が正であれば、符号なし整数型として変換を試みる
+        // 符号付きサフィックスがなく数値が正であれば、符号なし整数型として変換を試みる
         is_signed = false;
         goto convert_part;
       }
@@ -189,9 +182,6 @@ namespace kusabira::PP::inline free_func{
 
       // 他のエラーは想定されないはず・・・
       assert(ec == std::errc{});
-
-      // 符号適用
-      //num *= sign;
 
       return integer_result{ std::in_place_index<signed_integral>, num };
     } else {
@@ -220,7 +210,8 @@ namespace kusabira::PP::inline free_func{
 
 namespace kusabira::PP {
 
-  using pp_constexpr_result = kusabira::expected<std::int64_t, bool>;
+  using pp_constexpr_result = kusabira::expected<std::variant<std::intmax_t, std::uintmax_t>, bool>;
+  //using pp_constexpr_result = kusabira::expected<std::intmax_t, bool>;
 
   /**
   * @brief プリプロセッシングディレクティブの実行に必要な程度の定数式を処理する
@@ -254,34 +245,58 @@ namespace kusabira::PP {
       ++it;
       assert(it == last);
 
-      auto num = *std::move(succeed);
-
       // 0 == false, それ以外 == true
-      return num != 0;
+      return std::visit([](std::integral auto n) -> bool { return n != 0; }, *std::move(succeed));
     }
 
-    template<std::input_iterator I, std::sentinel_for<I> S>
+    template<std::forward_iterator I, std::sentinel_for<I> S>
     fn conditional_expression(I& it, S last) const -> pp_constexpr_result {
       return this->primary_expressions(it, last);
     }
 
     
     
-    template<std::input_iterator I, std::sentinel_for<I> S>
+    template<std::forward_iterator I, std::sentinel_for<I> S>
     fn primary_expressions(I& it, S last) const -> pp_constexpr_result {
       // 考慮すべきはliteralと(conditional-expression)の2種類
 
       const auto token_cat = deref(it).category;
 
       // 整数型と文字型を考慮
-      if (token_cat == pp_token_category::pp_number or token_cat == pp_token_category::charcter_literal) {
+      if (token_cat == pp_token_category::pp_number) {
         // pp_numberの読み取り
         // 整数値のみがwell-formed、浮動小数点数値はエラー
+        auto val = decode_integral_ppnumber(deref(it).token);
 
-        return kusabira::ok(0);
+        return std::visit<pp_constexpr_result>(overloaded{
+                                                   []<std::integral Int>(Int n) {
+                                                     return kusabira::ok(std::variant<std::intmax_t, std::uintmax_t>{std::in_place_type<Int>, n});
+                                                   },
+                                                   [this, &it](pp_parse_context err_context) {
+                                                     this->err_report(*it, err_context);
+                                                     return kusabira::error(false);
+                                                   }},
+                                               std::move(val));
+      } else if (token_cat == pp_token_category::charcter_literal) {
+        auto token_str = deref(it).token.to_view();
+
+        if (empty(token_str)) {
+          // 空の文字リテラル、エラー
+          this->err_report(*it, pp_parse_context::PPConstexpr_EmptyCharacter);
+          return kusabira::error(false);
+        }
+        if (1 < size(token_str)) {
+          // マルチキャラクタリテラルに関する警告を表示、エラーにはしない?
+          this->reporter.pp_err_report(this->filename, *it, pp_parse_context::PPConstexpr_MultiCharacter, report::report_category::warning);
+        }
+
+        // マルチキャラクタリテラル対応のために、最後の文字を取り出す
+        char8_t c = token_str.back();
+
+        return kusabira::ok(std::variant<std::intmax_t, std::uintmax_t>{std::in_place_index<0>, static_cast<int>(c)});
       }
 
-      // ()に囲まれた式の考慮
+      // ()に囲まれた式
       else if (token_cat == pp_token_category::op_or_punc and deref(it).token == u8"(") {
         auto succeed = this->conditional_expression(it, last);
 
@@ -299,9 +314,7 @@ namespace kusabira::PP {
           return kusabira::error(false);
         }
 
-        auto num = *std::move(succeed);
-
-        return kusabira::ok(num);
+        return kusabira::ok(std::move(succeed));
       }
 
       // それ以外の出現はエラー
