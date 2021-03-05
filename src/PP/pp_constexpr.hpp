@@ -216,6 +216,9 @@ namespace kusabira::PP {
   /**
   * @brief プリプロセッシングディレクティブの実行に必要な程度の定数式を処理する
   * @details C++の意味論で解釈される構文は考慮しなくて良い
+  * @details トークンの消費責任は常に呼び出し側にある
+  * @details 内部で再帰的にパース処理を呼び出すときは消費してから呼び出す
+  * @details 一方、処理を終えて戻るときは消費しきらずに戻る
   */
   template<typename Reporter>
   struct pp_constexpr {
@@ -227,11 +230,18 @@ namespace kusabira::PP {
       this->reporter.pp_err_report(this->filename, token, context);
     }
 
-    template<std::ranges::forward_range Tokens>
+    template<std::bidirectional_iterator I>
+    auto reach_end(I it) const {
+      --it;
+      this->err_report(*it, pp_parse_context::PPConstexpr_Invalid);
+      return kusabira::error(false);
+    }
+
+    template<std::ranges::bidirectional_range Tokens>
       requires std::same_as<std::iter_value_t<std::ranges::iterator_t<Tokens>>, pp_token>
     fn operator()(const Tokens& token_list) const -> std::optional<bool> {
       // 事前条件、空でないこと
-      assert(empty(token_list));
+      assert(not empty(token_list));
 
       auto it = std::ranges::begin(token_list);
       auto last = std::ranges::end(token_list);
@@ -249,16 +259,20 @@ namespace kusabira::PP {
       return std::visit([](std::integral auto n) -> bool { return n != 0; }, *std::move(succeed));
     }
 
-    template<std::forward_iterator I, std::sentinel_for<I> S>
+    template<std::bidirectional_iterator I, std::sentinel_for<I> S>
     fn conditional_expression(I& it, S last) const -> pp_constexpr_result {
       return this->primary_expressions(it, last);
     }
 
     
     
-    template<std::forward_iterator I, std::sentinel_for<I> S>
+    template<std::bidirectional_iterator I, std::sentinel_for<I> S>
     fn primary_expressions(I& it, S last) const -> pp_constexpr_result {
       // 考慮すべきはliteralと(conditional-expression)の2種類
+
+      if (it == last) {
+        return this->reach_end(it);
+      }
 
       const auto token_cat = deref(it).category;
 
@@ -280,36 +294,37 @@ namespace kusabira::PP {
       } else if (token_cat == pp_token_category::charcter_literal) {
         auto token_str = deref(it).token.to_view();
 
-        if (empty(token_str)) {
+        if (auto len = size(token_str); len < 3) {
           // 空の文字リテラル、エラー
           this->err_report(*it, pp_parse_context::PPConstexpr_EmptyCharacter);
           return kusabira::error(false);
-        }
-        if (1 < size(token_str)) {
+        } else if (3 < len) {
           // マルチキャラクタリテラルに関する警告を表示、エラーにはしない?
           this->reporter.pp_err_report(this->filename, *it, pp_parse_context::PPConstexpr_MultiCharacter, report::report_category::warning);
         }
 
         // マルチキャラクタリテラル対応のために、最後の文字を取り出す
-        char8_t c = token_str.back();
+        // ToDo:エスケープシーケンス考慮が必要
+        char8_t c = *std::ranges::prev(token_str.end(), 2);
 
         return kusabira::ok(std::variant<std::intmax_t, std::uintmax_t>{std::in_place_index<0>, static_cast<int>(c)});
       }
 
       // ()に囲まれた式
       else if (token_cat == pp_token_category::op_or_punc and deref(it).token == u8"(") {
+        
+        // "("を消費してから、中身を読みに行く
+        ++it;
         auto succeed = this->conditional_expression(it, last);
 
         if (not succeed) return kusabira::error(false);
 
-        const auto before_it = it;
         ++it;
 
         // 対応する閉じ括弧が出現していない
-        if (it == last) {
-          this->err_report(*before_it, pp_parse_context::PPConstexpr_MissingCloseParent);
-          return kusabira::error(false);
-        } else if (deref(it).token != u8")") {
+        if (it == last or deref(it).token != u8")") {
+          if (it == last) --it;
+
           this->err_report(*it, pp_parse_context::PPConstexpr_MissingCloseParent);
           return kusabira::error(false);
         }
@@ -322,4 +337,7 @@ namespace kusabira::PP {
       return kusabira::error(false);
     }
   };
+
+  template<typename R>
+  pp_constexpr(R&) -> pp_constexpr<R>;
 }

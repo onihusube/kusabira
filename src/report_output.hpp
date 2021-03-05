@@ -149,6 +149,7 @@ namespace kusabira::report {
 
     inline static const pp_message_map pp_err_message_en =
         {
+            {PP::pp_parse_context::UnexpectedEOF, u8"Unexpected EOF."},
             {PP::pp_parse_context::Define_No_Identifier, u8"Can't find the macro name in the #define directive."},
             {PP::pp_parse_context::Define_ParamlistBreak, u8"Line breaks are not allowed in the parameter list of function macro definition."},
             {PP::pp_parse_context::Define_Duplicate, u8"A macro with the same name has been redefined with a different definition."},
@@ -285,6 +286,7 @@ namespace kusabira::report {
 
     inline static const pp_message_map pp_err_message_ja =
     {
+      {PP::pp_parse_context::UnexpectedEOF, u8"予期しないEOFです。"},
       {PP::pp_parse_context::Define_No_Identifier, u8"#defineディレクティブ中にマクロ名が見つかりません。"},
       {PP::pp_parse_context::Define_ParamlistBreak, u8"関数マクロ定義の仮引数リストの中では改行できません.。"},
       {PP::pp_parse_context::Define_Duplicate, u8"同じ名前のマクロが異なる定義で再定義されました。"},

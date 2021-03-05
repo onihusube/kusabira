@@ -2,6 +2,7 @@
 
 #include "doctest/doctest.h"
 #include "src/PP/pp_constexpr.hpp"
+#include "test/PP/pp_paser_test.hpp"
 
 // 網羅するのキビシイので問題になったら適宜追加していく方針で・・・
 namespace kusabira_test::constexpr_test::integral_constant_test {
@@ -459,14 +460,81 @@ namespace kusabira_test::constexpr_test::integral_constant_test {
                      []([[maybe_unused]] auto context) { CHECK_UNARY(false); }},
                  result);
     }
-    /*{
-      // 64bit符号付整数最小値-1
-      auto result = decode_integral_ppnumber(u8"9'223'372'036'854'775'809", -1);
-      std::visit(overloaded{
-                     [](pp_parse_context err) { CHECK_EQ(err, pp_parse_context::PPConstexpr_OutOfRange); },
-                     []([[maybe_unused]] auto context) { CHECK_UNARY(false); }},
-                 result);
-    }*/
   }
 
+}
+
+
+namespace kusabira_test::cpp_constexpr_test {
+
+  namespace fs = std::filesystem;
+  using kusabira::PP::logical_line;
+  using kusabira::PP::pp_token;
+  using kusabira::PP::pp_token_category;
+  using namespace std::string_view_literals;
+
+  TEST_CASE("pp_constexpr parse test") {
+    auto reporter = kusabira::report::reporter_factory<kusabira_test::report::test_out>::create();
+    kusabira::PP::pp_constexpr ce_calc{*reporter, fs::path("cpp_constexpr_test.hpp")};
+
+    //論理行保持コンテナ
+    std::pmr::forward_list<logical_line> ll{};
+    auto pos = ll.before_begin();
+    pos = ll.emplace_after(pos, 0, 0);
+
+    // 単純なリテラル
+    {
+      std::vector<pp_token> token_seq{};
+      token_seq.emplace_back(pp_token_category::pp_number, u8"0", 0, pos);
+
+      auto opt = ce_calc(token_seq);
+
+      CHECK_UNARY(opt);
+      CHECK_UNARY_FALSE(*opt);
+    }
+    // 文字リテラル
+    {
+      std::vector<pp_token> token_seq{};
+      token_seq.emplace_back(pp_token_category::charcter_literal, u8"'a'", 0, pos);
+
+      auto opt = ce_calc(token_seq);
+
+      CHECK_UNARY(opt);
+      CHECK_UNARY(*opt);
+
+      /*token_seq.clear();
+      token_seq.emplace_back(pp_token_category::charcter_literal, u8"'\0'", 0, pos);
+
+      auto opt = ce_calc(token_seq);
+
+      CHECK_UNARY(opt);
+      CHECK_UNARY_FALSE(*opt);*/
+    }
+
+    // ()に囲まれた式
+    {
+      std::vector<pp_token> token_seq{};
+      token_seq.emplace_back(pp_token_category::op_or_punc, u8"(", 0, pos);
+      token_seq.emplace_back(pp_token_category::pp_number, u8"1", 1, pos);
+      token_seq.emplace_back(pp_token_category::op_or_punc, u8")", 2, pos);
+
+      auto opt = ce_calc(token_seq);
+
+      CHECK_UNARY(opt);
+      CHECK_UNARY(*opt);
+    }
+    {
+      std::vector<pp_token> token_seq{};
+      token_seq.emplace_back(pp_token_category::op_or_punc, u8"(", 0, pos);
+      token_seq.emplace_back(pp_token_category::op_or_punc, u8"(", 1, pos);
+      token_seq.emplace_back(pp_token_category::pp_number, u8"1", 2, pos);
+      token_seq.emplace_back(pp_token_category::op_or_punc, u8")", 3, pos);
+      token_seq.emplace_back(pp_token_category::op_or_punc, u8")", 4, pos);
+
+      auto opt = ce_calc(token_seq);
+
+      CHECK_UNARY(opt);
+      CHECK_UNARY(*opt);
+    }
+  }
 }
