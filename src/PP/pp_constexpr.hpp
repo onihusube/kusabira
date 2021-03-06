@@ -206,6 +206,43 @@ namespace kusabira::PP::inline free_func{
     }
   }
 
+
+  ifn character_literal_to_integral(std::u8string_view input_str) -> std::pair<int, pp_parse_context> {
+    // 事前条件
+    assert(not empty(input_str));
+    assert(input_str.back() == u8'\'');
+
+    // 'の次の位置
+    const auto start_pos = input_str.find_first_of(u8'\'') + 1;
+    // 閉じの'は含めない
+    auto char_str = input_str.substr(start_pos, input_str.length() - start_pos - 1);
+    // encoding-prefixはソース文字集合から指定した実行時文字集合へ変換する指定なので無視でいい（？
+    //auto prefix_str = input_str.substr(0, start_pos - 1);
+
+    if (empty(char_str)) {
+      // 空の文字リテラル、エラー
+      return { -1, pp_parse_context::PPConstexpr_EmptyCharacter };
+    }
+    
+    if (size(char_str) == 1) {
+      // 単純な文字リテラル
+      // UTF-8エンコーディングであり、その値を整数値として読み取り
+      return { char_str.front(), {} };
+    }
+
+    if (not char_str.find('\\')) {
+      // エスケープシーケンスのないマルチキャラクタリテラル
+      return { char_str.back(), pp_parse_context::PPConstexpr_MultiCharacter };
+    }
+
+    // ここでは、エスケープシーケンスを含んだマルチキャラクタリテラル、か1つのエスケープシーケンス、かのどちらか
+    // 一番最後に現れるバックスラッシュを探索し、その位置からエスケープシーケンスの読み取りを試みる
+    // 1. 読み終わり、文字の残りもなければそのエスケープシーケンスをデコードして終わり
+    // 2. 途中でエスケープシーケンスが終わりなお文字が残っていたら（それは1文字のはず）、その1文字をデコードする
+    // 1の場合にエスケープシーケンスの位置が先頭でないならマルチキャラクタリテラル
+    // 2の場合は常にマルチキャラクタリテラル
+
+  }
 }
 
 namespace kusabira::PP {
@@ -338,6 +375,6 @@ namespace kusabira::PP {
     }
   };
 
-  template<typename R>
-  pp_constexpr(R&) -> pp_constexpr<R>;
+  template<typename R, typename P>
+  pp_constexpr(R&, P&&) -> pp_constexpr<R>;
 }
