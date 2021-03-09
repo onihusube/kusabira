@@ -227,12 +227,15 @@ namespace kusabira::PP::inline free_func{
     if (size(char_str) == 1) {
       // 単純な文字リテラル
       // UTF-8エンコーディングであり、その値を整数値として読み取り
-      return { char_str.front(), {} };
+      return { static_cast<int>(char_str.front()), {} };
     }
 
-    if (not char_str.find('\\')) {
+    constexpr auto npos = std::u8string_view::npos;
+    auto esc_pos = char_str.find_last_of('\\');
+
+    if (esc_pos == npos) {
       // エスケープシーケンスのないマルチキャラクタリテラル
-      return { char_str.back(), pp_parse_context::PPConstexpr_MultiCharacter };
+      return { static_cast<int>(char_str.back()), pp_parse_context::PPConstexpr_MultiCharacter };
     }
 
     // ここでは、エスケープシーケンスを含んだマルチキャラクタリテラル、か1つのエスケープシーケンス、かのどちらか
@@ -242,6 +245,60 @@ namespace kusabira::PP::inline free_func{
     // 1の場合にエスケープシーケンスの位置が先頭でないならマルチキャラクタリテラル
     // 2の場合は常にマルチキャラクタリテラル
 
+    if (char_str[esc_pos - 1] == u8'\\') {
+      // バックスラッシュのエスケープを拾う
+      esc_pos -= 1;
+    }
+    auto esc_char = char_str.substr(esc_pos + 1);
+
+    if (size(esc_char) == 1) {
+      // エスケープシーケンスが1文字しかないなら普通のやつ
+      // 8進エスケープシーケンス、あるいは単純エスケープシーケンス
+      // 条件付きエスケープシーケンスもここ
+      const auto c = esc_char.front();
+
+      if (u8'0' <= c and c <= u8'7') {
+        // 1桁の8進エスケープシーケンス
+        // 0~7の数値に変換
+        int num = c - u8'0';
+        return {num, {}};
+      }
+
+      switch (c) {
+      case u8'\a':
+        return {7, {}};
+      case u8'\b':
+        return {8, {}};
+      case u8'\t':
+        return {9, {}};
+      case u8'\n':
+        return {10, {}};
+      case u8'\v':
+        return {11, {}};
+      case u8'\f':
+        return {12, {}};
+      case u8'\r':
+        return {13, {}};
+      case u8'\'': [[fallthrough]];
+      case u8'\"': [[fallthrough]];
+      case u8'\?': [[fallthrough]];
+      case u8'\\': [[fallthrough]];
+      default:
+        // 条件付きエスケープシーケンス
+        return {static_cast<int>(c), {}};
+      }
+    }
+    // 2文字以上あるなら、16進エスケープシーケンスか8進エスケープシーケンス
+    // もしくはエスケープシーケンスの後に何か文字があるケース
+    if (esc_char.front() == u8'x') {
+      // 16進エスケープシーケンス
+    } else {
+      // 2~3桁の8進エスケープシーケンス
+      
+    }
+
+    // エスケープシーケンスの後に何か文字があった
+    return {static_cast<int>(esc_char.back()), {}};
   }
 }
 
