@@ -520,6 +520,21 @@ namespace pp_automaton_test
       CHECK_UNARY(res != pp_token_category::Unaccepted);
       CHECK_EQ(res, kusabira::PP::pp_token_category::pp_number);
     }
+
+    {
+      kusabira::PP::pp_tokenizer_sm sm{};
+
+      CHECK_UNARY_FALSE(sm.input_char(u8'0') != pp_token_category::Unaccepted);
+      CHECK_UNARY_FALSE(sm.input_char(u8'x') != pp_token_category::Unaccepted);
+      CHECK_UNARY_FALSE(sm.input_char(u8'e') != pp_token_category::Unaccepted);
+      CHECK_UNARY_FALSE(sm.input_char(u8'-') != pp_token_category::Unaccepted);
+      CHECK_UNARY_FALSE(sm.input_char(u8'0') != pp_token_category::Unaccepted);
+      CHECK_UNARY_FALSE(sm.input_char(u8'x') != pp_token_category::Unaccepted);
+      CHECK_UNARY_FALSE(sm.input_char(u8'e') != pp_token_category::Unaccepted);
+      auto res = sm.input_char(u8' ');
+      CHECK_UNARY(res != pp_token_category::Unaccepted);
+      CHECK_EQ(res, kusabira::PP::pp_token_category::pp_number);
+    }
   }
 
   TEST_CASE("input newline test") {
